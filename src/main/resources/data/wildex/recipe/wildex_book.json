@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "LBL",
+    " F ",
+    " F "
+  ],
+  "key": {
+    "L": { "item": "minecraft:leather" },
+    "B": { "item": "minecraft:book" },
+    "F": { "item": "minecraft:feather" }
+  },
+  "result": {
+    "id": "wildex:wildex_book",
+    "count": 1
+  }
+}
