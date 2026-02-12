@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 - 2026-02-12
+
+### Fixed
+- Added `wildex:wildex_book` to the vanilla `Tools & Utilities` creative tab so JEI can list the item and show its crafting recipe reliably.
+
+
 ## 1.1.0 - 2026-02-12
 
 ### Added

@@ -9,6 +9,7 @@ import de.coldfang.wildex.network.WildexKillSyncEvents;
 import de.coldfang.wildex.network.WildexNetwork;
 import de.coldfang.wildex.network.WildexSpyglassDiscoveryEvents;
 import de.coldfang.wildex.network.WildexSpyglassPulseEvents;
+import de.coldfang.wildex.registry.WildexCreativeTabEvents;
 import de.coldfang.wildex.registry.ModItems;
 import de.coldfang.wildex.server.WildexCompletionSyncOnJoinEvents;
 import de.coldfang.wildex.world.WildexGiveBookOnFirstJoinEvents;
@@ -30,6 +31,7 @@ public class Wildex {
     public Wildex(IEventBus modEventBus, ModContainer modContainer) {
 
         ModItems.ITEMS.register(modEventBus);
+        modEventBus.addListener(WildexCreativeTabEvents::onBuildCreativeTabContents);
 
         modEventBus.register(WildexNetwork.class);
 
