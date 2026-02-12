@@ -8,16 +8,16 @@ import org.jetbrains.annotations.NotNull;
 
 public final class WildexStyleButton extends Button {
 
-    private static final int FRAME_BG = 0x22FFFFFF;
-    private static final int FRAME_OUTER = 0x88301E14;
-    private static final int FRAME_INNER = 0x55FFFFFF;
+    private static final int FRAME_BG = 0x3AFFFFFF;
+    private static final int FRAME_OUTER = 0x99D6B89C;
+    private static final int FRAME_INNER = 0x77FFFFFF;
 
-    private static final int FILL_IDLE = 0x22000000;
-    private static final int FILL_HOVER = 0x33000000;
+    private static final int FILL_IDLE = 0x33140E0A;
+    private static final int FILL_HOVER = 0x55231811;
     private static final int FILL_DISABLED = 0x16000000;
 
-    private static final int INK = 0x2B1A10;
-    private static final int INK_DISABLED = 0x7A2B1A10;
+    private static final int INK = 0xFFEFDCC7;
+    private static final int INK_DISABLED = 0x99C8B8A7;
     private static final int TEXT_Y_OFFSET = 1;
 
     private final Runnable action;
