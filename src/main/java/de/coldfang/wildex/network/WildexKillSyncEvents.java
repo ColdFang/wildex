@@ -2,6 +2,7 @@ package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.server.WildexCompletionHelper;
+import de.coldfang.wildex.server.WildexProgressHooks;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import de.coldfang.wildex.world.WildexWorldPlayerKillData;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -25,19 +26,23 @@ public final class WildexKillSyncEvents {
         Entity src = event.getSource().getEntity();
         if (!(src instanceof ServerPlayer sp)) return;
 
-        if (!(sp.level() instanceof ServerLevel level)) return;
+        if (!(sp.level() instanceof ServerLevel serverLevel)) return;
 
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(dead.getType());
 
-        int kills = WildexWorldPlayerKillData.get(level).increment(sp.getUUID(), id);
+        int kills = WildexWorldPlayerKillData.get(serverLevel).increment(sp.getUUID(), id);
 
         if (CommonConfig.INSTANCE.hiddenMode.get()) {
-            WildexWorldPlayerDiscoveryData disc = WildexWorldPlayerDiscoveryData.get(level);
+            WildexWorldPlayerDiscoveryData disc = WildexWorldPlayerDiscoveryData.get(serverLevel);
 
             boolean newlyDiscovered = disc.markDiscovered(sp.getUUID(), id);
             if (newlyDiscovered) {
                 PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobPayload(id));
-                WildexCompletionHelper.onMobDiscovered(level, sp);
+                boolean newlyCompleted = WildexCompletionHelper.markCompleteIfEligible(serverLevel, sp);
+                WildexProgressHooks.onDiscoveryChanged(sp, id);
+                if (newlyCompleted) {
+                    WildexCompletionHelper.notifyCompleted(sp);
+                }
             }
         }
 

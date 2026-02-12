@@ -43,7 +43,7 @@ public final class WildexWorldPlayerCooldownData extends SavedData {
         }
 
         Long prev = spyglassPulseCooldownEnd.put(playerId, endGameTime);
-        if (prev == null || prev.longValue() != endGameTime) setDirty();
+        if (prev == null || prev != endGameTime) setDirty();
     }
 
     private static WildexWorldPlayerCooldownData load(CompoundTag tag, HolderLookup.Provider provider) {
@@ -71,12 +71,11 @@ public final class WildexWorldPlayerCooldownData extends SavedData {
 
     @Override
     @NotNull
-    @SuppressWarnings("NullableProblems")
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    public CompoundTag save(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider provider) {
         if (!spyglassPulseCooldownEnd.isEmpty()) {
             CompoundTag root = new CompoundTag();
             for (var e : spyglassPulseCooldownEnd.entrySet()) {
-                root.put(e.getKey().toString(), LongTag.valueOf(e.getValue().longValue()));
+                root.put(e.getKey().toString(), LongTag.valueOf(e.getValue()));
             }
             tag.put(SPYGLASS_PULSE_KEY, root);
         }

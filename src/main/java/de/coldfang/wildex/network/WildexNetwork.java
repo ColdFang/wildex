@@ -9,6 +9,7 @@ import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.server.WildexCompletionHelper;
+import de.coldfang.wildex.server.WildexProgressHooks;
 import de.coldfang.wildex.server.loot.WildexLootExtractor;
 import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
 import de.coldfang.wildex.util.WildexMobFilters;
@@ -115,7 +116,11 @@ public final class WildexNetwork {
                     if (!newly) return;
 
                     PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobPayload(mobId));
-                    WildexCompletionHelper.onMobDiscovered(serverLevel, sp);
+                    boolean newlyCompleted = WildexCompletionHelper.markCompleteIfEligible(serverLevel, sp);
+                    WildexProgressHooks.onDiscoveryChanged(sp, mobId);
+                    if (newlyCompleted) {
+                        WildexCompletionHelper.notifyCompleted(sp);
+                    }
                 })
         );
 

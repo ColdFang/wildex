@@ -66,6 +66,8 @@ public final class WildexDiscoveryEffectClient {
     }
 
     private static void spawnTickParticles(Minecraft mc, Entity e, RandomSource rng) {
+        if (mc == null || mc.level == null || e == null || rng == null) return;
+
         double x = e.getX();
         double y = e.getY() + (e.getBbHeight() * 0.55);
         double z = e.getZ();

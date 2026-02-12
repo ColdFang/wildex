@@ -82,8 +82,7 @@ public final class WildexCompletionFxClient {
 
     private static float clamp01(float v) {
         if (v < 0.0f) return 0.0f;
-        if (v > 1.0f) return 1.0f;
-        return v;
+        return Math.min(v, 1.0f);
     }
 
     private static float smoothstep(float x) {

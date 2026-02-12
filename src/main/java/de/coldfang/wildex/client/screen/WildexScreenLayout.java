@@ -159,7 +159,6 @@ public final class WildexScreenLayout {
         int ay = (leftContentY + searchH + actionGap) + Math.round(ACTION_ROW_SHIFT_Y * scale);
         Area actionArea = new Area(ax, ay, leftContentW, actionH);
 
-        int counterTexX = (leftX0 + CONTENT_PAD_X + (leftX1 - leftX0 - CONTENT_PAD_X - SPINE_SAFE_PAD)) + COUNTER_SHIFT_X;
         int counterTexY = (contentTop + CONTENT_PAD_Y) + COUNTER_OFFSET_Y + COUNTER_SHIFT_Y;
 
         int counterAnchorY = texToScreenY(y, scale, counterTexY);
@@ -271,9 +270,7 @@ public final class WildexScreenLayout {
     }
 
     private static int clamp(int v, int min, int max) {
-        if (v < min) return min;
-        if (v > max) return max;
-        return v;
+        return Math.max(min, Math.min(v, max));
     }
 
     private static Area areaFromTex(float baseX, float baseY, float scale, int texX, int texY, int texW, int texH) {

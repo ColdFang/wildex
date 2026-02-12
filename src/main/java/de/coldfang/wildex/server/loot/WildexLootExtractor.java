@@ -108,7 +108,7 @@ public final class WildexLootExtractor {
 
         try {
             LootTable table = server.reloadableRegistries().getLootTable(key);
-            return table == null ? LootTable.EMPTY : table;
+            return table;
         } catch (Throwable t) {
             return LootTable.EMPTY;
         }

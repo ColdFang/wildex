@@ -1,6 +1,6 @@
 package de.coldfang.wildex.client.data;
 
-import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.util.WildexMobFilters;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -11,24 +11,16 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Predicate;
 
 public final class WildexMobIndexModel {
-
-    private static final String EXCLUDED_NAMESPACE = "cobblehelper";
 
     private final List<EntityType<?>> all;
     private List<EntityType<?>> filtered;
 
     private String query = "";
-
-    private boolean onlyDiscovered = false;
-    private Predicate<ResourceLocation> isDiscovered = null;
 
     public WildexMobIndexModel() {
         this.all = loadAll();
@@ -37,7 +29,7 @@ public final class WildexMobIndexModel {
 
     public void setQuery(String query) {
         this.query = normalize(query);
-        this.filtered = applyFilter(this.all, this.query, this.onlyDiscovered, this.isDiscovered);
+        this.filtered = applyFilter(this.all, this.query);
     }
 
     public int totalCount() {
@@ -59,17 +51,11 @@ public final class WildexMobIndexModel {
         }
 
         Level level = mc.level;
-        Set<String> excluded = buildExcludedNamespaces();
 
         List<EntityType<?>> list = new ArrayList<>();
 
         for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
-            if (type == EntityType.PLAYER) continue;
-            if (type == EntityType.GIANT) continue;
-            if (type == EntityType.ILLUSIONER) continue;
-
-            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-            if (excluded.contains(id.getNamespace())) continue;
+            if (!WildexMobFilters.isTrackable(type)) continue;
 
             if (!isMobType(type, level)) continue;
             list.add(type);
@@ -77,19 +63,6 @@ public final class WildexMobIndexModel {
 
         list.sort(Comparator.comparing(WildexMobIndexModel::idString));
         return List.copyOf(list);
-    }
-
-    private static Set<String> buildExcludedNamespaces() {
-        Set<String> out = new HashSet<>();
-        out.add(EXCLUDED_NAMESPACE);
-
-        List<? extends String> cfg = CommonConfig.INSTANCE.excludedModIds.get();
-        for (String s : cfg) {
-            String ns = normalize(s);
-            if (!ns.isBlank()) out.add(ns);
-        }
-
-        return out;
     }
 
     private static boolean isMobType(EntityType<?> type, Level level) {
@@ -103,28 +76,21 @@ public final class WildexMobIndexModel {
 
     private static List<EntityType<?>> applyFilter(
             List<EntityType<?>> base,
-            String query,
-            boolean onlyDiscovered,
-            Predicate<ResourceLocation> isDiscovered
+            String query
     ) {
-        if ((query == null || query.isBlank()) && !onlyDiscovered) return base;
+        if (query.isBlank()) return base;
 
-        ParsedQuery pq = parseQuery(query == null ? "" : query);
+        ParsedQuery pq = parseQuery(query);
 
         boolean hasText = !pq.textQuery.isBlank();
         boolean hasMods = !pq.modPrefixes.isEmpty();
 
-        if (!hasText && !hasMods && !onlyDiscovered) return base;
+        if (!hasText && !hasMods) return base;
 
         List<EntityType<?>> out = new ArrayList<>();
 
         for (EntityType<?> type : base) {
             ResourceLocation rl = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-
-            if (onlyDiscovered) {
-                if (isDiscovered == null) continue;
-                if (!isDiscovered.test(rl)) continue;
-            }
 
             if (hasMods) {
                 String ns = rl.getNamespace();

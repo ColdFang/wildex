@@ -67,6 +67,82 @@ Available options include:
 
 ---
 
+## Integrations (FTB Quests / KubeJS)
+
+Wildex exposes progress into the vanilla scoreboard so quest and script mods can use it directly.
+
+### Scoreboard Objectives
+
+- `wildex_discovered` = discovered entries (integer)
+- `wildex_total` = total trackable entries (integer)
+- `wildex_percent` = completion percent scaled `0..10000` (50.00% = `5000`)
+- `wildex_complete` = completion flag (`0` or `1`)
+
+These values are synced on player login and on Wildex progress updates (discovery/completion).
+
+### FTB Quests Examples
+
+- "Reach 50% Wildex completion" -> check `wildex_percent >= 5000`
+- "Complete the Wildex" -> check `wildex_complete >= 1`
+
+### KubeJS Notes
+
+KubeJS can read the same objectives from player scoreboard data to gate stages, rewards, or commands.
+
+### KubeJS Bridge Events (for addon/pack integrations)
+
+Wildex now provides a stable bridge contract for direct KubeJS-style progress events.
+
+- `wildex.discovery_changed`
+- `wildex.completed`
+
+Payload fields:
+
+- `apiVersion` (`1`)
+- `playerUuid` (string UUID)
+- `playerName` (string)
+- `mobId` (string, discovery event only; `null` for completed event)
+- `discovered` (int)
+- `total` (int)
+- `percentScaled` (int, `0..10000`)
+- `isComplete` (boolean)
+
+Important:
+
+- Scoreboard integration works immediately and is the recommended baseline for quests/scripts.
+- Direct bridge event handling can be used from KubeJS startup scripts via the built-in Wildex script bridge.
+- Bridge emits can be toggled with `kubejsBridgeEnabled` in the common config.
+
+Example (`kubejs/startup_scripts/wildex_bridge.js`):
+
+```js
+const Bridge = Java.loadClass('de.coldfang.wildex.integration.kubejs.WildexKubeJsScriptBridge')
+
+Bridge.onDiscoveryChanged(payload => {
+  console.log(`[Wildex] Discovery: ${payload.playerName} -> ${payload.mobId} (${payload.percentScaled}/10000)`)
+})
+
+Bridge.onCompleted(payload => {
+  console.log(`[Wildex] Completed: ${payload.playerName}`)
+})
+```
+
+### API Surface (for addon integrations)
+
+- `de.coldfang.wildex.api.WildexApi#getDiscoveredCount(ServerPlayer)`
+- `de.coldfang.wildex.api.WildexApi#getTotalCount(ServerLevel)`
+- `de.coldfang.wildex.api.WildexApi#getCompletionPercentScaled(ServerPlayer)`
+- `de.coldfang.wildex.api.WildexApi#isComplete(ServerPlayer)`
+
+### API Events
+
+- `de.coldfang.wildex.api.event.WildexDiscoveryChangedEvent`
+- `de.coldfang.wildex.api.event.WildexCompletedEvent`
+
+Thanks to Reddit user `u/NeuroPalooza` for the integration feature suggestion.
+
+---
+
 ## Performance & Compatibility
 
 - No constant world scanning
@@ -85,6 +161,9 @@ Designed with **mod compatibility first**:
 
 - **Minecraft**: 1.21.1
 - **NeoForge**: 21.1.219+
+- **KubeJS bridge tested with**:
+  - KubeJS `2101.7.2-build.348`
+  - Rhino `2101.2.7-build.81`
 
 ---
 

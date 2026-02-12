@@ -9,6 +9,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Objects;
@@ -127,15 +128,15 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     @Override
-    protected void renderListBackground(GuiGraphics graphics) {
+    protected void renderListBackground(@NotNull GuiGraphics graphics) {
     }
 
     @Override
-    protected void renderListSeparators(GuiGraphics graphics) {
+    protected void renderListSeparators(@NotNull GuiGraphics graphics) {
     }
 
     @Override
-    protected void renderSelection(GuiGraphics graphics, int y, int rowWidth, int itemHeight, int borderColor, int innerColor) {
+    protected void renderSelection(@NotNull GuiGraphics graphics, int y, int rowWidth, int itemHeight, int borderColor, int innerColor) {
     }
 
     private void syncSelectedIdFromSelected() {
@@ -195,7 +196,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         }
 
         @Override
-        public Component getNarration() {
+        public @NotNull Component getNarration() {
             return this.name;
         }
 
@@ -209,7 +210,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
         @Override
         public void render(
-                GuiGraphics graphics,
+                @NotNull GuiGraphics graphics,
                 int index,
                 int y,
                 int x,

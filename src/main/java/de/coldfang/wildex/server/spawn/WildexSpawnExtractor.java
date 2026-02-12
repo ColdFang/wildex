@@ -51,7 +51,7 @@ public final class WildexSpawnExtractor {
 
             for (Holder<Biome> h : src.possibleBiomes()) {
                 Biome b = h.value();
-                if (!spawnsIn(b, type)) continue;
+                if (isAbsentIn(b, type)) continue;
 
                 ResourceLocation biomeId = level.registryAccess()
                         .registryOrThrow(Registries.BIOME)
@@ -86,7 +86,7 @@ public final class WildexSpawnExtractor {
             if (!h.is(biomeTag)) continue;
 
             Biome b = h.value();
-            if (!spawnsIn(b, type)) continue;
+            if (isAbsentIn(b, type)) continue;
 
             ResourceLocation biomeId = h.key().location();
             out.computeIfAbsent(dimId, k -> new LinkedHashSet<>()).add(biomeId);
@@ -102,16 +102,16 @@ public final class WildexSpawnExtractor {
         }
     }
 
-    private static boolean spawnsIn(Biome biome, EntityType<?> type) {
+    private static boolean isAbsentIn(Biome biome, EntityType<?> type) {
         MobSpawnSettings s = biome.getMobSettings();
         for (MobCategory cat : MobCategory.values()) {
             try {
                 for (MobSpawnSettings.SpawnerData d : s.getMobs(cat).unwrap()) {
-                    if (d.type == type) return true;
+                    if (d.type == type) return false;
                 }
             } catch (Throwable ignored) {
             }
         }
-        return false;
+        return true;
     }
 }

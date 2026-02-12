@@ -18,6 +18,17 @@ public final class WildexMobFilters {
     }
 
     public static boolean isTrackable(ResourceLocation id) {
+        return isTrackableId(id);
+    }
+
+    public static boolean isTrackable(EntityType<?> type) {
+        if (type == null) return false;
+        if (type == EntityType.PLAYER) return false;
+        ResourceLocation id = EntityType.getKey(type);
+        return isTrackableId(id);
+    }
+
+    private static boolean isTrackableId(ResourceLocation id) {
         if (id == null) return false;
 
         if (GIANT.equals(id)) return false;
@@ -27,7 +38,7 @@ public final class WildexMobFilters {
         if (EXCLUDED_NAMESPACE_DEFAULT.equals(ns)) return false;
 
         List<? extends String> cfg = CommonConfig.INSTANCE.excludedModIds.get();
-        if (cfg == null || cfg.isEmpty()) return true;
+        if (cfg.isEmpty()) return true;
 
         String full = id.toString();
 
@@ -44,13 +55,6 @@ public final class WildexMobFilters {
         }
 
         return true;
-    }
-
-    public static boolean isTrackable(EntityType<?> type) {
-        if (type == null) return false;
-        if (type == EntityType.PLAYER) return false;
-        ResourceLocation id = EntityType.getKey(type);
-        return isTrackable(id);
     }
 
     private static boolean isFullId(String s) {

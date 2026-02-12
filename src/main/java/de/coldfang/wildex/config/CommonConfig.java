@@ -20,6 +20,7 @@ public final class CommonConfig {
     public final ModConfigSpec.BooleanValue giveBookOnFirstJoin;
 
     public final ModConfigSpec.BooleanValue debugMode;
+    public final ModConfigSpec.BooleanValue kubejsBridgeEnabled;
 
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedModIds;
 
@@ -41,6 +42,14 @@ public final class CommonConfig {
         debugMode = builder
                 .comment("Enable Debug Mode: allows manual discovery of mobs via UI (hidden mode only)")
                 .define("debugMode", false);
+
+        kubejsBridgeEnabled = builder
+                .comment(
+                        "Enable Wildex KubeJS bridge emits (discovery/completed).\n"
+                                + "Keep this enabled for normal use.\n"
+                                + "Disable only for troubleshooting or if a modpack/addon has compatibility issues with KubeJS event handling."
+                )
+                .define("kubejsBridgeEnabled", true);
 
         excludedModIds = builder
                 .comment(

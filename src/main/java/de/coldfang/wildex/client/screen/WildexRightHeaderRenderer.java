@@ -28,6 +28,8 @@ public final class WildexRightHeaderRenderer {
     private static final int MARQUEE_GAP_PX = 18;
     private static final float MARQUEE_SPEED_PX_PER_SEC = 22.0f;
     private static final int MARQUEE_PAUSE_MS = 650;
+    private static final String LABEL_YOU_KILLED = "You killed:";
+    private static final String LABEL_MOD = "Mod:";
 
     public void render(
             GuiGraphics g,
@@ -88,11 +90,11 @@ public final class WildexRightHeaderRenderer {
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
             int kills = WildexKillCache.getOrRequest(mobRl);
-            y = drawLinePlain(g, font, padX, y, maxW, "You killed:", Component.literal(Integer.toString(kills)), inkColor, lineGap);
+            y = drawKillsLine(g, font, padX, y, maxW, Component.literal(Integer.toString(kills)), inkColor, lineGap);
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
             String modName = resolveModName(mobRl);
-            drawLineMarqueeValue(g, font, x0, y0, s, padX, y, maxW, "Mod:", Component.literal(modName), inkColor, lineGap, phase ^ 0x5A5A);
+            drawModLineMarqueeValue(g, font, x0, y0, s, padX, y, maxW, Component.literal(modName), inkColor, phase ^ 0x5A5A);
 
             g.pose().popPose();
         } finally {
@@ -104,8 +106,7 @@ public final class WildexRightHeaderRenderer {
         if (h <= 0) return MIN_SCALE;
         if (h >= COMPACT_THRESHOLD_H) return 1.0f;
         float s = (float) h / (float) COMPACT_THRESHOLD_H;
-        if (s < MIN_SCALE) return MIN_SCALE;
-        return s;
+        return Math.max(s, MIN_SCALE);
     }
 
     private static int toLogical(int px, float s) {
@@ -143,8 +144,8 @@ public final class WildexRightHeaderRenderer {
         return off;
     }
 
-    private static int drawLinePlain(GuiGraphics g, Font font, int x, int y, int maxW, String label, Component value, int inkColor, int lineGap) {
-        String left = label + " ";
+    private static int drawLinePlainWithLabel(GuiGraphics g, Font font, int x, int y, int maxW, String leftLabel, Component value, int inkColor, int lineGap) {
+        String left = leftLabel + " ";
         int leftW = font.width(left);
 
         String val = value == null ? "" : value.getString();
@@ -176,12 +177,13 @@ public final class WildexRightHeaderRenderer {
             int lineGap,
             int phase
     ) {
+        int lineStep = lineStep(font, lineGap);
         String val = value == null ? "" : value.getString();
         int w = font.width(val);
 
         if (w <= maxW) {
             g.drawString(font, val, x, y, inkColor, false);
-            return y + Math.max(10, font.lineHeight + lineGap);
+            return y + lineStep;
         }
 
         int clipX0 = toScreenX(baseX, scale, x);
@@ -199,7 +201,7 @@ public final class WildexRightHeaderRenderer {
             g.disableScissor();
         }
 
-        return y + Math.max(10, font.lineHeight + lineGap);
+        return y + lineStep;
     }
 
     private static void drawLineMarqueeValue(
@@ -211,13 +213,11 @@ public final class WildexRightHeaderRenderer {
             int x,
             int y,
             int maxW,
-            String label,
             Component value,
             int inkColor,
-            int lineGap,
             int phase
     ) {
-        String left = label + " ";
+        String left = LABEL_MOD + " ";
         int leftW = font.width(left);
 
         String val = value == null ? "" : value.getString();
@@ -247,6 +247,40 @@ public final class WildexRightHeaderRenderer {
         } finally {
             g.disableScissor();
         }
+
+    }
+
+    private static int drawKillsLine(
+            GuiGraphics g,
+            Font font,
+            int x,
+            int y,
+            int maxW,
+            Component value,
+            int inkColor,
+            int lineGap
+    ) {
+        return drawLinePlainWithLabel(g, font, x, y, maxW, LABEL_YOU_KILLED, value, inkColor, lineGap);
+    }
+
+    private static void drawModLineMarqueeValue(
+            GuiGraphics g,
+            Font font,
+            int baseX,
+            int baseY,
+            float scale,
+            int x,
+            int y,
+            int maxW,
+            Component value,
+            int inkColor,
+            int phase
+    ) {
+        drawLineMarqueeValue(g, font, baseX, baseY, scale, x, y, maxW, value, inkColor, phase);
+    }
+
+    private static int lineStep(Font font, int lineGap) {
+        return Math.max(10, font.lineHeight + lineGap);
     }
 
     private static int drawDivider(GuiGraphics g, int x, int right, int yAfterLine, int yMax, int gapTop, int gapBottom) {

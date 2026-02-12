@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Consumer;
 
@@ -40,10 +41,6 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
         return checked;
     }
 
-    public void setChecked(boolean checked) {
-        this.checked = checked;
-    }
-
     public Component tooltip() {
         return tooltip;
     }
@@ -54,19 +51,14 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
         if (!this.active || !this.visible) return false;
         if (!this.isMouseOver(mouseX, mouseY)) return false;
 
-        this.onClick(mouseX, mouseY);
+        this.checked = !this.checked;
+        this.onChange.accept(this.checked);
+        this.setFocused(false);
         return true;
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
-        this.checked = !this.checked;
-        this.onChange.accept(this.checked);
-        this.setFocused(false);
-    }
-
-    @Override
-    protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    protected void renderWidget(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         int x0 = getX();
         int y0 = getY();
         int x1 = x0 + getWidth();

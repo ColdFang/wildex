@@ -9,6 +9,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -83,11 +84,10 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
         return receivedBook.contains(player);
     }
 
-    public boolean markReceivedBook(UUID player) {
-        if (player == null) return false;
+    public void markReceivedBook(UUID player) {
+        if (player == null) return;
         boolean added = receivedBook.add(player);
         if (added) setDirty();
-        return added;
     }
 
     private static WildexWorldPlayerDiscoveryData load(CompoundTag tag, HolderLookup.Provider provider) {
@@ -129,7 +129,7 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
 
             for (int i = 0; i < list.size(); i++) {
                 ResourceLocation rl = ResourceLocation.tryParse(list.getString(i));
-                if (rl != null && WildexMobFilters.isTrackable(rl)) set.add(rl);
+                if (WildexMobFilters.isTrackable(rl)) set.add(rl);
             }
 
             if (!set.isEmpty()) {
@@ -141,7 +141,8 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    @NotNull
+    public CompoundTag save(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider provider) {
         for (Map.Entry<UUID, Set<ResourceLocation>> e : discovered.entrySet()) {
             ListTag list = new ListTag();
             for (ResourceLocation rl : e.getValue()) {

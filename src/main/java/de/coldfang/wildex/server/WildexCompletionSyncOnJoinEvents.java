@@ -19,6 +19,8 @@ public final class WildexCompletionSyncOnJoinEvents {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         if (!(sp.level() instanceof ServerLevel level)) return;
 
+        WildexScoreboardBridge.syncPlayer(sp);
+
         boolean complete = WildexWorldPlayerDiscoveryData.get(level).isComplete(sp.getUUID());
         PacketDistributor.sendToPlayer(sp, new S2CWildexCompleteStatusPayload(complete));
     }

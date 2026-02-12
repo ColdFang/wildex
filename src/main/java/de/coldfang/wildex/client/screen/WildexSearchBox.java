@@ -4,6 +4,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.NotNull;
 
 public final class WildexSearchBox extends EditBox {
 
@@ -21,7 +22,7 @@ public final class WildexSearchBox extends EditBox {
     }
 
     @Override
-    public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    public void renderWidget(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         int x0 = this.getX();
         int y0 = this.getY();
         int x1 = x0 + this.getWidth();

@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
@@ -49,7 +50,7 @@ public final class WildexDiscoveryToast implements Toast {
     }
 
     @Override
-    public Visibility render(GuiGraphics g, ToastComponent toastComponent, long timeSinceLastVisible) {
+    public @NotNull Visibility render(@NotNull GuiGraphics g, @NotNull ToastComponent toastComponent, long timeSinceLastVisible) {
         drawFrame(g);
 
         Minecraft mc = Minecraft.getInstance();
@@ -62,10 +63,10 @@ public final class WildexDiscoveryToast implements Toast {
         }
 
         if (cachedEntity != null) {
-            renderEntityOnToast(g, ICON_CENTER_X, ICON_BOTTOM_Y, cachedEntity, computeYaw(timeSinceLastVisible));
+            renderEntityOnToast(g, cachedEntity, computeYaw(timeSinceLastVisible));
         }
 
-        renderWrappedTitle(g, mc.font, title, TEXT_X, TEXT_Y, W - TEXT_X - 6);
+        renderWrappedTitle(g, mc.font, title);
 
         return timeSinceLastVisible >= DURATION_MS ? Visibility.HIDE : Visibility.SHOW;
     }
@@ -74,7 +75,10 @@ public final class WildexDiscoveryToast implements Toast {
         return ((float) timeSinceLastVisibleMs / 1000.0f * ROT_SPEED_DEG_PER_SEC) % 360.0f;
     }
 
-    private static void renderWrappedTitle(GuiGraphics g, Font font, Component title, int x, int y, int maxW) {
+    private static void renderWrappedTitle(GuiGraphics g, Font font, Component title) {
+        int x = TEXT_X;
+        int y = TEXT_Y;
+        int maxW = W - TEXT_X - 6;
         String s = title == null ? "" : title.getString();
         if (s.isBlank()) return;
 
@@ -171,7 +175,7 @@ public final class WildexDiscoveryToast implements Toast {
         g.fill(W - 2, 1, W - 1, H - 1, FRAME_INNER);
     }
 
-    private static void renderEntityOnToast(GuiGraphics g, int centerX, int bottomY, Entity entity, float yaw) {
+    private static void renderEntityOnToast(GuiGraphics g, Entity entity, float yaw) {
         Minecraft mc = Minecraft.getInstance();
 
         float bbH = Math.max(0.01f, entity.getBbHeight());
@@ -200,7 +204,7 @@ public final class WildexDiscoveryToast implements Toast {
         entity.setXRot(DISPLAY_PITCH);
 
         g.pose().pushPose();
-        g.pose().translate(ICON_PAD_L + centerX, bottomY, 50.0f);
+        g.pose().translate(ICON_PAD_L + ICON_CENTER_X, ICON_BOTTOM_Y, 50.0f);
         g.pose().scale(scale, scale, scale);
         g.pose().mulPose(Axis.ZP.rotationDegrees(180.0f));
         g.pose().mulPose(Axis.YP.rotationDegrees(180.0f));

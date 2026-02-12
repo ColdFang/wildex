@@ -58,7 +58,7 @@ public final class WildexMobPreviewRenderer {
         if (scrollDelta == 0.0) return;
         if (scrollDelta > 0.0) zoom *= ZOOM_STEP;
         else zoom /= ZOOM_STEP;
-        zoom = clamp(zoom, ZOOM_MIN, ZOOM_MAX);
+        zoom = clampZoom(zoom);
     }
 
     public void resetZoom() {
@@ -370,7 +370,7 @@ public final class WildexMobPreviewRenderer {
         clearCachedEntity();
     }
 
-    private static float clamp(float v, float min, float max) {
-        return Math.max(min, Math.min(v, max));
+    private static float clampZoom(float v) {
+        return Math.max(ZOOM_MIN, Math.min(v, ZOOM_MAX));
     }
 }

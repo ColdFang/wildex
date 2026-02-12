@@ -109,6 +109,7 @@ public final class WildexRightInfoRenderer {
     }
 
     private static final Map<ResourceLocation, Dims> DIMS_CACHE = new HashMap<>();
+    private static final Dims EMPTY_DIMS = new Dims(OptionalDouble.empty(), OptionalDouble.empty());
     private static int spawnScrollPx = 0;
 
     public void resetSpawnScroll() {
@@ -268,8 +269,7 @@ public final class WildexRightInfoRenderer {
         if (h <= 0) return MIN_SCALE;
         float s = (float) h / (float) TARGET_MIN_H;
         if (s >= 1.0f) return 1.0f;
-        if (s < MIN_SCALE) return MIN_SCALE;
-        return s;
+        return Math.max(s, MIN_SCALE);
     }
 
     private static int toLogical(int px, float s) {
@@ -294,10 +294,8 @@ public final class WildexRightInfoRenderer {
         int textW = Math.max(1, rightLimitX - textX);
 
         int shown = 0;
-        for (int i = 0; i < lines.size(); i++) {
+        for (S2CMobLootPayload.LootLine l : lines) {
             if (y + ITEM_ICON > maxY) break;
-
-            S2CMobLootPayload.LootLine l = lines.get(i);
             ResourceLocation itemId = l.itemId();
             Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
             if (item == null) continue;
@@ -380,12 +378,9 @@ public final class WildexRightInfoRenderer {
 
         if (contentH > viewportH) {
             int barX0 = rightLimitX - SCROLLBAR_W;
-            int barX1 = rightLimitX;
-
-            int barY0 = yTop;
             int barY1 = yTop + viewportH;
 
-            g.fill(barX0, barY0, barX1, barY1, SCROLLBAR_BG);
+            g.fill(barX0, yTop, rightLimitX, barY1, SCROLLBAR_BG);
 
             float ratio = viewportH / (float) contentH;
             int thumbH = Math.max(8, (int) Math.floor(viewportH * ratio));
@@ -395,10 +390,10 @@ public final class WildexRightInfoRenderer {
             float t = spawnScrollPx / (float) denom;
 
             int travel = viewportH - thumbH;
-            int thumbY0 = barY0 + (int) Math.round(travel * t);
+            int thumbY0 = yTop + Math.round(travel * t);
             int thumbY1 = thumbY0 + thumbH;
 
-            g.fill(barX0, thumbY0, barX1, thumbY1, SCROLLBAR_THUMB);
+            g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
         }
     }
 
@@ -606,25 +601,25 @@ public final class WildexRightInfoRenderer {
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Move Speed:", fmtOpt(s.movementSpeed()), inkColor, line);
+        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Move Speed:", fmtOpt(s.movementSpeed()), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("The base movement speed of the mob.");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Attack Damage:", fmtOpt(s.attackDamage()), inkColor, line);
+        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Attack Damage:", fmtOpt(s.attackDamage()), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("Damage dealt by the mob’s melee attacks.");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Follow Range:", fmtOptWithUnit(s.followRange(), "blocks"), inkColor, line);
+        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Follow Range:", fmtOptWithUnit(s.followRange(), "blocks"), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("The maximum distance at which the mob can detect and track targets.");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Knockback Res:", fmtOpt(s.knockbackResistance()), inkColor, line);
+        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Knockback Res:", fmtOpt(s.knockbackResistance()), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines(
                     "Reduces the knockback applied when the mob is hit.",
@@ -635,13 +630,13 @@ public final class WildexRightInfoRenderer {
         Dims dims = resolveDims(selectedMobId);
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Hitbox Height:", fmtOptWithUnit(dims.hitboxHeight(), "blocks"), inkColor, line);
+        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Hitbox Height:", fmtOptWithUnit(dims.hitboxHeight(), "blocks"), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("The vertical size of the mob’s collision box.");
         }
 
         y0 = y;
-        drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, "Eye Height:", fmtOptWithUnit(dims.eyeHeight(), "blocks"), inkColor, line);
+        drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Eye Height:", fmtOptWithUnit(dims.eyeHeight(), "blocks"), inkColor, line);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines(
                     "The height of the mob’s viewpoint.",
@@ -722,22 +717,22 @@ public final class WildexRightInfoRenderer {
         int tx = x0 + TIP_PAD;
         int ty = y0 + TIP_PAD;
 
-        for (int i = 0; i < wrapped.size(); i++) {
-            g.drawString(font, wrapped.get(i), tx, ty, TIP_TEXT, false);
+        for (FormattedCharSequence line : wrapped) {
+            g.drawString(font, line, tx, ty, TIP_TEXT, false);
             ty += font.lineHeight + TIP_LINE_GAP;
         }
     }
 
     private static Dims resolveDims(String selectedMobId) {
         ResourceLocation rl = selectedMobId == null ? null : ResourceLocation.tryParse(selectedMobId);
-        if (rl == null) return new Dims(OptionalDouble.empty(), OptionalDouble.empty());
+        if (rl == null) return EMPTY_DIMS;
 
         Dims cached = DIMS_CACHE.get(rl);
         if (cached != null) return cached;
 
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(rl).orElse(null);
         if (type == null) {
-            Dims out = new Dims(OptionalDouble.empty(), OptionalDouble.empty());
+            Dims out = EMPTY_DIMS;
             DIMS_CACHE.put(rl, out);
             return out;
         }
@@ -915,7 +910,6 @@ public final class WildexRightInfoRenderer {
             Font font,
             int x,
             int y,
-            int labelColW,
             int valueX,
             int rightLimitX,
             int maxY,

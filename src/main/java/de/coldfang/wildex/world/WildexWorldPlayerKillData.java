@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,7 +71,8 @@ public final class WildexWorldPlayerKillData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
+    @NotNull
+    public CompoundTag save(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider provider) {
         for (Map.Entry<UUID, Map<ResourceLocation, Integer>> playerEntry : kills.entrySet()) {
             CompoundTag playerTag = new CompoundTag();
 

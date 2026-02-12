@@ -1,5 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.Wildex;
 import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
@@ -17,6 +18,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.EntityType;
+import net.neoforged.fml.ModList;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +66,14 @@ public final class WildexScreen extends Screen {
     private static final int TIP_LINE_GAP = 2;
     private static final int TIP_MAX_W = 170;
 
+    private static final int STYLE_BUTTON_W = 56;
+    private static final int STYLE_BUTTON_H = 14;
+    private static final int STYLE_BUTTON_MARGIN = 6;
+    private static final int STYLE_BUTTON_Y_OFFSET = 2;
+
+    private static final float VERSION_SCALE = 0.55f;
+    private static final int VERSION_COLOR = 0x55301E14;
+
     private final WildexScreenState state = new WildexScreenState();
     private final WildexBookRenderer renderer = new WildexBookRenderer();
     private final WildexMobPreviewRenderer mobPreviewRenderer = new WildexMobPreviewRenderer();
@@ -76,7 +87,6 @@ public final class WildexScreen extends Screen {
 
     private WildexSearchBox searchBox;
     private MobListWidget mobList;
-    private RightTabsWidget rightTabs;
     private MobPreviewResetButton previewResetButton;
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
 
@@ -84,6 +94,7 @@ public final class WildexScreen extends Screen {
 
     private WildexTab lastTab = WildexTab.STATS;
     private int lastDiscoveryCount = -1;
+    private final String versionLabel = resolveVersionLabel();
 
     public WildexScreen() {
         super(TITLE);
@@ -93,14 +104,13 @@ public final class WildexScreen extends Screen {
     protected void init() {
         this.layout = WildexScreenLayout.compute(this.width, this.height);
 
-        int btnW = 56;
-        int btnH = 14;
-        int btnX = this.width - btnW - 6;
-        int btnY = 6;
+        int btnW = STYLE_BUTTON_W;
+        int btnX = this.width - btnW - STYLE_BUTTON_MARGIN;
+        int btnY = STYLE_BUTTON_MARGIN + STYLE_BUTTON_Y_OFFSET;
 
         this.clearWidgets();
 
-        this.addRenderableWidget(new WildexStyleButton(btnX, btnY, btnW, btnH, () -> {
+        this.addRenderableWidget(new WildexStyleButton(btnX, btnY, btnW, STYLE_BUTTON_H, () -> {
             DesignStyle next = nextStyle(ClientConfig.INSTANCE.designStyle.get());
             ClientConfig.INSTANCE.designStyle.set(next);
             ClientConfig.SPEC.save();
@@ -177,8 +187,7 @@ public final class WildexScreen extends Screen {
         }
 
         WildexScreenLayout.Area tabsArea = layout.rightTabsArea();
-        this.rightTabs = new RightTabsWidget(tabsArea.x(), tabsArea.y(), tabsArea.w(), tabsArea.h(), this.state);
-        this.addRenderableWidget(this.rightTabs);
+        this.addRenderableWidget(new RightTabsWidget(tabsArea.x(), tabsArea.y(), tabsArea.w(), tabsArea.h(), this.state));
 
         WildexScreenLayout.Area resetArea = layout.previewResetButtonArea();
         this.previewResetButton = new MobPreviewResetButton(
@@ -309,12 +318,13 @@ public final class WildexScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void renderBackground(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderer.render(graphics, layout, state, mouseX, mouseY, partialTick);
+        renderVersionLabel(graphics);
 
         WildexScreenLayout.Area entriesArea = layout.leftEntriesCounterArea();
         String entriesText = "Entries: " + (this.visibleEntries == null ? 0 : this.visibleEntries.size());
@@ -392,13 +402,33 @@ public final class WildexScreen extends Screen {
             if (tip != null) graphics.renderTooltip(this.font, tip, mouseX, mouseY);
         }
 
-        if (trophyDrawn && isMouseOverRect(mouseX, mouseY, trophyX, trophyY, TROPHY_DRAW_SIZE, TROPHY_DRAW_SIZE)) {
+        if (trophyDrawn && isMouseOverRect(mouseX, mouseY, trophyX, trophyY)) {
             renderWildexTooltip(graphics, TROPHY_TOOLTIP, mouseX, mouseY);
         }
     }
 
+    private void renderVersionLabel(GuiGraphics graphics) {
+        if (this.versionLabel.isBlank()) return;
+
+        int btnX = this.width - STYLE_BUTTON_W - STYLE_BUTTON_MARGIN;
+        int btnY = STYLE_BUTTON_MARGIN + STYLE_BUTTON_Y_OFFSET;
+
+        int scaledTextW = Math.max(1, Math.round(this.font.width(this.versionLabel) * VERSION_SCALE));
+        int scaledTextH = Math.max(1, Math.round(this.font.lineHeight * VERSION_SCALE));
+
+        int x = btnX + STYLE_BUTTON_W - scaledTextW;
+        int y = Math.max(0, btnY - scaledTextH - 1);
+
+        float inv = 1.0f / VERSION_SCALE;
+
+        graphics.pose().pushPose();
+        graphics.pose().scale(VERSION_SCALE, VERSION_SCALE, 1.0f);
+        graphics.drawString(this.font, this.versionLabel, Math.round(x * inv), Math.round(y * inv), VERSION_COLOR, false);
+        graphics.pose().popPose();
+    }
+
     private void renderWildexTooltip(GuiGraphics g, List<Component> lines, int mouseX, int mouseY) {
-        if (lines == null || lines.isEmpty()) return;
+        if (lines.isEmpty()) return;
 
         int maxW = Math.max(80, Math.min(TIP_MAX_W, this.width - (TIP_PAD * 2) - 8));
         ArrayList<FormattedCharSequence> wrapped = new ArrayList<>();
@@ -455,8 +485,8 @@ public final class WildexScreen extends Screen {
         }
     }
 
-    private static boolean isMouseOverRect(int mouseX, int mouseY, int x, int y, int w, int h) {
-        return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+    private static boolean isMouseOverRect(int mouseX, int mouseY, int x, int y) {
+        return mouseX >= x && mouseX < x + TROPHY_DRAW_SIZE && mouseY >= y && mouseY < y + TROPHY_DRAW_SIZE;
     }
 
     private static void drawPanelFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {
@@ -493,5 +523,13 @@ public final class WildexScreen extends Screen {
 
     private static DesignStyle nextStyle(DesignStyle current) {
         return (current == DesignStyle.VINTAGE) ? DesignStyle.MODERN : DesignStyle.VINTAGE;
+    }
+
+    private static String resolveVersionLabel() {
+        String v = ModList.get()
+                .getModContainerById(Wildex.MODID)
+                .map(c -> c.getModInfo().getVersion().toString())
+                .orElse("unknown");
+        return "v" + v;
     }
 }
