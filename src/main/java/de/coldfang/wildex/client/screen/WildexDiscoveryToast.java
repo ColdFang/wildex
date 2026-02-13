@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,6 +39,9 @@ public final class WildexDiscoveryToast implements Toast {
 
     private static final float DISPLAY_PITCH = -10.0f;
     private static final float ROT_SPEED_DEG_PER_SEC = 45.0f;
+    private static final float DRAGON_TOAST_EFFECTIVE_DIM = 6.4f;
+    private static final float DRAGON_TOAST_Y_RENDER_OFFSET_FACTOR = -0.20f;
+    private static final float DRAGON_TOAST_PITCH_DEG = 11.0f;
 
     private final ResourceLocation mobId;
     private final Component title;
@@ -177,10 +181,11 @@ public final class WildexDiscoveryToast implements Toast {
 
     private static void renderEntityOnToast(GuiGraphics g, Entity entity, float yaw) {
         Minecraft mc = Minecraft.getInstance();
+        boolean dragon = entity.getType() == EntityType.ENDER_DRAGON;
 
         float bbH = Math.max(0.01f, entity.getBbHeight());
         float bbW = Math.max(0.01f, entity.getBbWidth());
-        float max = Math.max(bbH, bbW);
+        float max = dragon ? DRAGON_TOAST_EFFECTIVE_DIM : Math.max(bbH, bbW);
 
         float scale = 18.0f / max;
         scale = Math.min(scale, 22.0f);
@@ -204,16 +209,22 @@ public final class WildexDiscoveryToast implements Toast {
         entity.setXRot(DISPLAY_PITCH);
 
         g.pose().pushPose();
-        g.pose().translate(ICON_PAD_L + ICON_CENTER_X, ICON_BOTTOM_Y, 50.0f);
+        int iconBottomY = dragon ? ICON_BOTTOM_Y - 6 : ICON_BOTTOM_Y;
+        g.pose().translate(ICON_PAD_L + ICON_CENTER_X, iconBottomY, 50.0f);
         g.pose().scale(scale, scale, scale);
         g.pose().mulPose(Axis.ZP.rotationDegrees(180.0f));
         g.pose().mulPose(Axis.YP.rotationDegrees(180.0f));
+        if (dragon) {
+            g.pose().mulPose(Axis.YP.rotationDegrees(yaw));
+            g.pose().mulPose(Axis.XP.rotationDegrees(DRAGON_TOAST_PITCH_DEG));
+        }
 
         RenderSystem.enableDepthTest();
 
         dispatcher.setRenderShadow(false);
         var buf = g.bufferSource();
-        dispatcher.render(entity, 0.0, 0.0, 0.0, 0.0f, 1.0f, g.pose(), buf, LightTexture.FULL_BRIGHT);
+        double yRenderOffset = dragon ? entity.getBbHeight() * DRAGON_TOAST_Y_RENDER_OFFSET_FACTOR : 0.0;
+        dispatcher.render(entity, 0.0, yRenderOffset, 0.0, 0.0f, 1.0f, g.pose(), buf, LightTexture.FULL_BRIGHT);
         buf.endBatch();
         dispatcher.setRenderShadow(true);
 

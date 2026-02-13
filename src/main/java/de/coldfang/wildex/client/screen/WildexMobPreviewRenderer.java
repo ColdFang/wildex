@@ -7,15 +7,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.item.ItemDisplayContext;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import org.joml.Quaternionf;
 
@@ -26,9 +22,10 @@ public final class WildexMobPreviewRenderer {
     private static final float BOX_FILL = 0.41f;
     private static final float ROT_SPEED_DEG_PER_TICK = 1.5f;
 
-    private static final float DRAGON_HEAD_FILL = 1.0f;
-    private static final float DRAGON_HEAD_TILT_DEG = 12.0f;
-    private static final float DRAGON_HEAD_SCALE_BOOST = 3.5f;
+    private static final float DRAGON_MODEL_FILL = 0.62f;
+    private static final float DRAGON_MODEL_EFFECTIVE_DIM = 8.8f;
+    private static final float DRAGON_MODEL_PITCH_DEG = 11.0f;
+    private static final float DRAGON_MODEL_YAW_OFFSET_DEG = 0.0f;
 
     private static final float FISH_MODEL_PITCH_DEG = 90.0f;
     private static final float FISH_MODEL_SIDE_YAW_DEG = 90.0f;
@@ -106,19 +103,19 @@ public final class WildexMobPreviewRenderer {
 
         Level level = mc.level;
 
-        if (isEnderDragon(id)) {
-            if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
-            try {
-                renderDragonHead(graphics, area, partialTick, zoom);
-            } finally {
-                if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            }
+        Mob mob = getOrCreateEntity(level, id);
+        if (mob == null) {
             drawFrameOverlay(graphics, area);
             return;
         }
 
-        Mob mob = getOrCreateEntity(level, id);
-        if (mob == null) {
+        if (isEnderDragon(id)) {
+            if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
+            try {
+                renderDragonEntity(graphics, area, mob, partialTick, zoom);
+            } finally {
+                if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+            }
             drawFrameOverlay(graphics, area);
             return;
         }
@@ -247,8 +244,15 @@ public final class WildexMobPreviewRenderer {
         return (t * ROT_SPEED_DEG_PER_TICK) % 360.0f;
     }
 
-    private static void renderDragonHead(GuiGraphics graphics, WildexScreenLayout.Area area, float partialTick, float zoom) {
+    private static void renderDragonEntity(
+            GuiGraphics graphics,
+            WildexScreenLayout.Area area,
+            Mob dragon,
+            float partialTick,
+            float zoom
+    ) {
         Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
 
         int x0 = area.x();
         int y0 = area.y();
@@ -263,41 +267,64 @@ public final class WildexMobPreviewRenderer {
         int cx = area.x() + Math.round(area.w() * 0.5f);
         int cy = area.y() + Math.round(area.h() * 0.5f);
 
-        float yaw = computeYaw(mc, partialTick);
+        float yaw = computeYaw(mc, partialTick) + DRAGON_MODEL_YAW_OFFSET_DEG;
+        float sizePx = Math.min(area.w(), area.h()) * DRAGON_MODEL_FILL;
+        float scale = (sizePx / DRAGON_MODEL_EFFECTIVE_DIM) * zoom;
 
-        ItemStack stack = new ItemStack(Items.DRAGON_HEAD);
+        float prevYRot = dragon.getYRot();
+        float prevXRot = dragon.getXRot();
+        float prevBodyRot = dragon.yBodyRot;
+        float prevBodyRotO = dragon.yBodyRotO;
+        float prevHeadRot = dragon.yHeadRot;
+        float prevHeadRotO = dragon.yHeadRotO;
 
-        float sizePx = Math.min(area.w(), area.h()) * DRAGON_HEAD_FILL;
-        float scale = ((sizePx / 16.0f) * DRAGON_HEAD_SCALE_BOOST) * zoom;
+        dragon.setYRot(yaw);
+        dragon.setXRot(0.0f);
+        dragon.yBodyRot = yaw;
+        dragon.yBodyRotO = yaw;
+        dragon.yHeadRot = yaw;
+        dragon.yHeadRotO = yaw;
+
+        EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
+        dispatcher.setRenderShadow(false);
 
         graphics.enableScissor(innerX0, innerY0, innerX1, innerY1);
 
         graphics.pose().pushPose();
         graphics.pose().translate(cx, cy, 1050.0f);
-        graphics.pose().scale(scale, scale, scale);
+        graphics.pose().scale(-scale, scale, scale);
 
-        graphics.pose().mulPose(new Quaternionf().rotateZ((float) Math.PI));
-        graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(yaw)));
-        graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(DRAGON_HEAD_TILT_DEG)));
+        graphics.pose().mulPose(new Quaternionf().rotateZ((float) Math.PI).rotateY((float) Math.toRadians(180.0f + yaw)));
+        graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(DRAGON_MODEL_PITCH_DEG)));
 
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
-        mc.getItemRenderer().renderStatic(
-                stack,
-                ItemDisplayContext.FIXED,
-                LightTexture.FULL_BRIGHT,
-                OverlayTexture.NO_OVERLAY,
+        dispatcher.render(
+                dragon,
+                0.0,
+                -dragon.getBbHeight() * 0.38,
+                0.0,
+                0.0f,
+                partialTick,
                 graphics.pose(),
                 graphics.bufferSource(),
-                mc.level,
-                0
+                LightTexture.FULL_BRIGHT
         );
 
         graphics.flush();
         graphics.pose().popPose();
 
         graphics.disableScissor();
+
+        dispatcher.setRenderShadow(true);
+
+        dragon.setYRot(prevYRot);
+        dragon.setXRot(prevXRot);
+        dragon.yBodyRot = prevBodyRot;
+        dragon.yBodyRotO = prevBodyRotO;
+        dragon.yHeadRot = prevHeadRot;
+        dragon.yHeadRotO = prevHeadRotO;
     }
 
     private static void drawFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {

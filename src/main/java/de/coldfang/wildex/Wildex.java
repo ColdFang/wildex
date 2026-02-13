@@ -3,6 +3,7 @@ package de.coldfang.wildex;
 import com.mojang.logging.LogUtils;
 import de.coldfang.wildex.client.WildexClientSessionEvents;
 import de.coldfang.wildex.client.WildexCompletionClientEvents;
+import de.coldfang.wildex.client.WildexSpyglassKnownMobOverlayClient;
 import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.network.WildexKillSyncEvents;
@@ -44,6 +45,7 @@ public class Wildex {
             NeoForge.EVENT_BUS.register(WildexSpyglassPulseEvents.class);
             NeoForge.EVENT_BUS.register(WildexClientSessionEvents.class);
             NeoForge.EVENT_BUS.register(WildexCompletionClientEvents.class);
+            NeoForge.EVENT_BUS.register(WildexSpyglassKnownMobOverlayClient.class);
         }
 
         modContainer.registerConfig(ModConfig.Type.COMMON, CommonConfig.SPEC);

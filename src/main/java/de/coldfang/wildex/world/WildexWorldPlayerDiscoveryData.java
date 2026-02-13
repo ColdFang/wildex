@@ -7,6 +7,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
@@ -14,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -22,6 +24,7 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
     private static final String DATA_NAME = "wildex_player_discovery";
     private static final String RECEIVED_BOOK_KEY = "__received_book";
     private static final String COMPLETE_KEY = "__wildex_complete";
+    private static final String MIGRATED_KEY = "__migrated_to_overworld_storage";
 
     private static final Factory<WildexWorldPlayerDiscoveryData> FACTORY =
             new Factory<>(WildexWorldPlayerDiscoveryData::new, WildexWorldPlayerDiscoveryData::load);
@@ -29,12 +32,55 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
     private final Map<UUID, Set<ResourceLocation>> discovered = new HashMap<>();
     private final Set<UUID> receivedBook = new HashSet<>();
     private final Set<UUID> complete = new HashSet<>();
+    private boolean migratedToOverworldStorage;
 
     public static WildexWorldPlayerDiscoveryData get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+        Objects.requireNonNull(level, "level");
+        MinecraftServer server = level.getServer();
+        if (server == null) return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+
+        ServerLevel overworld = server.overworld();
+        ServerLevel rootLevel = overworld != null ? overworld : level;
+
+        WildexWorldPlayerDiscoveryData data = rootLevel.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+        data.migrateLegacyDimensionData(server, rootLevel);
+        return data;
     }
 
     private WildexWorldPlayerDiscoveryData() {
+    }
+
+    @SuppressWarnings("resource")
+    private void migrateLegacyDimensionData(MinecraftServer server, ServerLevel rootLevel) {
+        if (migratedToOverworldStorage) return;
+
+        for (ServerLevel level : server.getAllLevels()) {
+            if (level == rootLevel) continue;
+
+            WildexWorldPlayerDiscoveryData legacy = level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+            mergeFromLegacy(legacy);
+        }
+
+        migratedToOverworldStorage = true;
+        setDirty();
+    }
+
+    private void mergeFromLegacy(WildexWorldPlayerDiscoveryData legacy) {
+        if (legacy == this) return;
+
+        for (Map.Entry<UUID, Set<ResourceLocation>> entry : legacy.discovered.entrySet()) {
+            UUID playerId = entry.getKey();
+            if (playerId == null || entry.getValue() == null || entry.getValue().isEmpty()) continue;
+
+            Set<ResourceLocation> target = discovered.computeIfAbsent(playerId, ignored -> new HashSet<>());
+            for (ResourceLocation mobId : entry.getValue()) {
+                if (!WildexMobFilters.isTrackable(mobId)) continue;
+                target.add(mobId);
+            }
+        }
+
+        receivedBook.addAll(legacy.receivedBook);
+        complete.addAll(legacy.complete);
     }
 
     public boolean isDiscovered(UUID player, ResourceLocation mobId) {
@@ -113,6 +159,8 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
             }
         }
 
+        data.migratedToOverworldStorage = tag.getBoolean(MIGRATED_KEY);
+
         for (String playerKey : tag.getAllKeys()) {
             if (RECEIVED_BOOK_KEY.equals(playerKey)) continue;
             if (COMPLETE_KEY.equals(playerKey)) continue;
@@ -166,6 +214,10 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
                 list.add(StringTag.valueOf(id.toString()));
             }
             tag.put(COMPLETE_KEY, list);
+        }
+
+        if (migratedToOverworldStorage) {
+            tag.putBoolean(MIGRATED_KEY, true);
         }
 
         return tag;

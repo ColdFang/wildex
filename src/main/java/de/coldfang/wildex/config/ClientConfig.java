@@ -15,6 +15,7 @@ public final class ClientConfig {
 
     public final ModConfigSpec.EnumValue<DesignStyle> designStyle;
     public final ModConfigSpec.BooleanValue showDiscoveryToasts;
+    public final ModConfigSpec.BooleanValue showDiscoveredSpyglassOverlay;
 
     private ClientConfig(ModConfigSpec.Builder builder) {
         builder.push("ui");
@@ -26,6 +27,10 @@ public final class ClientConfig {
         showDiscoveryToasts = builder
                 .comment("Show a toast notification when discovering a new mob in hidden mode.")
                 .define("showDiscoveryToasts", true);
+
+        showDiscoveredSpyglassOverlay = builder
+                .comment("Show a small overlay when aiming at an already discovered mob with a spyglass.")
+                .define("showDiscoveredSpyglassOverlay", true);
 
         builder.pop();
     }

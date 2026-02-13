@@ -1,6 +1,7 @@
 package de.coldfang.wildex.util;
 
 import de.coldfang.wildex.config.CommonConfig;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 
@@ -30,6 +31,8 @@ public final class WildexMobFilters {
 
     private static boolean isTrackableId(ResourceLocation id) {
         if (id == null) return false;
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
+        if (type == null) return false;
 
         if (GIANT.equals(id)) return false;
         if (ILLUSIONER.equals(id)) return false;

@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.2.0 - 2026-02-13
+
+### Added
+- Spyglass known-mob overlay in world-space: when aiming at a mob with the spyglass, Wildex can show a floating name label.
+- New client config toggle `showDiscoveredSpyglassOverlay` (default `true`).
+
+### Changed
+- Improved Ender Dragon model rendering in Wildex mob preview.
+- Improved Ender Dragon model rendering in discovery toast
+- Spyglass overlay behavior works in both modes:
+  - Hidden Mode `true`: only for already discovered mobs.
+  - Hidden Mode `false`: for targeted mobs in general.
+
+### Fixed
+- Fixed inconsistent progress values after uninstalling mods that added mobs:
+  - removed/invalid mob IDs are no longer counted as discovered
+  - prevents states like `discovered > total` (for example `100/90`).
+- Fixed dimension-separated Wildex progress:
+  - discovery, kills and cooldown data are now stored world-wide instead of per dimension
+  - Wildex progress no longer appears reset when switching between Overworld/Nether/End.
+
+### Compatibility
+- Existing worlds are supported.
+- No manual data migration required.
+- Existing Wildex progress remains intact; only invalid discovery entries from removed mob mods are ignored/cleaned automatically.
+- Automatic one-time migration merges existing per-dimension Wildex data into the new world-wide storage format.
+
 ## 1.1.1 - 2026-02-12
 
 ### Fixed
