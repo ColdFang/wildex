@@ -1,15 +1,11 @@
 package de.coldfang.wildex;
 
 import com.mojang.logging.LogUtils;
-import de.coldfang.wildex.client.WildexClientSessionEvents;
-import de.coldfang.wildex.client.WildexCompletionClientEvents;
-import de.coldfang.wildex.client.WildexSpyglassKnownMobOverlayClient;
 import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.network.WildexKillSyncEvents;
 import de.coldfang.wildex.network.WildexNetwork;
 import de.coldfang.wildex.network.WildexSpyglassDiscoveryEvents;
-import de.coldfang.wildex.network.WildexSpyglassPulseEvents;
 import de.coldfang.wildex.registry.WildexCreativeTabEvents;
 import de.coldfang.wildex.registry.ModItems;
 import de.coldfang.wildex.server.WildexCompletionSyncOnJoinEvents;
@@ -42,15 +38,21 @@ public class Wildex {
         NeoForge.EVENT_BUS.register(WildexCompletionSyncOnJoinEvents.class);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            NeoForge.EVENT_BUS.register(WildexSpyglassPulseEvents.class);
-            NeoForge.EVENT_BUS.register(WildexClientSessionEvents.class);
-            NeoForge.EVENT_BUS.register(WildexCompletionClientEvents.class);
-            NeoForge.EVENT_BUS.register(WildexSpyglassKnownMobOverlayClient.class);
+            bootstrapClientOnly(modEventBus);
         }
 
         modContainer.registerConfig(ModConfig.Type.COMMON, CommonConfig.SPEC);
         modContainer.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
 
         LOGGER.info("Wildex initialized");
+    }
+
+    private static void bootstrapClientOnly(IEventBus modEventBus) {
+        try {
+            Class<?> bootstrap = Class.forName("de.coldfang.wildex.client.WildexClientBootstrap");
+            bootstrap.getMethod("register", IEventBus.class).invoke(null, modEventBus);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to bootstrap Wildex client-only hooks", e);
+        }
     }
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.1 - 2026-02-15
+
+### Fixed
+- Fixed dedicated server startup crash caused by client-only classloading during mod initialization.
+- Fixed additional dedicated server crash path during item registration
+- Split client payload handlers from common network registration so client-only classes are no longer loaded on server.
+- Hardened client bootstrap registration
+
+### Compatibility
+- Existing worlds are supported.
+- No data migration required.
+- Safe update from `1.2.0` for singleplayer and dedicated servers.
+
 ## 1.2.0 - 2026-02-13
 
 ### Added

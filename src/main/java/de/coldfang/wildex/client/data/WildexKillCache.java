@@ -1,6 +1,6 @@
 package de.coldfang.wildex.client.data;
 
-import de.coldfang.wildex.network.WildexNetwork;
+import de.coldfang.wildex.client.WildexNetworkClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
@@ -32,7 +32,7 @@ public final class WildexKillCache {
         if (v != null) return Math.max(0, v);
 
         if (REQUESTED.add(id)) {
-            WildexNetwork.requestKillsForSelected(id.toString());
+            WildexNetworkClient.requestKillsForSelected(id.toString());
         }
 
         return 0;

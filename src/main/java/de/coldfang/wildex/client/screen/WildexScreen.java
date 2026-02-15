@@ -6,10 +6,10 @@ import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
 import de.coldfang.wildex.client.data.model.WildexMobData;
+import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.config.CommonConfig;
-import de.coldfang.wildex.network.WildexNetwork;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -118,7 +118,7 @@ public final class WildexScreen extends Screen {
         }));
 
         if (CommonConfig.INSTANCE.hiddenMode.get()) {
-            WildexNetwork.requestDiscoveredMobs();
+            WildexNetworkClient.requestDiscoveredMobs();
         }
 
         WildexScreenLayout.Area search = layout.leftSearchArea();
@@ -214,9 +214,9 @@ public final class WildexScreen extends Screen {
 
     private void requestAllForSelected(String mobId) {
         if (mobId == null || mobId.isBlank()) return;
-        WildexNetwork.requestKillsForSelected(mobId);
-        WildexNetwork.requestLootForSelected(mobId);
-        WildexNetwork.requestSpawnsForSelected(mobId);
+        WildexNetworkClient.requestKillsForSelected(mobId);
+        WildexNetworkClient.requestLootForSelected(mobId);
+        WildexNetworkClient.requestSpawnsForSelected(mobId);
     }
 
     private void applyFiltersFromUi() {
@@ -291,7 +291,7 @@ public final class WildexScreen extends Screen {
 
     private void onDebugDiscoverMob(ResourceLocation mobId) {
         if (mobId == null) return;
-        WildexNetwork.sendDebugDiscoverMob(mobId);
+        WildexNetworkClient.sendDebugDiscoverMob(mobId);
     }
 
     @Override

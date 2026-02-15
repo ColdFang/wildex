@@ -1,7 +1,5 @@
 package de.coldfang.wildex.item;
 
-import de.coldfang.wildex.client.screen.WildexScreen;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
@@ -19,8 +17,23 @@ public class WildexBookItem extends Item {
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(@NotNull Level level, @NotNull Player player, @NotNull InteractionHand hand) {
         if (level.isClientSide) {
-            Minecraft.getInstance().setScreen(new WildexScreen());
+            openScreenClientOnly();
         }
-        return InteractionResultHolder.success(player.getItemInHand(hand));
+        return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
+    }
+
+    private static void openScreenClientOnly() {
+        try {
+            Class<?> minecraftClass = Class.forName("net.minecraft.client.Minecraft");
+            Object minecraft = minecraftClass.getMethod("getInstance").invoke(null);
+
+            Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
+            Class<?> wildexScreenClass = Class.forName("de.coldfang.wildex.client.screen.WildexScreen");
+            Object wildexScreen = wildexScreenClass.getConstructor().newInstance();
+
+            minecraftClass.getMethod("setScreen", screenClass).invoke(minecraft, wildexScreen);
+        } catch (ReflectiveOperationException ignored) {
+            // Client screen open failed; keep item use non-fatal.
+        }
     }
 }
