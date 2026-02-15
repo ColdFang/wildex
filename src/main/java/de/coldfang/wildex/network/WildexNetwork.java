@@ -20,7 +20,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
@@ -45,6 +47,27 @@ public final class WildexNetwork {
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar r = event.registrar(MOD_ID);
+
+        // Dedicated servers must still advertise clientbound Wildex channels during handshake.
+        // Handlers stay client-only; these are no-op registrations for channel presence.
+        if (FMLEnvironment.dist == Dist.DEDICATED_SERVER) {
+            r.playToClient(S2CDiscoveredMobPayload.TYPE, S2CDiscoveredMobPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CDiscoveredMobsPayload.TYPE, S2CDiscoveredMobsPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobKillsPayload.TYPE, S2CMobKillsPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobLootPayload.TYPE, S2CMobLootPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobSpawnsPayload.TYPE, S2CMobSpawnsPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CSpyglassDiscoveryEffectPayload.TYPE, S2CSpyglassDiscoveryEffectPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CWildexCompletePayload.TYPE, S2CWildexCompletePayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CWildexCompleteStatusPayload.TYPE, S2CWildexCompleteStatusPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+        }
 
         r.playToServer(
                 C2SSpyglassPulsePayload.TYPE,

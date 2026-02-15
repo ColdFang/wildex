@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.1a - 2026-02-15
+
+### Fixed
+- Fixed client join disconnect (`missing channel`) on dedicated servers:
+  - Wildex clientbound payload channels are now advertised correctly during handshake on dedicated server runtime.
+  - Prevents kicks like "channel is missing on the server side, but required on the client".
+
+### Compatibility
+- Existing worlds are supported.
+- No data migration required.
+- Safe update from `1.2.1`.
+
 ## 1.2.1 - 2026-02-15
 
 ### Fixed
