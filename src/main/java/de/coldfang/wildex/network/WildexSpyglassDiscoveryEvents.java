@@ -1,8 +1,7 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
-import de.coldfang.wildex.server.WildexCompletionHelper;
-import de.coldfang.wildex.server.WildexProgressHooks;
+import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.core.particles.ParticleTypes;
@@ -97,24 +96,19 @@ public final class WildexSpyglassDiscoveryEvents {
         int requiredChargeTicks = CommonConfig.INSTANCE.spyglassDiscoveryChargeTicks.get();
         if (st.ticks < requiredChargeTicks) return;
 
-        boolean newlyDiscovered = disc.markDiscovered(playerId, mobId);
+        boolean newlyDiscovered = WildexDiscoveryService.discover(
+                sp,
+                mobId,
+                WildexDiscoveryService.DiscoverySource.SPYGLASS
+        );
 
         CHARGE.remove(playerId);
 
         if (!newlyDiscovered) return;
 
-        PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobPayload(mobId));
-
-        boolean newlyCompleted = WildexCompletionHelper.markCompleteIfEligible(level, sp);
-        WildexProgressHooks.onDiscoveryChanged(sp, mobId);
-
         spawnDiscoveryParticlesForPlayer(level, sp, target);
 
         PacketDistributor.sendToPlayer(sp, new S2CSpyglassDiscoveryEffectPayload(entityId, mobId));
-
-        if (newlyCompleted) {
-            WildexCompletionHelper.notifyCompleted(sp);
-        }
     }
 
     private static void spawnChargeParticlesForPlayer(ServerLevel level, ServerPlayer sp, Entity target) {

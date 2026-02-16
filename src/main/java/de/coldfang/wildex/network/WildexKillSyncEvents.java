@@ -1,9 +1,7 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
-import de.coldfang.wildex.server.WildexCompletionHelper;
-import de.coldfang.wildex.server.WildexProgressHooks;
-import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
+import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.world.WildexWorldPlayerKillData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -33,17 +31,7 @@ public final class WildexKillSyncEvents {
         int kills = WildexWorldPlayerKillData.get(serverLevel).increment(sp.getUUID(), id);
 
         if (CommonConfig.INSTANCE.hiddenMode.get()) {
-            WildexWorldPlayerDiscoveryData disc = WildexWorldPlayerDiscoveryData.get(serverLevel);
-
-            boolean newlyDiscovered = disc.markDiscovered(sp.getUUID(), id);
-            if (newlyDiscovered) {
-                PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobPayload(id));
-                boolean newlyCompleted = WildexCompletionHelper.markCompleteIfEligible(serverLevel, sp);
-                WildexProgressHooks.onDiscoveryChanged(sp, id);
-                if (newlyCompleted) {
-                    WildexCompletionHelper.notifyCompleted(sp);
-                }
-            }
+            WildexDiscoveryService.discover(sp, id, WildexDiscoveryService.DiscoverySource.KILL);
         }
 
         PacketDistributor.sendToPlayer(sp, new S2CMobKillsPayload(id, kills));

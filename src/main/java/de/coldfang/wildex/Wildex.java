@@ -3,6 +3,7 @@ package de.coldfang.wildex;
 import com.mojang.logging.LogUtils;
 import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.integration.exposure.WildexExposureIntegrationBootstrap;
 import de.coldfang.wildex.network.WildexKillSyncEvents;
 import de.coldfang.wildex.network.WildexNetwork;
 import de.coldfang.wildex.network.WildexSpyglassDiscoveryEvents;
@@ -48,6 +49,7 @@ public class Wildex {
         NeoForge.EVENT_BUS.register(WildexSpyglassDiscoveryEvents.class);
         NeoForge.EVENT_BUS.register(WildexGiveBookOnFirstJoinEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionSyncOnJoinEvents.class);
+        WildexExposureIntegrationBootstrap.registerIfAvailable();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             bootstrapClientOnly(modEventBus);

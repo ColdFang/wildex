@@ -8,9 +8,12 @@ import net.neoforged.fml.event.config.ModConfigEvent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 
 public final class CommonConfig {
@@ -23,7 +26,8 @@ public final class CommonConfig {
     );
     private static final String MIGRATIONS_FILE = "wildex-migrations.properties";
     private static final String MIGRATION_KEY_EXCLUDED_IDS_V130 = "excluded_mob_ids_v130";
-    private static boolean excludedMobIdsMigrationRunning = false;
+    private static final String MIGRATION_KEY_CONFIG_LAYOUT_V140 = "config_layout_v140";
+    private static boolean migrationsRunning = false;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -37,6 +41,7 @@ public final class CommonConfig {
 
     public final ModConfigSpec.BooleanValue debugMode;
     public final ModConfigSpec.BooleanValue kubejsBridgeEnabled;
+    public final ModConfigSpec.BooleanValue exposureDiscoveryEnabled;
     public final ModConfigSpec.IntValue spyglassDiscoveryChargeTicks;
 
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedModIds;
@@ -56,21 +61,13 @@ public final class CommonConfig {
                 .comment("Give the Wildex book once per player when they join a world for the first time.")
                 .define("giveBookOnFirstJoin", true);
 
-        debugMode = builder
-                .comment("Enable Debug Mode: allows manual discovery of mobs via UI (hidden mode only)")
-                .define("debugMode", false);
-
-        kubejsBridgeEnabled = builder
-                .comment(
-                        "Enable Wildex KubeJS bridge emits (discovery/completed).\n"
-                                + "Keep this enabled for normal use.\n"
-                                + "Disable only for troubleshooting or if a modpack/addon has compatibility issues with KubeJS event handling."
-                )
-                .define("kubejsBridgeEnabled", true);
-
         spyglassDiscoveryChargeTicks = builder
                 .comment("Ticks required to discover a mob while continuously aiming with a Spyglass.")
                 .defineInRange("spyglassDiscoveryChargeTicks", 28, 1, 200);
+
+        builder.pop();
+
+        builder.push("wildexList");
 
         excludedModIds = builder
                 .comment(
@@ -102,56 +99,161 @@ public final class CommonConfig {
                 );
 
         builder.pop();
+
+        builder.push("integrationDebug");
+
+        kubejsBridgeEnabled = builder
+                .comment(
+                        "Enable Wildex KubeJS bridge emits (discovery/completed).\n"
+                                + "Keep this enabled for normal use.\n"
+                                + "Disable only for troubleshooting or if a modpack/addon has compatibility issues with KubeJS event handling."
+                )
+                .define("kubejsBridgeEnabled", true);
+
+        exposureDiscoveryEnabled = builder
+                .comment(
+                        "Enable mob discovery from Exposure photo frames.\n"
+                                + "Only applies when Exposure is installed."
+                )
+                .define("exposureDiscoveryEnabled", true);
+
+        debugMode = builder
+                .comment("Enable Debug Mode: allows manual discovery of mobs via UI (hidden mode only)")
+                .define("debugMode", false);
+
+        builder.pop();
     }
 
     public static void onConfigLoading(ModConfigEvent.Loading event) {
         if (event == null || event.getConfig() == null) return;
         if (event.getConfig().getSpec() != SPEC) return;
-        runExcludedMobIdsMigrationIfNeeded(event.getConfig());
+        runMigrationsIfNeeded(event.getConfig());
     }
 
     public static void onConfigReloading(ModConfigEvent.Reloading event) {
         if (event == null || event.getConfig() == null) return;
         if (event.getConfig().getSpec() != SPEC) return;
-        runExcludedMobIdsMigrationIfNeeded(event.getConfig());
+        runMigrationsIfNeeded(event.getConfig());
     }
 
-    private static void runExcludedMobIdsMigrationIfNeeded(ModConfig modConfig) {
+    private static void runMigrationsIfNeeded(ModConfig modConfig) {
         if (modConfig == null) return;
-        if (excludedMobIdsMigrationRunning) return;
+        if (migrationsRunning) return;
+
         Path migrationsFile = resolveMigrationsFile(modConfig);
         Properties props = loadMigrationProperties(migrationsFile);
-        if (isMigrationDone(props, MIGRATION_KEY_EXCLUDED_IDS_V130)) return;
-        excludedMobIdsMigrationRunning = true;
+        boolean changedAny = false;
+
+        migrationsRunning = true;
         try {
-            List<? extends String> current = INSTANCE.excludedModIds.get();
-            java.util.ArrayList<String> merged = new java.util.ArrayList<>();
-            java.util.HashSet<String> seen = new java.util.HashSet<>();
-            for (String s : current) {
-                if (s == null) continue;
-                String n = s.trim().toLowerCase(java.util.Locale.ROOT);
-                if (n.isBlank() || !seen.add(n)) continue;
-                merged.add(n);
-            }
-            for (String required : DEFAULT_EXCLUDED_MOB_IDS) {
-                String n = required.trim().toLowerCase(java.util.Locale.ROOT);
-                if (n.isBlank() || !seen.add(n)) continue;
-                merged.add(n);
+            if (!isMigrationDone(props, MIGRATION_KEY_CONFIG_LAYOUT_V140)) {
+                migrateConfigLayoutV140(modConfig);
+                props.setProperty(MIGRATION_KEY_CONFIG_LAYOUT_V140, "true");
+                changedAny = true;
             }
 
-            INSTANCE.excludedModIds.set(List.copyOf(merged));
+            if (!isMigrationDone(props, MIGRATION_KEY_EXCLUDED_IDS_V130)) {
+                migrateExcludedMobIdsV130();
+                props.setProperty(MIGRATION_KEY_EXCLUDED_IDS_V130, "true");
+                changedAny = true;
+            }
 
-            // Write marker before config save so sync reload events do not recurse forever.
-            props.setProperty(MIGRATION_KEY_EXCLUDED_IDS_V130, "true");
-            saveMigrationProperties(migrationsFile, props);
+            if (changedAny) {
+                // Write marker before config save so sync reload events do not recurse forever.
+                saveMigrationProperties(migrationsFile, props);
 
-            var loaded = modConfig.getLoadedConfig();
-            if (loaded != null) {
-                loaded.save();
+                var loaded = modConfig.getLoadedConfig();
+                if (loaded != null) {
+                    loaded.save();
+                }
             }
         } finally {
-            excludedMobIdsMigrationRunning = false;
+            migrationsRunning = false;
         }
+    }
+
+    private static boolean migrateExcludedMobIdsV130() {
+        List<? extends String> current = INSTANCE.excludedModIds.get();
+        ArrayList<String> merged = new ArrayList<>();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+
+        for (String s : current) {
+            if (s == null) continue;
+            String n = s.trim().toLowerCase(Locale.ROOT);
+            if (n.isBlank() || !seen.add(n)) continue;
+            merged.add(n);
+        }
+        for (String required : DEFAULT_EXCLUDED_MOB_IDS) {
+            String n = required.trim().toLowerCase(Locale.ROOT);
+            if (n.isBlank() || !seen.add(n)) continue;
+            merged.add(n);
+        }
+
+        List<String> normalized = List.copyOf(merged);
+        if (normalized.equals(current)) return false;
+        INSTANCE.excludedModIds.set(normalized);
+        return true;
+    }
+
+    private static boolean migrateConfigLayoutV140(ModConfig modConfig) {
+        Object loaded = modConfig == null ? null : modConfig.getLoadedConfig();
+        if (loaded == null) return false;
+
+        boolean changed = false;
+
+        changed |= migrateBooleanPath(loaded, "debugMode", INSTANCE.debugMode);
+        changed |= migrateBooleanPath(loaded, "kubejsBridgeEnabled", INSTANCE.kubejsBridgeEnabled);
+        changed |= migrateBooleanPath(loaded, "exposureDiscoveryEnabled", INSTANCE.exposureDiscoveryEnabled);
+        changed |= migrateExcludedIdsPath(loaded);
+
+        return changed;
+    }
+
+    private static boolean migrateBooleanPath(Object loaded, String key, ModConfigSpec.BooleanValue target) {
+        if (target == null) return false;
+        Object existingNew = getPathValue(loaded, "integrationDebug", key);
+        if (existingNew != null) return false;
+
+        Object old = getPathValue(loaded, "general", key);
+        if (!(old instanceof Boolean oldBool)) return false;
+
+        if (target.get().equals(oldBool)) return false;
+        target.set(oldBool);
+        return true;
+    }
+
+    private static boolean migrateExcludedIdsPath(Object loaded) {
+        Object existingNew = getPathValue(loaded, "wildexList", "excludedModIds");
+        if (existingNew != null) return false;
+
+        Object old = getPathValue(loaded, "general", "excludedModIds");
+        if (!(old instanceof List<?> oldList)) return false;
+
+        ArrayList<String> normalized = new ArrayList<>();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (Object entry : oldList) {
+            if (!(entry instanceof String s)) continue;
+            String n = s.trim().toLowerCase(Locale.ROOT);
+            if (n.isBlank() || !seen.add(n)) continue;
+            normalized.add(n);
+        }
+
+        List<String> next = List.copyOf(normalized);
+        if (next.equals(INSTANCE.excludedModIds.get())) return false;
+        INSTANCE.excludedModIds.set(next);
+        return true;
+    }
+
+    private static Object getPathValue(Object config, String... path) {
+        if (config == null || path == null || path.length == 0) return null;
+
+        try {
+            Method getByPath = config.getClass().getMethod("get", List.class);
+            return getByPath.invoke(config, List.of(path));
+        } catch (Throwable ignored) {
+        }
+
+        return null;
     }
 
     private static Path resolveMigrationsFile(ModConfig modConfig) {

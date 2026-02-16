@@ -18,6 +18,10 @@ group = mod_group_id
 
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
+    maven {
+        name = 'Mortuusars GitHub Maven'
+        url = 'https://raw.githubusercontent.com/mortuusars/resources/main/maven/'
+    }
 }
 
 base {
@@ -95,6 +99,16 @@ dependencies {
     // And its provides the option to then use net.minecraft as the group, and one of; client, server or joined as the module name, plus the game version as version.
     // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
     implementation "net.neoforged:neoforge:${neo_version}"
+
+    // Optional dev dependency for Exposure integration work.
+    // compileOnly keeps Exposure optional for downstream users,
+    // localRuntime loads it in local dev runs for testing.
+    compileOnly("io.github.mortuusars.exposure:exposure-${minecraft_version}-neoforge:${exposure_version}") {
+        transitive = false
+    }
+    localRuntime("io.github.mortuusars.exposure:exposure-${minecraft_version}-neoforge:${exposure_version}") {
+        transitive = false
+    }
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

@@ -1,8 +1,7 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
-import de.coldfang.wildex.server.WildexCompletionHelper;
-import de.coldfang.wildex.server.WildexProgressHooks;
+import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.server.loot.WildexLootExtractor;
 import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
 import de.coldfang.wildex.util.WildexMobFilters;
@@ -137,17 +136,7 @@ public final class WildexNetwork {
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
                     if (type == null) return;
 
-                    WildexWorldPlayerDiscoveryData disc = WildexWorldPlayerDiscoveryData.get(serverLevel);
-
-                    boolean newly = disc.markDiscovered(sp.getUUID(), mobId);
-                    if (!newly) return;
-
-                    PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobPayload(mobId));
-                    boolean newlyCompleted = WildexCompletionHelper.markCompleteIfEligible(serverLevel, sp);
-                    WildexProgressHooks.onDiscoveryChanged(sp, mobId);
-                    if (newlyCompleted) {
-                        WildexCompletionHelper.notifyCompleted(sp);
-                    }
+                    WildexDiscoveryService.discover(sp, mobId, WildexDiscoveryService.DiscoverySource.DEBUG);
                 })
         );
 
