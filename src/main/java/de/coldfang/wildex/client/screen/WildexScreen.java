@@ -40,8 +40,14 @@ public final class WildexScreen extends Screen {
     private static final int FRAME_OUTER = 0x88301E14;
     private static final int FRAME_INNER = 0x55FFFFFF;
 
-    private static final Component RESET_ZOOM_TOOLTIP = Component.translatable("tooltip.wildex.reset_zoom");
+    private static final Component RESET_PREVIEW_TOOLTIP = Component.translatable("tooltip.wildex.reset_preview");
     private static final Component DISCOVERED_ONLY_TOOLTIP = Component.translatable("tooltip.wildex.discovered_only");
+    private static final Component PREVIEW_CONTROLS_LABEL = Component.translatable("gui.wildex.preview_controls_hint");
+    private static final List<Component> PREVIEW_CONTROLS_TOOLTIP = List.of(
+            Component.translatable("tooltip.wildex.preview_controls.title"),
+            Component.translatable("tooltip.wildex.preview_controls.line1"),
+            Component.translatable("tooltip.wildex.preview_controls.line2")
+    );
 
     private static final ResourceLocation TROPHY_ICON =
             ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy.png");
@@ -75,6 +81,10 @@ public final class WildexScreen extends Screen {
 
     private static final float VERSION_SCALE = 0.55f;
     private static final int VERSION_COLOR = 0x55301E14;
+    private static final float PREVIEW_HINT_SCALE = 0.62f;
+    private static final int PREVIEW_HINT_COLOR = 0x88301E14;
+    private static final int PREVIEW_HINT_PAD_X = 6;
+    private static final int PREVIEW_HINT_PAD_Y = 4;
 
     private final WildexScreenState state = new WildexScreenState();
     private final WildexBookRenderer renderer = new WildexBookRenderer();
@@ -208,7 +218,7 @@ public final class WildexScreen extends Screen {
                 resetArea.y(),
                 resetArea.w(),
                 resetArea.h(),
-                mobPreviewRenderer::resetZoom
+                mobPreviewRenderer::resetPreview
         );
         this.addRenderableWidget(this.previewResetButton);
 
@@ -342,6 +352,14 @@ public final class WildexScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
 
+        if (this.layout != null) {
+            int mx = (int) Math.floor(mouseX);
+            int my = (int) Math.floor(mouseY);
+            if (mobPreviewRenderer.isMouseOverPreview(this.layout, mx, my) && mobPreviewRenderer.beginRotationDrag(mx, my, button)) {
+                return true;
+            }
+        }
+
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             int mx = (int) Math.floor(mouseX);
             int my = (int) Math.floor(mouseY);
@@ -357,6 +375,14 @@ public final class WildexScreen extends Screen {
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY)) return true;
 
+        if (this.layout != null) {
+            int mx = (int) Math.floor(mouseX);
+            int my = (int) Math.floor(mouseY);
+            if (mobPreviewRenderer.updateRotationDrag(mx, my, button)) {
+                return true;
+            }
+        }
+
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             int mx = (int) Math.floor(mouseX);
             int my = (int) Math.floor(mouseY);
@@ -371,6 +397,10 @@ public final class WildexScreen extends Screen {
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (super.mouseReleased(mouseX, mouseY, button)) return true;
+
+        if (mobPreviewRenderer.endRotationDrag(button)) {
+            return true;
+        }
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             if (rightInfoRenderer.handleSpawnMouseReleased(button)) {
@@ -410,6 +440,9 @@ public final class WildexScreen extends Screen {
         }
 
         mobPreviewRenderer.render(graphics, layout, state, mouseX, mouseY, partialTick);
+        WildexScreenLayout.Area previewArea = layout.rightPreviewArea();
+        WildexScreenLayout.Area previewResetArea = layout.previewResetButtonArea();
+        HintBounds previewHint = drawPreviewControlsHint(graphics, previewArea, previewResetArea);
 
         drawPanelFrame(graphics, layout.rightHeaderArea());
         drawPanelFrame(graphics, layout.rightTabsArea());
@@ -458,7 +491,7 @@ public final class WildexScreen extends Screen {
         }
 
         if (this.previewResetButton != null && this.previewResetButton.isHovered()) {
-            graphics.renderTooltip(this.font, RESET_ZOOM_TOOLTIP, mouseX, mouseY);
+            graphics.renderTooltip(this.font, RESET_PREVIEW_TOOLTIP, mouseX, mouseY);
         }
 
         if (this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isHovered()) {
@@ -469,6 +502,49 @@ public final class WildexScreen extends Screen {
         if (trophyDrawn && isMouseOverRect(mouseX, mouseY, trophyX, trophyY)) {
             renderWildexTooltip(graphics, TROPHY_TOOLTIP, mouseX, mouseY);
         }
+
+        if (!mobPreviewRenderer.isDraggingPreview() && isMouseOverPreviewControlsHint(mouseX, mouseY, previewHint)) {
+            renderWildexTooltip(graphics, PREVIEW_CONTROLS_TOOLTIP, mouseX, mouseY);
+        }
+    }
+
+    private HintBounds drawPreviewControlsHint(
+            GuiGraphics graphics,
+            WildexScreenLayout.Area previewArea,
+            WildexScreenLayout.Area previewResetArea
+    ) {
+        if (previewArea == null) return null;
+
+        int hintBaseX = previewArea.x() + PREVIEW_HINT_PAD_X;
+        int textW = this.font.width(PREVIEW_CONTROLS_LABEL);
+        int scaledTextW = Math.max(1, Math.round(textW * PREVIEW_HINT_SCALE));
+        int scaledTextH = Math.max(1, Math.round(this.font.lineHeight * PREVIEW_HINT_SCALE));
+        int hintBaseY = (previewArea.y() + previewArea.h()) - PREVIEW_HINT_PAD_Y - scaledTextH;
+        int drawX = hintBaseX;
+        float inv = 1.0f / PREVIEW_HINT_SCALE;
+
+        int rightBound = (previewArea.x() + previewArea.w()) - PREVIEW_HINT_PAD_X;
+        if (previewResetArea != null) {
+            rightBound = Math.min(rightBound, previewResetArea.x() - 2);
+        }
+        int availableW = Math.max(0, rightBound - hintBaseX);
+        if (availableW <= 2) return null;
+
+        graphics.pose().pushPose();
+        graphics.enableScissor(hintBaseX, hintBaseY, hintBaseX + availableW, hintBaseY + scaledTextH + 1);
+        graphics.pose().scale(PREVIEW_HINT_SCALE, PREVIEW_HINT_SCALE, 1.0f);
+        graphics.drawString(
+                this.font,
+                PREVIEW_CONTROLS_LABEL,
+                Math.round(drawX * inv),
+                Math.round(hintBaseY * inv),
+                PREVIEW_HINT_COLOR,
+                false
+        );
+        graphics.disableScissor();
+        graphics.pose().popPose();
+
+        return new HintBounds(hintBaseX, hintBaseY, Math.min(scaledTextW, availableW), scaledTextH);
     }
 
     private void renderVersionLabel(GuiGraphics graphics) {
@@ -551,6 +627,14 @@ public final class WildexScreen extends Screen {
 
     private static boolean isMouseOverRect(int mouseX, int mouseY, int x, int y) {
         return mouseX >= x && mouseX < x + TROPHY_DRAW_SIZE && mouseY >= y && mouseY < y + TROPHY_DRAW_SIZE;
+    }
+
+    private static boolean isMouseOverPreviewControlsHint(int mouseX, int mouseY, HintBounds hint) {
+        if (hint == null || hint.w() <= 0 || hint.h() <= 0) return false;
+        return mouseX >= hint.x() && mouseX < hint.x() + hint.w() && mouseY >= hint.y() && mouseY < hint.y() + hint.h();
+    }
+
+    private record HintBounds(int x, int y, int w, int h) {
     }
 
     private static void drawPanelFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {

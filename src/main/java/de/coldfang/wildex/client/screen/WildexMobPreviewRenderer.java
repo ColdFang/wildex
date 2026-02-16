@@ -14,6 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 import java.util.Objects;
@@ -39,11 +40,23 @@ public final class WildexMobPreviewRenderer {
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 2.40f;
     private static final float ZOOM_STEP = 1.10f;
+    private static final float DRAG_DEG_PER_PX = 0.60f;
+    private static final float PITCH_MIN_DEG = -85.0f;
+    private static final float PITCH_MAX_DEG = 85.0f;
 
     private ResourceLocation cachedId;
     private Mob cachedEntity;
 
     private float zoom = 1.0f;
+    private boolean safePreviewMode = true;
+    private float smoothedYaw = 0.0f;
+    private boolean hasSmoothedYaw = false;
+    private boolean dragActive = false;
+    private int dragButton = -1;
+    private int lastDragX = 0;
+    private int lastDragY = 0;
+    private float manualYawDeg = 0.0f;
+    private float manualPitchDeg = 0.0f;
 
     public boolean isMouseOverPreview(WildexScreenLayout layout, int mouseX, int mouseY) {
         if (layout == null) return false;
@@ -61,6 +74,56 @@ public final class WildexMobPreviewRenderer {
 
     public void resetZoom() {
         zoom = 1.0f;
+    }
+
+    public void resetPreview() {
+        zoom = 1.0f;
+        manualYawDeg = 0.0f;
+        manualPitchDeg = 0.0f;
+        dragActive = false;
+        dragButton = -1;
+        hasSmoothedYaw = false;
+    }
+
+    public boolean isSafePreviewMode() {
+        return safePreviewMode;
+    }
+
+    public void setSafePreviewMode(boolean enabled) {
+        this.safePreviewMode = enabled;
+        this.hasSmoothedYaw = false;
+    }
+
+    public boolean beginRotationDrag(int mouseX, int mouseY, int button) {
+        if (button != 0) return false;
+        dragActive = true;
+        dragButton = button;
+        lastDragX = mouseX;
+        lastDragY = mouseY;
+        return true;
+    }
+
+    public boolean updateRotationDrag(int mouseX, int mouseY, int button) {
+        if (!dragActive || button != dragButton) return false;
+
+        int dx = mouseX - lastDragX;
+        int dy = mouseY - lastDragY;
+        lastDragX = mouseX;
+        lastDragY = mouseY;
+
+        if (dx == 0 && dy == 0) return true;
+
+        // Orbit-style controls: horizontal drag rotates around the model, vertical drag tilts.
+        manualYawDeg = wrapDegrees(manualYawDeg - (dx * DRAG_DEG_PER_PX));
+        manualPitchDeg = clampPitch(manualPitchDeg - (dy * DRAG_DEG_PER_PX));
+        return true;
+    }
+
+    public boolean endRotationDrag(int button) {
+        if (!dragActive || button != dragButton) return false;
+        dragActive = false;
+        dragButton = -1;
+        return true;
     }
 
     public void render(
@@ -142,20 +205,33 @@ public final class WildexMobPreviewRenderer {
         float maxSizePx = Math.min(area.w(), area.h()) * BOX_FILL;
         float scale = (maxSizePx / dim) * zoom;
 
-        float yaw = computeYaw(mc, partialTick);
+        float yaw = resolvePreviewYaw(mc, partialTick) + manualYawDeg;
+        float pitch = manualPitchDeg;
+        float renderPartialTick = safePreviewMode ? 0.0f : partialTick;
 
         boolean fish = isUprightFish(mob.getType());
 
         float prevYRot = mob.getYRot();
         float prevXRot = mob.getXRot();
+        float prevXRotO = mob.xRotO;
         float prevBodyRot = mob.yBodyRot;
         float prevBodyRotO = mob.yBodyRotO;
         float prevHeadRot = mob.yHeadRot;
         float prevHeadRotO = mob.yHeadRotO;
+        Vec3 prevDeltaMovement = mob.getDeltaMovement();
+        boolean prevNoGravity = mob.isNoGravity();
+        int prevTickCount = mob.tickCount;
+
+        if (safePreviewMode) {
+            mob.setDeltaMovement(Vec3.ZERO);
+            mob.setNoGravity(true);
+            mob.tickCount = 0;
+        }
 
         if (!fish) {
             mob.setYRot(yaw);
             mob.setXRot(0.0f);
+            mob.xRotO = 0.0f;
             mob.yBodyRot = yaw;
             mob.yBodyRotO = yaw;
             mob.yHeadRot = yaw;
@@ -163,6 +239,7 @@ public final class WildexMobPreviewRenderer {
         } else {
             mob.setYRot(0.0f);
             mob.setXRot(0.0f);
+            mob.xRotO = 0.0f;
             mob.yBodyRot = 0.0f;
             mob.yBodyRotO = 0.0f;
             mob.yHeadRot = 0.0f;
@@ -184,8 +261,12 @@ public final class WildexMobPreviewRenderer {
 
         if (fish) {
             graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(yaw)));
+            graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(pitch)));
             graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(FISH_MODEL_PITCH_DEG)));
             graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(FISH_MODEL_SIDE_YAW_DEG)));
+        } else if (Math.abs(pitch) > 0.01f) {
+            // Apply pitch as a view-space orbit tilt so it is consistently visible for vanilla and modded mobs.
+            graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(pitch)));
         }
 
         dispatcher.setRenderShadow(false);
@@ -201,7 +282,7 @@ public final class WildexMobPreviewRenderer {
                     -mob.getBbHeight() * 0.5,
                     0.0,
                     0.0f,
-                    partialTick,
+                    renderPartialTick,
                     graphics.pose(),
                     graphics.bufferSource(),
                     LightTexture.FULL_BRIGHT
@@ -219,10 +300,14 @@ public final class WildexMobPreviewRenderer {
 
         mob.setYRot(prevYRot);
         mob.setXRot(prevXRot);
+        mob.xRotO = prevXRotO;
         mob.yBodyRot = prevBodyRot;
         mob.yBodyRotO = prevBodyRotO;
         mob.yHeadRot = prevHeadRot;
         mob.yHeadRotO = prevHeadRotO;
+        mob.setDeltaMovement(prevDeltaMovement);
+        mob.setNoGravity(prevNoGravity);
+        mob.tickCount = prevTickCount;
 
         drawFrameOverlay(graphics, area);
     }
@@ -245,7 +330,44 @@ public final class WildexMobPreviewRenderer {
         return (t * ROT_SPEED_DEG_PER_TICK) % 360.0f;
     }
 
-    private static void renderDragonEntity(
+    private float resolvePreviewYaw(Minecraft mc, float partialTick) {
+        float rawYaw = computeYaw(mc, partialTick);
+        if (dragActive) {
+            if (!hasSmoothedYaw) {
+                smoothedYaw = rawYaw;
+                hasSmoothedYaw = true;
+            }
+            return smoothedYaw;
+        }
+
+        if (!safePreviewMode) return rawYaw;
+
+        if (!hasSmoothedYaw) {
+            smoothedYaw = rawYaw;
+            hasSmoothedYaw = true;
+            return smoothedYaw;
+        }
+
+        float delta = wrapDegrees(rawYaw - smoothedYaw);
+        float maxStep = ROT_SPEED_DEG_PER_TICK * 0.55f;
+        if (delta > maxStep) delta = maxStep;
+        if (delta < -maxStep) delta = -maxStep;
+        smoothedYaw = wrapDegrees(smoothedYaw + delta);
+        return smoothedYaw;
+    }
+
+    private static float wrapDegrees(float degrees) {
+        float out = degrees % 360.0f;
+        if (out >= 180.0f) out -= 360.0f;
+        if (out < -180.0f) out += 360.0f;
+        return out;
+    }
+
+    private static float clampPitch(float pitch) {
+        return Math.max(PITCH_MIN_DEG, Math.min(PITCH_MAX_DEG, pitch));
+    }
+
+    private void renderDragonEntity(
             GuiGraphics graphics,
             WildexScreenLayout.Area area,
             Mob dragon,
@@ -268,19 +390,32 @@ public final class WildexMobPreviewRenderer {
         int cx = area.x() + Math.round(area.w() * 0.5f);
         int cy = area.y() + Math.round(area.h() * 0.5f);
 
-        float yaw = computeYaw(mc, partialTick) + DRAGON_MODEL_YAW_OFFSET_DEG;
+        float yaw = resolvePreviewYaw(mc, partialTick) + manualYawDeg + DRAGON_MODEL_YAW_OFFSET_DEG;
+        float pitch = manualPitchDeg;
         float sizePx = Math.min(area.w(), area.h()) * DRAGON_MODEL_FILL;
         float scale = (sizePx / DRAGON_MODEL_EFFECTIVE_DIM) * zoom;
+        float renderPartialTick = safePreviewMode ? 0.0f : partialTick;
 
         float prevYRot = dragon.getYRot();
         float prevXRot = dragon.getXRot();
+        float prevXRotO = dragon.xRotO;
         float prevBodyRot = dragon.yBodyRot;
         float prevBodyRotO = dragon.yBodyRotO;
         float prevHeadRot = dragon.yHeadRot;
         float prevHeadRotO = dragon.yHeadRotO;
+        Vec3 prevDeltaMovement = dragon.getDeltaMovement();
+        boolean prevNoGravity = dragon.isNoGravity();
+        int prevTickCount = dragon.tickCount;
+
+        if (safePreviewMode) {
+            dragon.setDeltaMovement(Vec3.ZERO);
+            dragon.setNoGravity(true);
+            dragon.tickCount = 0;
+        }
 
         dragon.setYRot(yaw);
         dragon.setXRot(0.0f);
+        dragon.xRotO = 0.0f;
         dragon.yBodyRot = yaw;
         dragon.yBodyRotO = yaw;
         dragon.yHeadRot = yaw;
@@ -296,7 +431,7 @@ public final class WildexMobPreviewRenderer {
         graphics.pose().scale(-scale, scale, scale);
 
         graphics.pose().mulPose(new Quaternionf().rotateZ((float) Math.PI).rotateY((float) Math.toRadians(180.0f + yaw)));
-        graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(DRAGON_MODEL_PITCH_DEG)));
+        graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(DRAGON_MODEL_PITCH_DEG + pitch)));
 
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
@@ -307,7 +442,7 @@ public final class WildexMobPreviewRenderer {
                 -dragon.getBbHeight() * 0.38,
                 0.0,
                 0.0f,
-                partialTick,
+                renderPartialTick,
                 graphics.pose(),
                 graphics.bufferSource(),
                 LightTexture.FULL_BRIGHT
@@ -322,10 +457,14 @@ public final class WildexMobPreviewRenderer {
 
         dragon.setYRot(prevYRot);
         dragon.setXRot(prevXRot);
+        dragon.xRotO = prevXRotO;
         dragon.yBodyRot = prevBodyRot;
         dragon.yBodyRotO = prevBodyRotO;
         dragon.yHeadRot = prevHeadRot;
         dragon.yHeadRotO = prevHeadRotO;
+        dragon.setDeltaMovement(prevDeltaMovement);
+        dragon.setNoGravity(prevNoGravity);
+        dragon.tickCount = prevTickCount;
     }
 
     private static void drawFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {
@@ -395,6 +534,13 @@ public final class WildexMobPreviewRenderer {
 
     public void clear() {
         clearCachedEntity();
+        hasSmoothedYaw = false;
+        dragActive = false;
+        dragButton = -1;
+    }
+
+    public boolean isDraggingPreview() {
+        return dragActive;
     }
 
     private static float clampZoom(float v) {

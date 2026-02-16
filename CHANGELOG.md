@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.1 - 2026-02-16
+
+### Added
+- Added English and German localization keys for in-game config entries (`wildex.configuration.*`).
+- Mob Preview controls:
+  - mouse wheel zoom
+  - left-drag rotation (yaw + pitch)
+  - `Controls` hint label inside the preview with tooltip help.
+
+### Fixed
+- Improved Mob Preview renderer stability for modded entities (safe preview behavior now active by default).
+- Fixed preview pose issues while dragging (no unintended head/neck deformation from pitch input).
+- Improved tooltip behavior during preview interaction
+
+### Credits
+- Thanks to user `VaporeonScripts` for the report and testing feedback.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+
 ## 1.3.0 - 2026-02-16
 
 ### Added
