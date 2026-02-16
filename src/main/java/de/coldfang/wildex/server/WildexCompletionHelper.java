@@ -78,13 +78,17 @@ public final class WildexCompletionHelper {
         for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
             if (!WildexMobFilters.isTrackable(type)) continue;
 
-            Entity e = type.create(level);
+            Entity e;
+            try {
+                e = type.create(level);
+            } catch (RuntimeException ignored) {
+                continue;
+            }
             if (e == null) continue;
 
-            boolean ok = e instanceof Mob;
+            boolean isMob = e instanceof Mob;
             e.discard();
-
-            if (!ok) continue;
+            if (!isMob) continue;
 
             total++;
         }

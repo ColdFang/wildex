@@ -14,8 +14,8 @@ public final class WildexCompletionClientEvents {
     private static final int TOTAL_TICKS = 7 * 20;
     private static final int FADE_TICKS = 16;
 
-    private static final Component TITLE = Component.literal("WILDEX COMPLETE");
-    private static final Component SUB = Component.literal("Spyglass Pulse unlocked");
+    private static final Component TITLE = Component.translatable("toast.wildex.complete.title");
+    private static final Component SUB = Component.translatable("toast.wildex.complete.subtitle");
 
     private static int remainingTicks = 0;
 

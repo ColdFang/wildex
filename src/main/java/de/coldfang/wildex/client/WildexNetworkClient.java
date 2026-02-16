@@ -4,18 +4,23 @@ import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
+import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
+import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
+import de.coldfang.wildex.network.C2SRequestPlayerUiStatePayload;
 import de.coldfang.wildex.network.C2SRequestDiscoveredMobsPayload;
 import de.coldfang.wildex.network.C2SRequestMobKillsPayload;
 import de.coldfang.wildex.network.C2SRequestMobLootPayload;
 import de.coldfang.wildex.network.C2SRequestMobSpawnsPayload;
+import de.coldfang.wildex.network.C2SSavePlayerUiStatePayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobPayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobsPayload;
 import de.coldfang.wildex.network.S2CMobKillsPayload;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
+import de.coldfang.wildex.network.S2CPlayerUiStatePayload;
 import de.coldfang.wildex.network.S2CSpyglassDiscoveryEffectPayload;
 import de.coldfang.wildex.network.S2CWildexCompletePayload;
 import de.coldfang.wildex.network.S2CWildexCompleteStatusPayload;
@@ -65,7 +70,7 @@ public final class WildexNetworkClient {
                     Minecraft mc = Minecraft.getInstance();
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
                     Component name = (type != null) ? type.getDescription() : Component.literal(mobId.toString());
-                    Component title = Component.literal(name.getString() + " discovered!");
+                    Component title = Component.translatable("toast.wildex.discovery", name);
                     mc.getToasts().addToast(new WildexDiscoveryToast(mobId, title));
                 })
         );
@@ -107,7 +112,26 @@ public final class WildexNetworkClient {
         r.playToClient(
                 S2CMobSpawnsPayload.TYPE,
                 S2CMobSpawnsPayload.STREAM_CODEC,
-                (payload, ctx) -> ctx.enqueueWork(() -> WildexSpawnCache.set(payload.mobId(), payload.sections()))
+                (payload, ctx) -> ctx.enqueueWork(() ->
+                        WildexSpawnCache.set(
+                                payload.mobId(),
+                                payload.naturalSections(),
+                                payload.structureSections()
+                        )
+                )
+        );
+
+        r.playToClient(
+                S2CPlayerUiStatePayload.TYPE,
+                S2CPlayerUiStatePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    WildexPlayerUiStateCache.set(payload.tabId(), payload.mobId());
+
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.applyServerUiState(payload.tabId(), payload.mobId());
+                    }
+                })
         );
     }
 
@@ -146,6 +170,22 @@ public final class WildexNetworkClient {
         if (mc.getConnection() == null) return;
 
         PacketDistributor.sendToServer(new C2SRequestDiscoveredMobsPayload());
+    }
+
+    public static void requestPlayerUiState() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SRequestPlayerUiStatePayload());
+    }
+
+    public static void savePlayerUiState(String tabId, String mobId) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        String safeTab = tabId == null ? "" : tabId;
+        String safeMob = mobId == null ? "" : mobId;
+        PacketDistributor.sendToServer(new C2SSavePlayerUiStatePayload(safeTab, safeMob));
     }
 
     public static void sendDebugDiscoverMob(ResourceLocation mobId) {

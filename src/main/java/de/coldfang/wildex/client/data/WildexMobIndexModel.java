@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client.data;
 
 import de.coldfang.wildex.util.WildexMobFilters;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -61,12 +62,16 @@ public final class WildexMobIndexModel {
             list.add(type);
         }
 
-        list.sort(Comparator.comparing(WildexMobIndexModel::idString));
+        list.sort(
+                Comparator
+                        .comparing(WildexMobIndexModel::localizedNameForSort)
+                        .thenComparing(WildexMobIndexModel::idString)
+        );
         return List.copyOf(list);
     }
 
     private static boolean isMobType(EntityType<?> type, Level level) {
-        Entity e = type.create(level);
+        Entity e = WildexEntityFactory.tryCreate(type, level);
         if (e == null) return false;
 
         boolean ok = e instanceof Mob;
@@ -122,6 +127,12 @@ public final class WildexMobIndexModel {
     private static String idString(EntityType<?> type) {
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         return Objects.requireNonNull(id, "Missing entity type id").toString();
+    }
+
+    private static String localizedNameForSort(EntityType<?> type) {
+        if (type == null) return "";
+        String name = type.getDescription().getString();
+        return normalize(name);
     }
 
     private static String normalize(String s) {

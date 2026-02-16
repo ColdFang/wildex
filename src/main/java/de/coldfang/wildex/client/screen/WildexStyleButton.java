@@ -28,7 +28,7 @@ public final class WildexStyleButton extends Button {
                 y,
                 w,
                 h,
-                Component.literal("Theme"),
+                Component.translatable("gui.wildex.theme"),
                 b -> {},
                 DEFAULT_NARRATION
         );

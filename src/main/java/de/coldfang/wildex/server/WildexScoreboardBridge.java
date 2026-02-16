@@ -24,10 +24,10 @@ public final class WildexScoreboardBridge {
         WildexProgressService.ProgressSnapshot s = WildexProgressService.getSnapshot(player);
         Scoreboard scoreboard = player.getServer().getScoreboard();
 
-        Objective discoveredObj = ensureObjective(scoreboard, OBJ_DISCOVERED, "Wildex Discovered");
-        Objective totalObj = ensureObjective(scoreboard, OBJ_TOTAL, "Wildex Total");
-        Objective percentObj = ensureObjective(scoreboard, OBJ_PERCENT, "Wildex Percent x100");
-        Objective completeObj = ensureObjective(scoreboard, OBJ_COMPLETE, "Wildex Complete");
+        Objective discoveredObj = ensureObjective(scoreboard, OBJ_DISCOVERED, Component.translatable("scoreboard.wildex.discovered"));
+        Objective totalObj = ensureObjective(scoreboard, OBJ_TOTAL, Component.translatable("scoreboard.wildex.total"));
+        Objective percentObj = ensureObjective(scoreboard, OBJ_PERCENT, Component.translatable("scoreboard.wildex.percent_scaled"));
+        Objective completeObj = ensureObjective(scoreboard, OBJ_COMPLETE, Component.translatable("scoreboard.wildex.complete"));
 
         setScore(scoreboard, player, discoveredObj, s.discoveredCount());
         setScore(scoreboard, player, totalObj, s.totalCount());
@@ -35,14 +35,14 @@ public final class WildexScoreboardBridge {
         setScore(scoreboard, player, completeObj, s.complete() ? 1 : 0);
     }
 
-    private static Objective ensureObjective(Scoreboard scoreboard, String name, String displayName) {
+    private static Objective ensureObjective(Scoreboard scoreboard, String name, Component displayName) {
         Objective existing = scoreboard.getObjective(name);
         if (existing != null) return existing;
 
         return scoreboard.addObjective(
                 name,
                 ObjectiveCriteria.DUMMY,
-                Component.literal(displayName),
+                displayName,
                 ObjectiveCriteria.RenderType.INTEGER,
                 false,
                 null

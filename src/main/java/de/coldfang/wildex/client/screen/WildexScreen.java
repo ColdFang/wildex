@@ -5,6 +5,7 @@ import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
+import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
@@ -23,11 +24,12 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class WildexScreen extends Screen {
 
-    private static final Component TITLE = Component.literal("Wildex");
-    private static final Component SEARCH_LABEL = Component.literal("Search");
+    private static final Component TITLE = Component.translatable("screen.wildex.title");
+    private static final Component SEARCH_LABEL = Component.translatable("gui.wildex.search");
 
     private static final int INK_COLOR = 0x2B1A10;
 
@@ -38,22 +40,22 @@ public final class WildexScreen extends Screen {
     private static final int FRAME_OUTER = 0x88301E14;
     private static final int FRAME_INNER = 0x55FFFFFF;
 
-    private static final Component RESET_ZOOM_TOOLTIP = Component.literal("Reset Zoom");
-    private static final Component DISCOVERED_ONLY_TOOLTIP = Component.literal("Show only discovered mobs");
+    private static final Component RESET_ZOOM_TOOLTIP = Component.translatable("tooltip.wildex.reset_zoom");
+    private static final Component DISCOVERED_ONLY_TOOLTIP = Component.translatable("tooltip.wildex.discovered_only");
 
     private static final ResourceLocation TROPHY_ICON =
             ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy.png");
     private static final int TROPHY_TEX_SIZE = 128;
     private static final int TROPHY_DRAW_SIZE = 32;
 
-    private static final Component TROPHY_TIP_TITLE = Component.literal("Spyglass Pulse");
+    private static final Component TROPHY_TIP_TITLE = Component.translatable("tooltip.wildex.spyglass_pulse.title");
     private static final List<Component> TROPHY_TOOLTIP = List.of(
             TROPHY_TIP_TITLE,
-            Component.literal("Granted by completing the Wildex:"),
-            Component.literal("While holding a Spyglass,"),
-            Component.literal("left-click to reveal nearby mobs."),
-            Component.literal(""),
-            Component.literal("Cooldown: 15s • Radius: 32 blocks • Duration: 10s")
+            Component.translatable("tooltip.wildex.spyglass_pulse.line1"),
+            Component.translatable("tooltip.wildex.spyglass_pulse.line2"),
+            Component.translatable("tooltip.wildex.spyglass_pulse.line3"),
+            Component.empty(),
+            Component.translatable("tooltip.wildex.spyglass_pulse.line4")
     );
 
     private static final int TROPHY_CORNER_X = 6;
@@ -91,6 +93,9 @@ public final class WildexScreen extends Screen {
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
 
     private List<EntityType<?>> visibleEntries = List.of();
+    private boolean suppressMobSelectionCallback = false;
+    private boolean suppressUiStateSync = false;
+    private boolean localUiStateDirtySinceOpen = false;
 
     private WildexTab lastTab = WildexTab.STATS;
     private int lastDiscoveryCount = -1;
@@ -103,6 +108,8 @@ public final class WildexScreen extends Screen {
     @Override
     protected void init() {
         this.layout = WildexScreenLayout.compute(this.width, this.height);
+        this.state.setSelectedTab(WildexTab.STATS);
+        this.state.setSelectedMobId("");
 
         int btnW = STYLE_BUTTON_W;
         int btnX = this.width - btnW - STYLE_BUTTON_MARGIN;
@@ -178,12 +185,18 @@ public final class WildexScreen extends Screen {
         );
         this.addRenderableWidget(this.mobList);
 
-        applyFiltersFromUi();
-        refreshMobList();
+        String restoredSelectedMobId = this.state.selectedMobId();
+        ResourceLocation restoredSelectedRl = ResourceLocation.tryParse(restoredSelectedMobId == null ? "" : restoredSelectedMobId);
 
-        String selected = state.selectedMobId();
-        if (selected != null && !selected.isBlank()) {
-            this.mobList.setSelectedId(ResourceLocation.parse(selected));
+        suppressMobSelectionCallback = true;
+        try {
+            applyFiltersFromUi();
+            refreshMobList();
+            if (restoredSelectedRl != null) this.mobList.setSelectedId(restoredSelectedRl);
+            ResourceLocation selected = this.mobList.selectedId();
+            this.state.setSelectedMobId(selected == null ? "" : selected.toString());
+        } finally {
+            suppressMobSelectionCallback = false;
         }
 
         WildexScreenLayout.Area tabsArea = layout.rightTabsArea();
@@ -204,6 +217,11 @@ public final class WildexScreen extends Screen {
 
         this.lastDiscoveryCount = CommonConfig.INSTANCE.hiddenMode.get() ? WildexDiscoveryCache.count() : -1;
 
+        this.localUiStateDirtySinceOpen = false;
+        if (WildexPlayerUiStateCache.hasServerState()) {
+            applyServerUiState(WildexPlayerUiStateCache.tabId(), WildexPlayerUiStateCache.mobId());
+        }
+        WildexNetworkClient.requestPlayerUiState();
         requestAllForSelected(this.state.selectedMobId());
     }
 
@@ -267,6 +285,7 @@ public final class WildexScreen extends Screen {
         WildexTab tabNow = this.state.selectedTab();
         if (tabNow != this.lastTab) {
             this.lastTab = tabNow;
+            saveUiStateToServer();
             requestAllForSelected(this.state.selectedMobId());
         }
 
@@ -278,14 +297,18 @@ public final class WildexScreen extends Screen {
         if (!next.equals(this.state.selectedMobId())) {
             this.state.setSelectedMobId(next);
             rightInfoRenderer.resetSpawnScroll();
+            saveUiStateToServer();
             requestAllForSelected(next);
         }
     }
 
     private void onMobSelected(ResourceLocation id) {
+        if (suppressMobSelectionCallback) return;
+
         String next = id == null ? "" : id.toString();
         state.setSelectedMobId(next);
         rightInfoRenderer.resetSpawnScroll();
+        saveUiStateToServer();
         requestAllForSelected(next);
     }
 
@@ -307,14 +330,55 @@ public final class WildexScreen extends Screen {
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             WildexScreenLayout.Area a = this.layout.rightInfoArea();
             if (a != null && mouseX >= a.x() && mouseX < a.x() + a.w() && mouseY >= a.y() && mouseY < a.y() + a.h()) {
-                int logicalViewportH = Math.max(1, a.h());
-                int selectedContentH = Math.max(1, a.h() * 4);
-                rightInfoRenderer.scrollSpawn(scrollY, logicalViewportH, selectedContentH);
+                rightInfoRenderer.scrollSpawn(scrollY);
                 return true;
             }
         }
 
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+
+        if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
+            int mx = (int) Math.floor(mouseX);
+            int my = (int) Math.floor(mouseY);
+            if (rightInfoRenderer.handleSpawnMouseClicked(mx, my, button, this.state)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY)) return true;
+
+        if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
+            int mx = (int) Math.floor(mouseX);
+            int my = (int) Math.floor(mouseY);
+            if (rightInfoRenderer.handleSpawnMouseDragged(mx, my, button)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (super.mouseReleased(mouseX, mouseY, button)) return true;
+
+        if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
+            if (rightInfoRenderer.handleSpawnMouseReleased(button)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override
@@ -327,7 +391,7 @@ public final class WildexScreen extends Screen {
         renderVersionLabel(graphics);
 
         WildexScreenLayout.Area entriesArea = layout.leftEntriesCounterArea();
-        String entriesText = "Entries: " + (this.visibleEntries == null ? 0 : this.visibleEntries.size());
+        Component entriesText = Component.translatable("gui.wildex.entries_count", (this.visibleEntries == null ? 0 : this.visibleEntries.size()));
         int entriesX = (entriesArea.x() + entriesArea.w()) - this.font.width(entriesText);
         int entriesY = entriesArea.y() + ((entriesArea.h() - this.font.lineHeight) / 2);
         graphics.drawString(this.font, entriesText, entriesX, entriesY, INK_COLOR, false);
@@ -338,7 +402,7 @@ public final class WildexScreen extends Screen {
             int discovered = WildexDiscoveryCache.count();
             int total = mobIndex.totalCount();
 
-            String discText = "Discovered: " + discovered + " / " + total;
+            Component discText = Component.translatable("gui.wildex.discovered_count", discovered, total);
 
             int discX = discArea.x();
             int discY = discArea.y() + ((discArea.h() - this.font.lineHeight) / 2);
@@ -531,5 +595,74 @@ public final class WildexScreen extends Screen {
                 .map(c -> c.getModInfo().getVersion().toString())
                 .orElse("unknown");
         return "v" + v;
+    }
+
+    public void applyServerUiState(String tabId, String mobId) {
+        if (localUiStateDirtySinceOpen) return;
+
+        WildexTab tab = parseTabOrDefault(tabId);
+        ResourceLocation targetMob = sanitizeMobId(mobId);
+        boolean useDefaultSelection = targetMob == null;
+
+        suppressMobSelectionCallback = true;
+        suppressUiStateSync = true;
+        try {
+            this.state.setSelectedTab(useDefaultSelection ? WildexTab.STATS : tab);
+
+            if (this.mobList != null) {
+                if (useDefaultSelection) {
+                    // No persisted mob for this world/player: fall back to default first entry.
+                    this.mobList.setEntries(this.visibleEntries);
+                } else {
+                    this.mobList.setSelectedId(targetMob);
+                }
+            }
+
+            ResourceLocation selected = this.mobList == null ? null : this.mobList.selectedId();
+            if (selected != null) {
+                this.state.setSelectedMobId(selected.toString());
+            } else if (!useDefaultSelection && targetMob != null) {
+                this.state.setSelectedMobId(targetMob.toString());
+            } else {
+                this.state.setSelectedMobId("");
+            }
+        } finally {
+            suppressUiStateSync = false;
+            suppressMobSelectionCallback = false;
+        }
+
+        this.lastTab = this.state.selectedTab();
+        this.rightInfoRenderer.resetSpawnScroll();
+        requestAllForSelected(this.state.selectedMobId());
+    }
+
+    private void saveUiStateToServer() {
+        if (suppressUiStateSync) return;
+
+        WildexTab tab = this.state.selectedTab();
+        String mobId = this.state.selectedMobId();
+        ResourceLocation safeMob = sanitizeMobId(mobId);
+
+        localUiStateDirtySinceOpen = true;
+        WildexNetworkClient.savePlayerUiState(
+                (tab == null ? WildexTab.STATS : tab).name(),
+                safeMob == null ? "" : safeMob.toString()
+        );
+    }
+
+    private static WildexTab parseTabOrDefault(String raw) {
+        if (raw == null || raw.isBlank()) return WildexTab.STATS;
+        try {
+            return WildexTab.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return WildexTab.STATS;
+        }
+    }
+
+    private static ResourceLocation sanitizeMobId(String raw) {
+        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw);
+        if (rl == null) return null;
+        if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return null;
+        return rl;
     }
 }

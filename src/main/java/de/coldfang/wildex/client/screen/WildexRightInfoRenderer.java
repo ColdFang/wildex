@@ -7,6 +7,7 @@ import de.coldfang.wildex.client.data.extractor.WildexEntityTypeTags;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.data.model.WildexStatsData;
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
 import net.minecraft.Util;
@@ -41,6 +42,10 @@ public final class WildexRightInfoRenderer {
     private static final int ICON = 9;
     private static final int ICON_GAP = 1;
     private static final int COL_GAP = 6;
+    private static final float STATS_LABEL_COL_RATIO = 0.56f;
+    private static final int STATS_LABEL_COL_MIN = 56;
+    private static final int STATS_LABEL_COL_MAX = 240;
+    private static final int STATS_MIN_VALUE_COL_W = 48;
 
     private static final int ITEM_ICON = 16;
     private static final int ITEM_GAP_X = 6;
@@ -64,6 +69,20 @@ public final class WildexRightInfoRenderer {
     private static final float MIN_SCALE = 0.75f;
 
     private static final int SPAWN_LINE_GAP = 2;
+    private static final int SPAWN_GROUP_GAP = 4;
+    private static final int SPAWN_FILTER_GAP = 2;
+    private static final int SPAWN_FILTER_PAD_X = 5;
+    private static final int SPAWN_FILTER_BORDER_ON = 0xCC3A2618;
+    private static final int SPAWN_FILTER_BORDER_OFF = 0x55301E14;
+    private static final int SPAWN_FILTER_ON_BG = 0xB83A2618;
+    private static final int SPAWN_FILTER_OFF_BG = 0x18FFFFFF;
+    private static final int SPAWN_FILTER_TEXT_ON = 0xFFF7E7CC;
+    private static final int SPAWN_FILTER_TEXT_OFF = 0x7A2B1A10;
+    private static final int SPAWN_FILTER_OFF_CROSS = 0xFFE74C3C;
+    private static final int SPAWN_HEADING_COLOR = 0xCC2B1A10;
+    private static final int SPAWN_HEADING_RULE = 0x66301E14;
+    private static final int SPAWN_SUBHEADING_COLOR = 0xB8301E14;
+    private static final int SPAWN_SUBHEADING_RULE = 0x33301E14;
 
     private static final int SCROLLBAR_W = 4;
     private static final int SCROLLBAR_PAD = 2;
@@ -84,45 +103,109 @@ public final class WildexRightInfoRenderer {
     private static final int TIP_MAX_W = 170;
 
     private static final Component SHIFT_HINT_LINE_1 =
-            Component.literal("Hold Shift for details");
+            Component.translatable("gui.wildex.hint.shift_details");
 
     private static final Component SHIFT_HINT_LINE_2 =
-            Component.literal("(while hovering)");
+            Component.translatable("gui.wildex.hint.shift_hover");
     private static final int SHIFT_HINT_COLOR = 0x662B1A10;
 
     private record TraitLine(String display, List<TagKey<EntityType<?>>> tags, Predicate<EntityType<?>> directCheck) {
     }
 
     private static final List<TraitLine> INFO_TRAITS = List.of(
-            new TraitLine("Immune to fire", List.of(), EntityType::fireImmune),
-            new TraitLine("Immune to drowning", List.of(WildexEntityTypeTags.CAN_BREATHE_UNDER_WATER), null),
-            new TraitLine("Immune to fall damage", List.of(WildexEntityTypeTags.FALL_DAMAGE_IMMUNE), null),
-            new TraitLine("Weak to Bane of Arthropods", List.of(WildexEntityTypeTags.SENSITIVE_TO_BANE_OF_ARTHROPODS), null),
-            new TraitLine("Weak to Impaling", List.of(WildexEntityTypeTags.SENSITIVE_TO_IMPALING), null),
-            new TraitLine("Weak to Smite", List.of(WildexEntityTypeTags.SENSITIVE_TO_SMITE), null)
+            new TraitLine("gui.wildex.trait.immune_fire", List.of(), EntityType::fireImmune),
+            new TraitLine("gui.wildex.trait.immune_drowning", List.of(WildexEntityTypeTags.CAN_BREATHE_UNDER_WATER), null),
+            new TraitLine("gui.wildex.trait.immune_fall_damage", List.of(WildexEntityTypeTags.FALL_DAMAGE_IMMUNE), null),
+            new TraitLine("gui.wildex.trait.weak_bane_of_arthropods", List.of(WildexEntityTypeTags.SENSITIVE_TO_BANE_OF_ARTHROPODS), null),
+            new TraitLine("gui.wildex.trait.weak_impaling", List.of(WildexEntityTypeTags.SENSITIVE_TO_IMPALING), null),
+            new TraitLine("gui.wildex.trait.weak_smite", List.of(WildexEntityTypeTags.SENSITIVE_TO_SMITE), null)
     );
 
-    private record Dims(OptionalDouble hitboxHeight, OptionalDouble eyeHeight) {
+    private record Dims(OptionalDouble hitboxWidth, OptionalDouble hitboxHeight, OptionalDouble eyeHeight) {
     }
 
     private record TooltipRequest(List<Component> lines) {
     }
 
     private static final Map<ResourceLocation, Dims> DIMS_CACHE = new HashMap<>();
-    private static final Dims EMPTY_DIMS = new Dims(OptionalDouble.empty(), OptionalDouble.empty());
+    private static final Dims EMPTY_DIMS = new Dims(OptionalDouble.empty(), OptionalDouble.empty(), OptionalDouble.empty());
     private static int spawnScrollPx = 0;
+    private static int spawnViewportH = 1;
+    private static int spawnContentH = 1;
+    private static boolean spawnHasScrollbar = false;
+    private static boolean spawnDraggingScrollbar = false;
+    private static int spawnDragOffsetY = 0;
+    private static int spawnBarScreenX0 = 0;
+    private static int spawnBarScreenY0 = 0;
+    private static int spawnBarScreenX1 = 0;
+    private static int spawnBarScreenY1 = 0;
+    private static int spawnThumbScreenH = 0;
+    private static int spawnThumbScreenY0 = 0;
+    private static int spawnThumbScreenY1 = 0;
+    private static int spawnFilterBiomeX0 = 0;
+    private static int spawnFilterBiomeY0 = 0;
+    private static int spawnFilterBiomeX1 = 0;
+    private static int spawnFilterBiomeY1 = 0;
+    private static int spawnFilterStructureX0 = 0;
+    private static int spawnFilterStructureY0 = 0;
+    private static int spawnFilterStructureX1 = 0;
+    private static int spawnFilterStructureY1 = 0;
 
     public void resetSpawnScroll() {
         spawnScrollPx = 0;
+        spawnViewportH = 1;
+        spawnContentH = 1;
+        spawnHasScrollbar = false;
+        spawnDraggingScrollbar = false;
     }
 
-    public void scrollSpawn(double scrollY, int logicalViewportH, int contentH) {
-        int max = Math.max(0, contentH - logicalViewportH);
+    public void scrollSpawn(double scrollY) {
+        int max = Math.max(0, spawnContentH - spawnViewportH);
         int step = 10;
         int next = spawnScrollPx - (int) Math.round(scrollY * (double) step);
         if (next < 0) next = 0;
         if (next > max) next = max;
         spawnScrollPx = next;
+    }
+
+    public boolean handleSpawnMouseClicked(int mouseX, int mouseY, int button, WildexScreenState state) {
+        if (button != 0) return false;
+        if (state == null) return false;
+
+        if (isInside(mouseX, mouseY, spawnFilterBiomeX0, spawnFilterBiomeY0, spawnFilterBiomeX1, spawnFilterBiomeY1)) {
+            state.toggleSpawnFilterNatural();
+            return true;
+        }
+        if (isInside(mouseX, mouseY, spawnFilterStructureX0, spawnFilterStructureY0, spawnFilterStructureX1, spawnFilterStructureY1)) {
+            state.toggleSpawnFilterStructures();
+            return true;
+        }
+
+        if (!spawnHasScrollbar) return false;
+        if (!isInside(mouseX, mouseY, spawnBarScreenX0, spawnBarScreenY0, spawnBarScreenX1, spawnBarScreenY1)) return false;
+
+        if (isInside(mouseX, mouseY, spawnBarScreenX0, spawnThumbScreenY0, spawnBarScreenX1, spawnThumbScreenY1)) {
+            spawnDraggingScrollbar = true;
+            spawnDragOffsetY = mouseY - spawnThumbScreenY0;
+            return true;
+        }
+
+        setSpawnScrollFromThumbTop(mouseY - (spawnThumbScreenH / 2));
+        return true;
+    }
+
+    public boolean handleSpawnMouseDragged(int mouseX, int mouseY, int button) {
+        if (button != 0) return false;
+        if (!spawnDraggingScrollbar) return false;
+        setSpawnScrollFromThumbTop(mouseY - spawnDragOffsetY);
+        return true;
+    }
+
+    public boolean handleSpawnMouseReleased(int button) {
+        if (button != 0) return false;
+        boolean wasDragging = spawnDraggingScrollbar;
+        spawnDraggingScrollbar = false;
+        return wasDragging;
     }
 
     public void render(
@@ -188,18 +271,18 @@ public final class WildexRightInfoRenderer {
                                 mouseX, mouseY, x0, y0, s
                         );
                     } else {
-                        renderStatsNoTooltip(graphics, font, local, state.selectedMobId(), data.stats(), inkColor);
+                        renderStatsNoTooltip(graphics, font, local, state.selectedMobId(), data.stats(), inkColor, x0, y0, s);
                         renderShiftHint(graphics, font, local);
                     }
                 }
                 case LOOT -> renderLoot(graphics, font, local, mobRl, inkColor);
-                case SPAWNS -> renderSpawns(graphics, font, local, mobRl, inkColor, x0, y0, s);
-                case MISC -> renderInfoTraits(graphics, font, local, state, inkColor);
+                case SPAWNS -> tooltip = renderSpawns(graphics, font, local, mobRl, state, inkColor, x0, y0, s, mouseX, mouseY);
+                case MISC -> renderInfoTraits(graphics, font, local, state, inkColor, x0, y0, s);
             }
 
             graphics.pose().popPose();
 
-            if (shiftDown && tooltip != null && mouseX >= 0 && mouseY >= 0 && !tooltip.lines().isEmpty()) {
+            if (tooltip != null && mouseX >= 0 && mouseY >= 0 && !tooltip.lines().isEmpty()) {
                 renderPanelTooltip(graphics, font, tooltip.lines(), mouseX, mouseY, x0, y0, area.w(), area.h());
             }
         } finally {
@@ -250,9 +333,9 @@ public final class WildexRightInfoRenderer {
         int lineH = Math.max(10, font.lineHeight + HINT_LINE_GAP);
 
         String[] lines = {
-                "Entry locked.",
-                "Look at it with a Spyglass",
-                "or kill it.."
+                tr("gui.wildex.locked.line1"),
+                tr("gui.wildex.locked.line2"),
+                tr("gui.wildex.locked.line3")
         };
 
         int totalH = lines.length * lineH;
@@ -286,7 +369,7 @@ public final class WildexRightInfoRenderer {
 
         List<S2CMobLootPayload.LootLine> lines = WildexLootCache.get(mobId);
         if (lines.isEmpty()) {
-            g.drawString(font, "No loot data", x, y, inkColor, false);
+            g.drawString(font, tr("gui.wildex.loot.none"), x, y, inkColor, false);
             return;
         }
 
@@ -316,42 +399,102 @@ public final class WildexRightInfoRenderer {
         }
 
         if (shown == 0) {
-            g.drawString(font, "No loot data", x, y, inkColor, false);
+            g.drawString(font, tr("gui.wildex.loot.none"), x, y, inkColor, false);
         }
     }
 
-    private static void renderSpawns(
+    private static TooltipRequest renderSpawns(
             GuiGraphics g,
             Font font,
             WildexScreenLayout.Area area,
             ResourceLocation mobId,
+            WildexScreenState state,
             int inkColor,
             int screenOriginX,
             int screenOriginY,
-            float scale
+            float scale,
+            int mouseX,
+            int mouseY
     ) {
+        TooltipRequest hoverTip = null;
         int x = area.x() + PAD_X;
-        int yTop = area.y() + PAD_Y;
+        int yTop = area.y() + 2;
 
         int rightLimitX = area.x() + area.w() - PAD_X;
         int maxY = area.y() + area.h() - PAD_Y;
 
-        List<S2CMobSpawnsPayload.DimSection> sections = WildexSpawnCache.get(mobId);
-        if (sections.isEmpty()) {
-            g.drawString(font, "No biome spawn data", x, yTop, inkColor, false);
-            return;
+        int filterH = Math.max(10, font.lineHeight + 4);
+        int filterY = yTop;
+        int filterTextY = filterY + Math.max(0, (filterH - font.lineHeight) / 2) + 1;
+
+        String biomeLabel = tr("gui.wildex.spawn.filter.biomes.short");
+        String structureLabel = tr("gui.wildex.spawn.filter.structures.short");
+
+        int biomeW = font.width(biomeLabel) + (SPAWN_FILTER_PAD_X * 2);
+        int structureW = font.width(structureLabel) + (SPAWN_FILTER_PAD_X * 2);
+
+        int filterX = area.x() + 2;
+        int biomeX0 = filterX;
+        int biomeX1 = biomeX0 + biomeW;
+        int structureX0 = biomeX1 + SPAWN_FILTER_GAP;
+        int structureX1 = structureX0 + structureW;
+
+        boolean naturalEnabled = state != null && state.spawnFilterNatural();
+        boolean structuresEnabled = state != null && state.spawnFilterStructures();
+
+        drawSpawnFilterChip(g, font, biomeX0, biomeX1, filterY, filterH, filterTextY, biomeLabel, naturalEnabled);
+        drawSpawnFilterChip(g, font, structureX0, structureX1, filterY, filterH, filterTextY, structureLabel, structuresEnabled);
+
+        cacheSpawnFilterRects(screenOriginX, screenOriginY, scale, biomeX0, biomeX1, filterY, filterY + filterH, structureX0, structureX1);
+
+        if (mouseX >= 0 && mouseY >= 0) {
+            if (isInside(mouseX, mouseY, spawnFilterBiomeX0, spawnFilterBiomeY0, spawnFilterBiomeX1, spawnFilterBiomeY1)) {
+                hoverTip = tooltipLines("tooltip.wildex.spawn.filter.biomes");
+            } else if (isInside(mouseX, mouseY, spawnFilterStructureX0, spawnFilterStructureY0, spawnFilterStructureX1, spawnFilterStructureY1)) {
+                hoverTip = tooltipLines("tooltip.wildex.spawn.filter.structures");
+            }
+        }
+
+        yTop += filterH + SPAWN_FILTER_GAP + 2;
+
+        WildexSpawnCache.SpawnData data = WildexSpawnCache.get(mobId);
+        List<S2CMobSpawnsPayload.DimSection> naturalSections = data.naturalSections();
+        List<S2CMobSpawnsPayload.StructureSection> structureSections = data.structureSections();
+
+        if (!naturalEnabled) naturalSections = List.of();
+        if (!structuresEnabled) structureSections = List.of();
+
+        if (naturalSections.isEmpty() && structureSections.isEmpty()) {
+            g.drawString(font, tr("gui.wildex.spawn.none"), x, yTop, inkColor, false);
+            spawnHasScrollbar = false;
+            spawnDraggingScrollbar = false;
+            return hoverTip;
         }
 
         int lineH = Math.max(10, font.lineHeight + SPAWN_LINE_GAP);
         int titleH = Math.max(10, font.lineHeight + 3);
 
         int contentH = 0;
-        for (S2CMobSpawnsPayload.DimSection s : sections) {
+        if (!naturalSections.isEmpty()) {
             contentH += titleH;
-            contentH += (s.biomeIds() == null ? 0 : s.biomeIds().size()) * lineH;
+            for (S2CMobSpawnsPayload.DimSection s : naturalSections) {
+                contentH += titleH;
+                contentH += (s.biomeIds() == null ? 0 : s.biomeIds().size()) * lineH;
+            }
+        }
+        if (!naturalSections.isEmpty() && !structureSections.isEmpty()) {
+            contentH += SPAWN_GROUP_GAP;
+        }
+        if (!structureSections.isEmpty()) {
+            contentH += titleH;
+            for (S2CMobSpawnsPayload.StructureSection s : structureSections) {
+                contentH += titleH;
+            }
         }
 
         int viewportH = Math.max(1, (maxY - yTop));
+        spawnViewportH = viewportH;
+        spawnContentH = Math.max(1, contentH);
         int maxScroll = Math.max(0, contentH - viewportH);
         if (spawnScrollPx > maxScroll) spawnScrollPx = maxScroll;
 
@@ -359,42 +502,232 @@ public final class WildexRightInfoRenderer {
 
         int textMaxW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - x);
 
-        for (S2CMobSpawnsPayload.DimSection s : sections) {
-            if (y + font.lineHeight > yTop - lineH && y < maxY) {
-                String title = formatDimensionTitle(s.dimensionId());
-                drawMarqueeIfNeeded(g, font, title, x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale);
-            }
-            y += titleH;
+        int contentSx0 = toScreenX(screenOriginX, scale, area.x());
+        int contentSy0 = toScreenY(screenOriginY, scale, yTop);
+        int contentSx1 = toScreenX(screenOriginX, scale, area.x() + area.w());
+        int contentSy1 = toScreenY(screenOriginY, scale, maxY);
 
-            List<ResourceLocation> biomes = s.biomeIds() == null ? List.of() : s.biomeIds();
-            for (ResourceLocation b : biomes) {
-                if (y + font.lineHeight >= yTop - lineH && y < maxY) {
-                    String line = b.toString();
-                    drawMarqueeIfNeeded(g, font, line, x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale);
+        g.enableScissor(contentSx0, contentSy0, contentSx1, contentSy1);
+        try {
+            if (!naturalSections.isEmpty()) {
+                if (y + font.lineHeight > yTop - lineH && y < maxY) {
+            drawSpawnHeading(g, font, x, y, rightLimitX, tr("gui.wildex.spawn.heading.natural"));
                 }
-                y += lineH;
+                y += titleH;
+
+                for (S2CMobSpawnsPayload.DimSection s : naturalSections) {
+                    if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                        String title = formatDimensionTitle(s.dimensionId());
+                        drawSpawnSubheading(g, font, title, x, y, rightLimitX, screenOriginX, screenOriginY, scale);
+                    }
+                    y += titleH;
+
+                    List<ResourceLocation> biomes = s.biomeIds() == null ? List.of() : s.biomeIds();
+                    for (ResourceLocation b : biomes) {
+                        if (y + font.lineHeight >= yTop - lineH && y < maxY) {
+                            String line = b.toString();
+                            drawMarqueeIfNeeded(g, font, line, x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale);
+                        }
+                        y += lineH;
+                    }
+                }
+            }
+
+            if (!structureSections.isEmpty()) {
+                if (!naturalSections.isEmpty()) {
+                    y += SPAWN_GROUP_GAP;
+                }
+
+                if (y + font.lineHeight > yTop - lineH && y < maxY) {
+            drawSpawnHeading(g, font, x, y, rightLimitX, tr("gui.wildex.spawn.heading.structures"));
+                }
+                y += titleH;
+
+                for (S2CMobSpawnsPayload.StructureSection s : structureSections) {
+                    if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                        String title = formatStructureTitle(s.structureId());
+                        drawMarqueeIfNeeded(g, font, title, x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale);
+                    }
+                    y += titleH;
+                }
+            }
+
+            if (contentH > viewportH) {
+                int barX0 = rightLimitX - SCROLLBAR_W;
+                int barY1 = yTop + viewportH;
+
+                g.fill(barX0, yTop, rightLimitX, barY1, SCROLLBAR_BG);
+
+                float ratio = viewportH / (float) contentH;
+                int thumbH = Math.max(8, (int) Math.floor(viewportH * ratio));
+                if (thumbH > viewportH) thumbH = viewportH;
+
+                int denom = Math.max(1, contentH - viewportH);
+                float t = spawnScrollPx / (float) denom;
+
+                int travel = viewportH - thumbH;
+                int thumbY0 = yTop + Math.round(travel * t);
+                int thumbY1 = thumbY0 + thumbH;
+
+                g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
+
+                spawnHasScrollbar = true;
+                cacheSpawnScrollbarRect(screenOriginX, screenOriginY, scale, barX0, yTop, rightLimitX, barY1, thumbY0, thumbY1);
+            } else {
+                spawnHasScrollbar = false;
+                spawnDraggingScrollbar = false;
+            }
+        } finally {
+            g.disableScissor();
+        }
+
+        return hoverTip;
+    }
+
+    private static void drawSpawnFilterChip(
+            GuiGraphics g,
+            Font font,
+            int x0,
+            int x1,
+            int y0,
+            int h,
+            int textY,
+            String label,
+            boolean active
+    ) {
+        int bg = active ? SPAWN_FILTER_ON_BG : SPAWN_FILTER_OFF_BG;
+        int fg = active ? SPAWN_FILTER_TEXT_ON : SPAWN_FILTER_TEXT_OFF;
+        int border = active ? SPAWN_FILTER_BORDER_ON : SPAWN_FILTER_BORDER_OFF;
+        int y1 = y0 + h;
+
+        g.fill(x0, y0, x1, y1, bg);
+        g.fill(x0, y0, x1, y0 + 1, border);
+        g.fill(x0, y1 - 1, x1, y1, border);
+        g.fill(x0, y0, x0 + 1, y1, border);
+        g.fill(x1 - 1, y0, x1, y1, border);
+
+        g.drawString(font, label, x0 + SPAWN_FILTER_PAD_X, textY, fg, false);
+
+        if (!active) {
+            // Small top-right "off" badge to keep the symbol readable.
+            int size = 5;
+            int ix1 = x1 - 3;
+            int ix0 = ix1 - (size - 1);
+            int iy0 = y0 + 2;
+            int iy1 = iy0 + (size - 1);
+
+            for (int i = 0; i < size; i++) {
+                g.fill(ix0 + i, iy0 + i, ix0 + i + 1, iy0 + i + 1, SPAWN_FILTER_OFF_CROSS);
+                g.fill(ix1 - i, iy0 + i, ix1 - i + 1, iy0 + i + 1, SPAWN_FILTER_OFF_CROSS);
             }
         }
+    }
 
-        if (contentH > viewportH) {
-            int barX0 = rightLimitX - SCROLLBAR_W;
-            int barY1 = yTop + viewportH;
-
-            g.fill(barX0, yTop, rightLimitX, barY1, SCROLLBAR_BG);
-
-            float ratio = viewportH / (float) contentH;
-            int thumbH = Math.max(8, (int) Math.floor(viewportH * ratio));
-            if (thumbH > viewportH) thumbH = viewportH;
-
-            int denom = Math.max(1, contentH - viewportH);
-            float t = spawnScrollPx / (float) denom;
-
-            int travel = viewportH - thumbH;
-            int thumbY0 = yTop + Math.round(travel * t);
-            int thumbY1 = thumbY0 + thumbH;
-
-            g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
+    private static void drawSpawnHeading(
+            GuiGraphics g,
+            Font font,
+            int x,
+            int y,
+            int rightLimitX,
+            String text
+    ) {
+        if (text == null || text.isBlank()) return;
+        g.drawString(font, text, x, y, SPAWN_HEADING_COLOR, false);
+        int ruleY = y + font.lineHeight + 1;
+        int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
+        if (ruleX1 > x) {
+            g.fill(x, ruleY, ruleX1, ruleY + 1, SPAWN_HEADING_RULE);
         }
+    }
+
+    private static void drawSpawnSubheading(
+            GuiGraphics g,
+            Font font,
+            String text,
+            int x,
+            int y,
+            int rightLimitX,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
+    ) {
+        if (text == null || text.isBlank()) return;
+        int maxW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - x);
+        drawMarqueeIfNeeded(g, font, text, x, y, maxW, SPAWN_SUBHEADING_COLOR, screenOriginX, screenOriginY, scale);
+        int ruleY = y + font.lineHeight + 1;
+        int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
+        if (ruleX1 > x) {
+            g.fill(x, ruleY, ruleX1, ruleY + 1, SPAWN_SUBHEADING_RULE);
+        }
+    }
+
+    private static void cacheSpawnFilterRects(
+            int screenOriginX,
+            int screenOriginY,
+            float scale,
+            int biomeX0,
+            int biomeX1,
+            int y0,
+            int y1,
+            int structureX0,
+            int structureX1
+    ) {
+        spawnFilterBiomeX0 = toScreenX(screenOriginX, scale, biomeX0);
+        spawnFilterBiomeY0 = toScreenY(screenOriginY, scale, y0);
+        spawnFilterBiomeX1 = toScreenX(screenOriginX, scale, biomeX1);
+        spawnFilterBiomeY1 = toScreenY(screenOriginY, scale, y1);
+
+        spawnFilterStructureX0 = toScreenX(screenOriginX, scale, structureX0);
+        spawnFilterStructureY0 = toScreenY(screenOriginY, scale, y0);
+        spawnFilterStructureX1 = toScreenX(screenOriginX, scale, structureX1);
+        spawnFilterStructureY1 = toScreenY(screenOriginY, scale, y1);
+    }
+
+    private static void cacheSpawnScrollbarRect(
+            int screenOriginX,
+            int screenOriginY,
+            float scale,
+            int barX0,
+            int barY0,
+            int barX1,
+            int barY1,
+            int thumbY0,
+            int thumbY1
+    ) {
+        spawnBarScreenX0 = toScreenX(screenOriginX, scale, barX0);
+        spawnBarScreenY0 = toScreenY(screenOriginY, scale, barY0);
+        spawnBarScreenX1 = toScreenX(screenOriginX, scale, barX1);
+        spawnBarScreenY1 = toScreenY(screenOriginY, scale, barY1);
+
+        spawnThumbScreenY0 = toScreenY(screenOriginY, scale, thumbY0);
+        spawnThumbScreenY1 = toScreenY(screenOriginY, scale, thumbY1);
+        spawnThumbScreenH = Math.max(1, spawnThumbScreenY1 - spawnThumbScreenY0);
+    }
+
+    private static void setSpawnScrollFromThumbTop(int desiredThumbTop) {
+        if (!spawnHasScrollbar) return;
+        int barTravel = Math.max(1, (spawnBarScreenY1 - spawnBarScreenY0) - spawnThumbScreenH);
+        int clampedTop = desiredThumbTop;
+        int minTop = spawnBarScreenY0;
+        int maxTop = spawnBarScreenY0 + barTravel;
+        if (clampedTop < minTop) clampedTop = minTop;
+        if (clampedTop > maxTop) clampedTop = maxTop;
+
+        float t = (clampedTop - spawnBarScreenY0) / (float) barTravel;
+        int maxScroll = Math.max(0, spawnContentH - spawnViewportH);
+        spawnScrollPx = Math.round(maxScroll * t);
+    }
+
+    private static boolean isInside(int x, int y, int x0, int y0, int x1, int y1) {
+        return x >= x0 && x < x1 && y >= y0 && y < y1;
+    }
+
+    private static int toScreenX(int originX, float scale, int localX) {
+        return originX + Math.round(localX * scale);
+    }
+
+    private static int toScreenY(int originY, float scale, int localY) {
+        return originY + Math.round(localY * scale);
     }
 
     private static void drawMarqueeIfNeeded(
@@ -446,12 +779,17 @@ public final class WildexRightInfoRenderer {
     }
 
     private static String formatDimensionTitle(ResourceLocation dimId) {
-        if (dimId == null) return "Dimension:";
+        if (dimId == null) return tr("gui.wildex.dimension.unknown");
         String s = dimId.toString();
-        if (s.equals("minecraft:overworld")) return "Overworld:";
-        if (s.equals("minecraft:the_nether")) return "Nether:";
-        if (s.equals("minecraft:the_end")) return "End:";
-        return s + ":";
+        if (s.equals("minecraft:overworld")) return tr("gui.wildex.dimension.overworld");
+        if (s.equals("minecraft:the_nether")) return tr("gui.wildex.dimension.nether");
+        if (s.equals("minecraft:the_end")) return tr("gui.wildex.dimension.end");
+        return s;
+    }
+
+    private static String formatStructureTitle(ResourceLocation structureId) {
+        if (structureId == null) return tr("gui.wildex.structure.unknown");
+        return structureId.toString();
     }
 
     private static String formatCount(int min, int max) {
@@ -462,7 +800,16 @@ public final class WildexRightInfoRenderer {
         return "x" + a + "–" + b;
     }
 
-    private static void renderInfoTraits(GuiGraphics g, Font font, WildexScreenLayout.Area area, WildexScreenState state, int inkColor) {
+    private static void renderInfoTraits(
+            GuiGraphics g,
+            Font font,
+            WildexScreenLayout.Area area,
+            WildexScreenState state,
+            int inkColor,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
+    ) {
         int x = area.x() + PAD_X;
         int y = area.y() + PAD_Y;
 
@@ -479,9 +826,13 @@ public final class WildexRightInfoRenderer {
         String cross = "✖";
 
         int markW = Math.max(font.width(tick), font.width(cross));
-        int markX = rightLimitX - markW;
-
-        int labelMaxW = Math.max(1, (markX - markGap) - x);
+        int markColW = Math.max(10, markW + 2);
+        int markColX0 = rightLimitX - markColW;
+        int dividerX = markColX0 - Math.max(2, COL_GAP / 2);
+        if (dividerX > x + 8) {
+            g.fill(dividerX, y, dividerX + 1, maxY, DIVIDER);
+        }
+        int labelMaxW = Math.max(1, (dividerX - 2) - x);
 
         for (int i = 0; i < INFO_TRAITS.size(); i++) {
             if (y + font.lineHeight > maxY) break;
@@ -492,9 +843,9 @@ public final class WildexRightInfoRenderer {
             String mark = has ? tick : cross;
             int markColor = has ? COLOR_TRUE : COLOR_FALSE;
 
-            String clipped = clipToWidth(font, t.display(), labelMaxW);
-            g.drawString(font, clipped, x, y, inkColor, false);
+            drawMarqueeIfNeeded(g, font, tr(t.display()), x, y, labelMaxW, inkColor, screenOriginX, screenOriginY, scale);
 
+            int markX = markColX0 + Math.max(0, (markColW - font.width(mark)) / 2);
             g.drawString(font, mark, markX, y, markColor, false);
 
             int dividerY = y + font.lineHeight + 1;
@@ -527,9 +878,12 @@ public final class WildexRightInfoRenderer {
             WildexScreenLayout.Area area,
             String selectedMobId,
             WildexStatsData s,
-            int inkColor
+            int inkColor,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
     ) {
-        renderStats(g, font, area, selectedMobId, s, inkColor, -1, -1, 0, 0, 1.0f);
+        renderStats(g, font, area, selectedMobId, s, inkColor, -1, -1, screenOriginX, screenOriginY, scale);
     }
 
     private static TooltipRequest renderStats(
@@ -553,26 +907,19 @@ public final class WildexRightInfoRenderer {
 
         int maxY = (area.y() + PAD_Y) + innerH;
 
-        String[] labels = {
-                "Health:",
-                "Armor:",
-                "Move Speed:",
-                "Attack Damage:",
-                "Follow Range:",
-                "Knockback Res:",
-                "Hitbox Height:",
-                "Eye Height:"
-        };
-
-        int labelColW = 0;
-        for (String l : labels) labelColW = Math.max(labelColW, font.width(l));
-        labelColW = Math.min(labelColW, Math.max(40, innerW / 2));
+        int contentW = Math.max(1, innerW);
+        int maxLabelBySpace = Math.max(24, contentW - COL_GAP - STATS_MIN_VALUE_COL_W);
+        int labelColW = Math.round(contentW * STATS_LABEL_COL_RATIO);
+        labelColW = Math.max(STATS_LABEL_COL_MIN, Math.min(labelColW, STATS_LABEL_COL_MAX));
+        labelColW = Math.min(labelColW, maxLabelBySpace);
 
         int valueX = x + labelColW + COL_GAP;
         int rightLimitX = area.x() + area.w() - PAD_X;
         int valueW = Math.max(1, rightLimitX - valueX);
 
         int line = Math.max(10, font.lineHeight + 2);
+        int dividerX = x + labelColW + (COL_GAP / 2);
+        int dividerStartY = y;
 
         TooltipRequest tooltip = null;
 
@@ -586,62 +933,73 @@ public final class WildexRightInfoRenderer {
         }
 
         int y0 = y;
-        y = drawHeartsLine(g, font, x, y, valueX, valueW, maxY, "Health:", s.maxHealth(), inkColor, line);
+        y = drawHeartsLine(g, font, x, y, labelColW, valueX, valueW, maxY, tr("gui.wildex.stats.health"), s.maxHealth(), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("The mob’s maximum health.");
+            tooltip = tooltipLines("tooltip.wildex.stats.health");
         }
 
         y0 = y;
-        y = drawArmorLine(g, font, x, y, valueX, valueW, maxY, "Armor:", s.armor(), inkColor, line);
+        y = drawArmorLine(g, font, x, y, labelColW, valueX, valueW, maxY, tr("gui.wildex.stats.armor"), s.armor(), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines(
-                    "Reduces damage from most physical attacks.",
-                    "Does not prevent all damage types."
+                    "tooltip.wildex.stats.armor.1",
+                    "tooltip.wildex.stats.armor.2"
             );
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Move Speed:", fmtOpt(s.movementSpeed()), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.move_speed"), fmtOpt(s.movementSpeed()), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("The base movement speed of the mob.");
+            tooltip = tooltipLines("tooltip.wildex.stats.move_speed");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Attack Damage:", fmtOpt(s.attackDamage()), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage()), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("Damage dealt by the mob’s melee attacks.");
+            tooltip = tooltipLines("tooltip.wildex.stats.attack_damage");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Follow Range:", fmtOptWithUnit(s.followRange(), "blocks"), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.follow_range"), fmtOptWithUnit(s.followRange(), tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("The maximum distance at which the mob can detect and track targets.");
+            tooltip = tooltipLines("tooltip.wildex.stats.follow_range");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Knockback Res:", fmtOpt(s.knockbackResistance()), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.knockback_res"), fmtOpt(s.knockbackResistance()), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines(
-                    "Reduces the knockback applied when the mob is hit.",
-                    "At 1.0, the mob cannot be knocked back."
+                    "tooltip.wildex.stats.knockback_res.1",
+                    "tooltip.wildex.stats.knockback_res.2"
             );
         }
 
         Dims dims = resolveDims(selectedMobId);
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Hitbox Height:", fmtOptWithUnit(dims.hitboxHeight(), "blocks"), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.hitbox_width"), fmtOptWithUnit(dims.hitboxWidth(), tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("The vertical size of the mob’s collision box.");
+            tooltip = tooltipLines("tooltip.wildex.stats.hitbox_width");
         }
 
         y0 = y;
-        drawTextLine(g, font, x, y, valueX, rightLimitX, maxY, "Eye Height:", fmtOptWithUnit(dims.eyeHeight(), "blocks"), inkColor, line);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.hitbox_height"), fmtOptWithUnit(dims.hitboxHeight(), tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+            tooltip = tooltipLines("tooltip.wildex.stats.hitbox_height");
+        }
+
+        y0 = y;
+        drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, tr("gui.wildex.stats.eye_height"), fmtOptWithUnit(dims.eyeHeight(), tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines(
-                    "The height of the mob’s viewpoint.",
-                    "Used for line of sight, targeting, and visibility checks."
+                    "tooltip.wildex.stats.eye_height.1",
+                    "tooltip.wildex.stats.eye_height.2"
             );
+        }
+
+        int dividerEndY = Math.min(maxY, y + line - 1);
+        if (dividerX > x + 4 && dividerX < rightLimitX - 4 && dividerEndY > dividerStartY) {
+            g.fill(dividerX, dividerStartY, dividerX + 1, dividerEndY, DIVIDER);
         }
 
         return tooltip;
@@ -652,12 +1010,16 @@ public final class WildexRightInfoRenderer {
         return mx >= x && mx < (x + w) && my >= y && my < (y + h);
     }
 
-    private static TooltipRequest tooltipLines(String... lines) {
+    private static TooltipRequest tooltipLines(String... keys) {
         ArrayList<Component> out = new ArrayList<>();
-        for (String s : lines) {
-            if (s != null && !s.isBlank()) out.add(Component.literal(s));
+        for (String key : keys) {
+            if (key != null && !key.isBlank()) out.add(Component.translatable(key));
         }
         return out.isEmpty() ? null : new TooltipRequest(out);
+    }
+
+    private static String tr(String key) {
+        return Component.translatable(key).getString();
     }
 
     private static void renderPanelTooltip(
@@ -737,11 +1099,14 @@ public final class WildexRightInfoRenderer {
             return out;
         }
 
+        OptionalDouble hitboxW;
         OptionalDouble hitboxH;
         try {
             EntityDimensions d = type.getDimensions();
+            hitboxW = OptionalDouble.of(d.width());
             hitboxH = OptionalDouble.of(d.height());
         } catch (Throwable t) {
+            hitboxW = OptionalDouble.empty();
             hitboxH = OptionalDouble.empty();
         }
 
@@ -749,16 +1114,17 @@ public final class WildexRightInfoRenderer {
         try {
             var mc = Minecraft.getInstance();
             if (mc.level != null) {
-                Entity e = type.create(mc.level);
+                Entity e = WildexEntityFactory.tryCreate(type, mc.level);
                 if (e != null) {
                     eyeH = OptionalDouble.of(e.getEyeHeight());
+                    e.discard();
                 }
             }
         } catch (Throwable t) {
             eyeH = OptionalDouble.empty();
         }
 
-        Dims out = new Dims(hitboxH, eyeH);
+        Dims out = new Dims(hitboxW, hitboxH, eyeH);
         DIMS_CACHE.put(rl, out);
         return out;
     }
@@ -768,17 +1134,21 @@ public final class WildexRightInfoRenderer {
             Font font,
             int x,
             int y,
+            int labelW,
             int valueX,
             int valueW,
             int maxY,
             String label,
             OptionalDouble maxHealth,
             int inkColor,
-            int lineHeight
+            int lineHeight,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
     ) {
         if (y >= maxY) return y;
 
-        g.drawString(font, label, x, y, inkColor, false);
+        drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
         if (maxHealth.isEmpty()) {
             g.drawString(font, "—", valueX, y, inkColor, false);
@@ -838,17 +1208,21 @@ public final class WildexRightInfoRenderer {
             Font font,
             int x,
             int y,
+            int labelW,
             int valueX,
             int valueW,
             int maxY,
             String label,
             OptionalDouble armor,
             int inkColor,
-            int lineHeight
+            int lineHeight,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
     ) {
         if (y >= maxY) return y;
 
-        g.drawString(font, label, x, y, inkColor, false);
+        drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
         if (armor.isEmpty()) {
             g.drawString(font, "—", valueX, y, inkColor, false);
@@ -910,17 +1284,21 @@ public final class WildexRightInfoRenderer {
             Font font,
             int x,
             int y,
+            int labelW,
             int valueX,
             int rightLimitX,
             int maxY,
             String label,
             String value,
             int inkColor,
-            int lineHeight
+            int lineHeight,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
     ) {
         if (y >= maxY) return y;
 
-        g.drawString(font, label, x, y, inkColor, false);
+        drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
         int maxW = Math.max(1, rightLimitX - valueX);
         String clipped = clipToWidth(font, value, maxW);

@@ -28,9 +28,6 @@ public final class WildexRightHeaderRenderer {
     private static final int MARQUEE_GAP_PX = 18;
     private static final float MARQUEE_SPEED_PX_PER_SEC = 22.0f;
     private static final int MARQUEE_PAUSE_MS = 650;
-    private static final String LABEL_YOU_KILLED = "You killed:";
-    private static final String LABEL_MOD = "Mod:";
-
     public void render(
             GuiGraphics g,
             Font font,
@@ -86,7 +83,7 @@ public final class WildexRightHeaderRenderer {
             y = drawValueOnlyLineMarquee(g, font, x0, y0, s, padX, y, maxW, header.name(), inkColor, lineGap, phase);
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
-            y = drawValueOnlyLinePlain(g, font, padX, y, maxW, Component.literal(formatAggression(header.aggression())), inkColor, lineGap);
+            y = drawValueOnlyLinePlain(g, font, padX, y, maxW, formatAggression(header.aggression()), inkColor, lineGap);
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
             int kills = WildexKillCache.getOrRequest(mobRl);
@@ -217,7 +214,7 @@ public final class WildexRightHeaderRenderer {
             int inkColor,
             int phase
     ) {
-        String left = LABEL_MOD + " ";
+        String left = tr("gui.wildex.header.mod") + " ";
         int leftW = font.width(left);
 
         String val = value == null ? "" : value.getString();
@@ -260,7 +257,7 @@ public final class WildexRightHeaderRenderer {
             int inkColor,
             int lineGap
     ) {
-        return drawLinePlainWithLabel(g, font, x, y, maxW, LABEL_YOU_KILLED, value, inkColor, lineGap);
+        return drawLinePlainWithLabel(g, font, x, y, maxW, tr("gui.wildex.header.you_killed"), value, inkColor, lineGap);
     }
 
     private static void drawModLineMarqueeValue(
@@ -291,10 +288,10 @@ public final class WildexRightHeaderRenderer {
     }
 
     private static String resolveModName(ResourceLocation mobRl) {
-        if (mobRl == null) return "Unknown";
+        if (mobRl == null) return tr("gui.wildex.header.unknown_mod");
         String namespace = mobRl.getNamespace();
-        if (namespace.isBlank()) return "Unknown";
-        if ("minecraft".equals(namespace)) return "Minecraft";
+        if (namespace.isBlank()) return tr("gui.wildex.header.unknown_mod");
+        if ("minecraft".equals(namespace)) return tr("gui.wildex.header.minecraft");
 
         return ModList.get()
                 .getModContainerById(namespace)
@@ -303,13 +300,17 @@ public final class WildexRightHeaderRenderer {
                 .orElse(namespace);
     }
 
-    private static String formatAggression(WildexAggression a) {
-        if (a == null) return "Friendly";
+    private static Component formatAggression(WildexAggression a) {
+        if (a == null) return Component.translatable("gui.wildex.aggression.friendly");
         return switch (a) {
-            case FRIENDLY -> "Friendly";
-            case NEUTRAL -> "Neutral";
-            case HOSTILE -> "Hostile";
+            case FRIENDLY -> Component.translatable("gui.wildex.aggression.friendly");
+            case NEUTRAL -> Component.translatable("gui.wildex.aggression.neutral");
+            case HOSTILE -> Component.translatable("gui.wildex.aggression.hostile");
         };
+    }
+
+    private static String tr(String key) {
+        return Component.translatable(key).getString();
     }
 
     private static String clipToWidth(Font font, String s, int maxW) {

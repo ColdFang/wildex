@@ -3,6 +3,7 @@ package de.coldfang.wildex.client.screen;
 import com.mojang.blaze3d.systems.RenderSystem;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.LightTexture;
@@ -374,9 +375,8 @@ public final class WildexMobPreviewRenderer {
 
         clearCachedEntity();
 
-        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(id);
-
-        Entity e = type.create(level);
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
+        Entity e = WildexEntityFactory.tryCreate(type, level);
         if (!(e instanceof Mob mob)) {
             if (e != null) e.discard();
             return null;

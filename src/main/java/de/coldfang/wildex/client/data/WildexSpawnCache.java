@@ -9,23 +9,42 @@ import java.util.Map;
 
 public final class WildexSpawnCache {
 
-    private static final Map<ResourceLocation, List<S2CMobSpawnsPayload.DimSection>> CACHE = new HashMap<>();
+    private static final Map<ResourceLocation, SpawnData> CACHE = new HashMap<>();
 
     private WildexSpawnCache() {
+    }
+
+    public record SpawnData(
+            List<S2CMobSpawnsPayload.DimSection> naturalSections,
+            List<S2CMobSpawnsPayload.StructureSection> structureSections
+    ) {
+        public static SpawnData empty() {
+            return new SpawnData(List.of(), List.of());
+        }
     }
 
     public static void clear() {
         CACHE.clear();
     }
 
-    public static void set(ResourceLocation mobId, List<S2CMobSpawnsPayload.DimSection> sections) {
+    public static void set(
+            ResourceLocation mobId,
+            List<S2CMobSpawnsPayload.DimSection> naturalSections,
+            List<S2CMobSpawnsPayload.StructureSection> structureSections
+    ) {
         if (mobId == null) return;
-        CACHE.put(mobId, sections == null ? List.of() : List.copyOf(sections));
+        CACHE.put(
+                mobId,
+                new SpawnData(
+                        naturalSections == null ? List.of() : List.copyOf(naturalSections),
+                        structureSections == null ? List.of() : List.copyOf(structureSections)
+                )
+        );
     }
 
-    public static List<S2CMobSpawnsPayload.DimSection> get(ResourceLocation mobId) {
-        if (mobId == null) return List.of();
-        List<S2CMobSpawnsPayload.DimSection> v = CACHE.get(mobId);
-        return v == null ? List.of() : v;
+    public static SpawnData get(ResourceLocation mobId) {
+        if (mobId == null) return SpawnData.empty();
+        SpawnData v = CACHE.get(mobId);
+        return v == null ? SpawnData.empty() : v;
     }
 }

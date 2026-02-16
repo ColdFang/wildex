@@ -22,9 +22,9 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
     private static final int INK = 0x2B1A10;
 
-    private static final Component NARRATION_TITLE = Component.literal("Discovered only");
-    private static final Component NARRATION_ON = Component.literal("Checked. Only discovered mobs are shown.");
-    private static final Component NARRATION_OFF = Component.literal("Unchecked. All mobs are shown.");
+    private static final Component NARRATION_TITLE = Component.translatable("gui.wildex.discovered_only");
+    private static final Component NARRATION_ON = Component.translatable("narration.wildex.discovered_only.on");
+    private static final Component NARRATION_OFF = Component.translatable("narration.wildex.discovered_only.off");
 
     private boolean checked;
     private final Consumer<Boolean> onChange;

@@ -4,10 +4,10 @@ import net.minecraft.network.chat.Component;
 
 public enum WildexTab {
 
-    STATS(Component.literal("Stats")),
-    LOOT(Component.literal("Loot")),
-    SPAWNS(Component.literal("Spawn")),
-    MISC(Component.literal("Info"));
+    STATS(Component.translatable("gui.wildex.tab.stats")),
+    LOOT(Component.translatable("gui.wildex.tab.loot")),
+    SPAWNS(Component.translatable("gui.wildex.tab.spawns")),
+    MISC(Component.translatable("gui.wildex.tab.info"));
 
     private final Component label;
 

@@ -2,6 +2,7 @@ package de.coldfang.wildex.client.data.extractor;
 
 import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexHeaderData;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -18,7 +19,7 @@ public final class HeaderExtractor {
         WildexAggression aggression = classify(type, null);
 
         if (level != null) {
-            Entity e = type.create(level);
+            Entity e = WildexEntityFactory.tryCreate(type, level);
             if (e != null) {
                 aggression = classify(type, e);
                 e.discard();

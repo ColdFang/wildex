@@ -9,6 +9,7 @@ import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerCooldownData;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import de.coldfang.wildex.world.WildexWorldPlayerKillData;
+import de.coldfang.wildex.world.WildexWorldPlayerUiStateData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -28,9 +29,11 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public final class WildexNetwork {
@@ -40,6 +43,14 @@ public final class WildexNetwork {
     private static final double PULSE_RANGE = 32.0;
     private static final int PULSE_GLOW_TICKS = 10 * 20;
     private static final int PULSE_COOLDOWN_TICKS = 15 * 20;
+    private static final long REQUEST_COOLDOWN_MS = 300L;
+    private static final long LOOT_CACHE_TTL_MS = 30_000L;
+    private static final long SPAWN_CACHE_TTL_MS = 30_000L;
+    private static final int MAX_RUNTIME_CACHE_ENTRIES = 512;
+
+    private static final Map<RequestKey, Long> NEXT_ALLOWED_REQUEST_MS = new HashMap<>();
+    private static final Map<ResourceLocation, TimedLoot> LOOT_CACHE = new HashMap<>();
+    private static final Map<ResourceLocation, TimedSpawns> SPAWN_CACHE = new HashMap<>();
 
     private WildexNetwork() {
     }
@@ -67,6 +78,8 @@ public final class WildexNetwork {
             });
             r.playToClient(S2CWildexCompleteStatusPayload.TYPE, S2CWildexCompleteStatusPayload.STREAM_CODEC, (payload, ctx) -> {
             });
+            r.playToClient(S2CPlayerUiStatePayload.TYPE, S2CPlayerUiStatePayload.STREAM_CODEC, (payload, ctx) -> {
+            });
         }
 
         r.playToServer(
@@ -88,7 +101,7 @@ public final class WildexNetwork {
                         long seconds = (remainingTicks + 19) / 20;
 
                         sp.displayClientMessage(
-                                Component.literal("Spyglass Pulse ready in " + seconds + "s")
+                                Component.translatable("message.wildex.spyglass_pulse_ready_in", seconds)
                                         .withStyle(style -> style.withColor(0xAAAAAA)),
                                 true
                         );
@@ -181,6 +194,15 @@ public final class WildexNetwork {
                     if (!(sp.level() instanceof ServerLevel serverLevel)) return;
 
                     ResourceLocation mobId = payload.mobId();
+                    long nowMs = System.currentTimeMillis();
+                    if (!allowRequest(sp, mobId, RequestKind.LOOT, nowMs)) return;
+
+                    List<S2CMobLootPayload.LootLine> cachedLines = getCachedLoot(mobId, nowMs);
+                    if (cachedLines != null) {
+                        PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, cachedLines));
+                        return;
+                    }
+
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
                     if (type == null) {
                         PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, List.of()));
@@ -201,7 +223,9 @@ public final class WildexNetwork {
                         lines.add(new S2CMobLootPayload.LootLine(itemId, e.minCountSeen(), e.maxCountSeen()));
                     }
 
-                    PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, List.copyOf(lines)));
+                    List<S2CMobLootPayload.LootLine> frozen = List.copyOf(lines);
+                    putCachedLoot(mobId, frozen, nowMs);
+                    PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, frozen));
                 })
         );
 
@@ -212,22 +236,182 @@ public final class WildexNetwork {
                     if (!(ctx.player() instanceof ServerPlayer sp)) return;
 
                     ResourceLocation mobId = payload.mobId();
+                    long nowMs = System.currentTimeMillis();
+                    if (!allowRequest(sp, mobId, RequestKind.SPAWNS, nowMs)) return;
+
+                    TimedSpawns cached = getCachedSpawns(mobId, nowMs);
+                    if (cached != null) {
+                        PacketDistributor.sendToPlayer(
+                                sp,
+                                new S2CMobSpawnsPayload(mobId, cached.naturalSections(), cached.structureSections())
+                        );
+                        return;
+                    }
+
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
                     if (type == null) {
-                        PacketDistributor.sendToPlayer(sp, new S2CMobSpawnsPayload(mobId, List.of()));
+                        PacketDistributor.sendToPlayer(sp, new S2CMobSpawnsPayload(mobId, List.of(), List.of()));
                         return;
                     }
 
                     Map<ResourceLocation, List<ResourceLocation>> byDim =
                             WildexSpawnExtractor.collectSpawnBiomesByDimension(sp.server, type);
+                    Map<ResourceLocation, List<ResourceLocation>> byStructure =
+                            WildexSpawnExtractor.collectStructureOverrideBiomes(sp.server, type);
 
-                    List<S2CMobSpawnsPayload.DimSection> sections = new ArrayList<>(byDim.size());
+                    List<S2CMobSpawnsPayload.DimSection> naturalSections = new ArrayList<>(byDim.size());
                     for (var e : byDim.entrySet()) {
-                        sections.add(new S2CMobSpawnsPayload.DimSection(e.getKey(), e.getValue()));
+                        naturalSections.add(new S2CMobSpawnsPayload.DimSection(e.getKey(), e.getValue()));
                     }
 
-                    PacketDistributor.sendToPlayer(sp, new S2CMobSpawnsPayload(mobId, List.copyOf(sections)));
+                    List<S2CMobSpawnsPayload.StructureSection> structureSections = new ArrayList<>(byStructure.size());
+                    for (var e : byStructure.entrySet()) {
+                        structureSections.add(new S2CMobSpawnsPayload.StructureSection(e.getKey(), e.getValue()));
+                    }
+
+                    List<S2CMobSpawnsPayload.DimSection> frozenNatural = List.copyOf(naturalSections);
+                    List<S2CMobSpawnsPayload.StructureSection> frozenStructures = List.copyOf(structureSections);
+                    putCachedSpawns(mobId, frozenNatural, frozenStructures, nowMs);
+
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CMobSpawnsPayload(
+                                    mobId,
+                                    frozenNatural,
+                                    frozenStructures
+                            )
+                    );
                 })
         );
+
+        r.playToServer(
+                C2SRequestPlayerUiStatePayload.TYPE,
+                C2SRequestPlayerUiStatePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    WildexWorldPlayerUiStateData.UiState state = WildexWorldPlayerUiStateData
+                            .get(serverLevel)
+                            .getState(sp.getUUID());
+
+                    PacketDistributor.sendToPlayer(sp, new S2CPlayerUiStatePayload(state.tabId(), state.mobId()));
+                })
+        );
+
+        r.playToServer(
+                C2SSavePlayerUiStatePayload.TYPE,
+                C2SSavePlayerUiStatePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    String tabId = sanitizeTab(payload.tabId());
+                    String mobId = sanitizeMob(payload.mobId());
+
+                    WildexWorldPlayerUiStateData.get(serverLevel).setState(sp.getUUID(), tabId, mobId);
+                })
+        );
+    }
+
+    private static String sanitizeTab(String raw) {
+        if (raw == null || raw.isBlank()) return "STATS";
+        String s = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        if (s.length() > 32) return "STATS";
+        return switch (s) {
+            case "STATS", "LOOT", "SPAWNS", "MISC" -> s;
+            default -> "STATS";
+        };
+    }
+
+    private static String sanitizeMob(String raw) {
+        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw);
+        if (rl == null) return "";
+        if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return "";
+        if (!WildexMobFilters.isTrackable(rl)) return "";
+        return rl.toString();
+    }
+
+    private static boolean allowRequest(ServerPlayer player, ResourceLocation mobId, RequestKind kind, long nowMs) {
+        if (player == null || mobId == null) return false;
+        RequestKey key = new RequestKey(player.getUUID(), mobId, kind);
+        Long allowedAt = NEXT_ALLOWED_REQUEST_MS.get(key);
+        if (allowedAt != null && nowMs < allowedAt) return false;
+
+        NEXT_ALLOWED_REQUEST_MS.put(key, nowMs + REQUEST_COOLDOWN_MS);
+        if (NEXT_ALLOWED_REQUEST_MS.size() > (MAX_RUNTIME_CACHE_ENTRIES * 8)) {
+            NEXT_ALLOWED_REQUEST_MS.entrySet().removeIf(e -> e.getValue() <= nowMs);
+            if (NEXT_ALLOWED_REQUEST_MS.size() > (MAX_RUNTIME_CACHE_ENTRIES * 8)) {
+                NEXT_ALLOWED_REQUEST_MS.clear();
+            }
+        }
+        return true;
+    }
+
+    private static List<S2CMobLootPayload.LootLine> getCachedLoot(ResourceLocation mobId, long nowMs) {
+        if (mobId == null) return null;
+        TimedLoot cached = LOOT_CACHE.get(mobId);
+        if (cached == null) return null;
+        if ((nowMs - cached.createdAtMs()) > LOOT_CACHE_TTL_MS) {
+            LOOT_CACHE.remove(mobId);
+            return null;
+        }
+        return cached.lines();
+    }
+
+    private static void putCachedLoot(ResourceLocation mobId, List<S2CMobLootPayload.LootLine> lines, long nowMs) {
+        if (mobId == null || lines == null) return;
+        LOOT_CACHE.put(mobId, new TimedLoot(nowMs, lines));
+        if (LOOT_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+            LOOT_CACHE.entrySet().removeIf(e -> (nowMs - e.getValue().createdAtMs()) > LOOT_CACHE_TTL_MS);
+            if (LOOT_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+                LOOT_CACHE.clear();
+            }
+        }
+    }
+
+    private static TimedSpawns getCachedSpawns(ResourceLocation mobId, long nowMs) {
+        if (mobId == null) return null;
+        TimedSpawns cached = SPAWN_CACHE.get(mobId);
+        if (cached == null) return null;
+        if ((nowMs - cached.createdAtMs()) > SPAWN_CACHE_TTL_MS) {
+            SPAWN_CACHE.remove(mobId);
+            return null;
+        }
+        return cached;
+    }
+
+    private static void putCachedSpawns(
+            ResourceLocation mobId,
+            List<S2CMobSpawnsPayload.DimSection> naturalSections,
+            List<S2CMobSpawnsPayload.StructureSection> structureSections,
+            long nowMs
+    ) {
+        if (mobId == null || naturalSections == null || structureSections == null) return;
+        SPAWN_CACHE.put(mobId, new TimedSpawns(nowMs, naturalSections, structureSections));
+        if (SPAWN_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+            SPAWN_CACHE.entrySet().removeIf(e -> (nowMs - e.getValue().createdAtMs()) > SPAWN_CACHE_TTL_MS);
+            if (SPAWN_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+                SPAWN_CACHE.clear();
+            }
+        }
+    }
+
+    private record RequestKey(UUID playerId, ResourceLocation mobId, RequestKind kind) {
+    }
+
+    private enum RequestKind {
+        LOOT,
+        SPAWNS
+    }
+
+    private record TimedLoot(long createdAtMs, List<S2CMobLootPayload.LootLine> lines) {
+    }
+
+    private record TimedSpawns(
+            long createdAtMs,
+            List<S2CMobSpawnsPayload.DimSection> naturalSections,
+            List<S2CMobSpawnsPayload.StructureSection> structureSections
+    ) {
     }
 }

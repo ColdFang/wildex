@@ -1,5 +1,6 @@
 package de.coldfang.wildex.server.loot;
 
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -43,7 +44,7 @@ public final class WildexLootExtractor {
         if (level == null || type == null) return List.of();
         if (samples <= 0) samples = 1;
 
-        Entity entity = type.create(level);
+        Entity entity = WildexEntityFactory.tryCreate(type, level);
         if (entity == null) return List.of();
 
         entity.setPos(0.0, 0.0, 0.0);

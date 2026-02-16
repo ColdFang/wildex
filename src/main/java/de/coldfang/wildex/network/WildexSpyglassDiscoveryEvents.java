@@ -32,7 +32,6 @@ public final class WildexSpyglassDiscoveryEvents {
     private static final double RANGE = 98.0;
     private static final double HIT_INFLATE = 1.25;
 
-    private static final int CHARGE_TICKS = 28;
     private static final int CHARGE_PARTICLE_EVERY = 2;
 
     private static final Map<UUID, ChargeState> CHARGE = new ConcurrentHashMap<>();
@@ -95,7 +94,8 @@ public final class WildexSpyglassDiscoveryEvents {
             spawnChargeParticlesForPlayer(level, sp, target);
         }
 
-        if (st.ticks < CHARGE_TICKS) return;
+        int requiredChargeTicks = CommonConfig.INSTANCE.spyglassDiscoveryChargeTicks.get();
+        if (st.ticks < requiredChargeTicks) return;
 
         boolean newlyDiscovered = disc.markDiscovered(playerId, mobId);
 

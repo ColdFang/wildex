@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client.data.extractor;
 
 import de.coldfang.wildex.client.data.model.WildexStatsData;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.world.entity.Entity;
@@ -38,7 +39,7 @@ public final class StatsExtractor {
         Level level = Minecraft.getInstance().level;
         if (level == null) return null;
 
-        Entity e = type.create(level);
+        Entity e = WildexEntityFactory.tryCreate(type, level);
         if (!(e instanceof LivingEntity living)) return null;
 
         return living;

@@ -2,6 +2,7 @@ package de.coldfang.wildex.client.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -63,7 +64,7 @@ public final class WildexDiscoveryToast implements Toast {
             mc.level.registryAccess()
                     .registryOrThrow(net.minecraft.core.registries.Registries.ENTITY_TYPE)
                     .getOptional(mobId)
-                    .ifPresent(type -> cachedEntity = type.create(mc.level));
+                    .ifPresent(type -> cachedEntity = WildexEntityFactory.tryCreate(type, mc.level));
         }
 
         if (cachedEntity != null) {
