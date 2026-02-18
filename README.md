@@ -21,21 +21,19 @@ Designed to be lightweight, configurable, and compatible with heavily modded env
 ### In-Game Bestiary Book
 - Dedicated Wildex book UI + item
 - Searchable mob list
-- Clean, readable layout designed for large modpacks
+- Clean, readable layout
 
 ### Progressive Information Tabs
 Each mob entry can display:
 - **Stats** (health, attributes, combat data)
 - **Loot** (sampled drops with min/max ranges)
-- **Spawns** (biomes and dimensions)
+- **Spawns** (biomes and structures)
 - **Additional info**
 
 ### Completion System
 - Tracks whether a player has fully completed the bestiary
-- Triggers a completion effect and unlocks "Spyglass Pulse" as a reward
+- Triggers a completion effect and unlocks "Spyglass Pulse" as a reward:
 
-### Spyglass Pulse
-- **Is a Completion Reward**:
     - Unlocks once all trackable mobs are discovered
     - Highlights nearby mobs through walls
     - Has a cooldown and visual/sound feedback
@@ -50,24 +48,76 @@ Each mob entry can display:
     - Stored server-side
     - Synced selectively to clients
 - Fully multiplayer-safe
-- No global progress – everything is **player-specific**
+- No global progress - everything is **player-specific**
 
+### Multiplayer Sharing
+
+Wildex includes an optional player-to-player sharing system for Hidden Mode progression.
+
+- Players can open the share UI in the Wildex screen and send a discovered mob entry to another player.
+- Targets can accept or decline offers.
+- Optional payment is supported:
+  - Currency item is configurable via `shareOfferCurrencyItem`.
+  - Maximum allowed price is configurable via `shareOfferMaxPrice`.
+  - Payment behavior can be toggled via `shareOffersPaymentEnabled`.
+- Pending payouts can be claimed from the same UI.
+
+Server and pack control:
+
+- Sharing can be enabled/disabled globally via `shareOffersEnabled`.
+- Validation and limits are enforced server-side.
+- In multiplayer, clients use server-provided share settings.
+- In singleplayer, sharing is intentionally limited unless debug mode is enabled.
 ---
 
 ## Configuration
 
 Wildex is highly configurable via standard NeoForge config files.
 
-Available options include:
-- Enable / disable Hidden Mode
-- Require the Wildex book for keybind access
-- Give the Wildex book on first join
-- Debug discovery mode (for testing)
-- Exclude specific mobs from tracking by id
+Common options include:
+
+- `hiddenMode`  
+  Enables Hidden Mode progression.
+- `requireBookForKeybind`  
+  Requires carrying the Wildex book to use the keybind.
+- `giveBookOnFirstJoin`  
+  Gives the Wildex book to new players once per world.
+- `spyglassDiscoveryChargeTicks`  
+  Time required to discover a mob via Spyglass observation.
+- `excludedModIds`  
+  Excludes full namespaces or specific entity ids from tracking.
+
+Multiplayer sharing options:
+
+- `shareOffersEnabled`  
+  Enables/disables the player-to-player sharing system.
+- `shareOffersPaymentEnabled`  
+  Enables optional paid share offers.
+- `shareOfferCurrencyItem`  
+  Currency item id used for share payments (for example `minecraft:emerald`).
+- `shareOfferMaxPrice`  
+  Maximum allowed offer price.
+
+Integration/debug options:
+
+- `kubejsBridgeEnabled`  
+  Enables KubeJS bridge emits for discovery/completion events.
+- `exposureDiscoveryEnabled`  
+  Enables discovery support through Exposure integration.
+- `debugMode`  
+  Enables development/testing helpers (for example manual discovery actions in Hidden Mode).
 
 ---
 
-## Integrations (FTB Quests / KubeJS)
+## Integrations (Exposure / FTB Quests / KubeJS)
+
+### Exposure Integration
+
+If the Exposure mod is installed, Wildex can grant discovery progress from photo-frame interactions.
+
+- Integration can be enabled/disabled with `exposureDiscoveryEnabled` in common config.
+- Exposure-based discovery follows normal Wildex tracking and persistence rules.
+- If Exposure is not installed, this integration path remains inactive.
 
 Wildex exposes progress into the vanilla scoreboard so quest and script mods can use it directly.
 
@@ -139,22 +189,6 @@ Bridge.onCompleted(payload => {
 - `de.coldfang.wildex.api.event.WildexDiscoveryChangedEvent`
 - `de.coldfang.wildex.api.event.WildexCompletedEvent`
 
-Thanks to Reddit user `u/NeuroPalooza` for the integration feature suggestion.
-
----
-
-## Performance & Compatibility
-
-- No constant world scanning
-- No background entity ticking
-- Network traffic is request-based and minimal
-- Safe for large modpacks and long-running worlds
-
-Designed with **mod compatibility first**:
-- Works with modded dimensions
-- Works with modded mobs and loot tables
-- Does not modify entity behavior or spawning
-
 ---
 
 ## Requirements
@@ -164,16 +198,19 @@ Designed with **mod compatibility first**:
 - **KubeJS bridge tested with**:
   - KubeJS `2101.7.2-build.348`
   - Rhino `2101.2.7-build.81`
-
 ---
 
-## Status
+## Credits
 
-Wildex is under active development.  
-Features and UI may evolve, but save data and core systems are designed to remain stable.
+- Thanks to Reddit user `u/NeuroPalooza` for the kubejs integration feature suggestion.
+- Thanks to user `HockeyZman2000` for the sharing feature suggestion.
+- Thanks to user `vinylwitch` for the Exposure integration suggestion.
+- Thanks to `amon` for the new Wildex textures/artwork.
+- Thanks to user `VaporeonScripts` for the report and testing feedback.
 
 ---
 
 ## License
 
 See `LICENSE.txt` for details.
+
