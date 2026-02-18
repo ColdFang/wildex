@@ -2,8 +2,8 @@ package de.coldfang.wildex.client.input;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import de.coldfang.wildex.Wildex;
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.screen.WildexScreen;
-import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.registry.ModItems;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -60,7 +60,7 @@ public final class WildexKeybinds {
         Player player = mc.player;
         if (player == null) return;
 
-        if (CommonConfig.INSTANCE.requireBookForKeybind.get()) {
+        if (WildexClientConfigView.requireBookForKeybind()) {
             boolean hasBook = player.getInventory().contains(
                     ModItems.WILDEX_BOOK.get().getDefaultInstance()
             );

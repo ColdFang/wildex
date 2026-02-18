@@ -11,8 +11,13 @@ import java.util.Objects;
 public final class MobPreviewResetButton extends Button {
 
     private static final float LABEL_SCALE = 0.75f;
+    private final String label;
 
     public MobPreviewResetButton(int x, int y, int w, int h, Runnable onPress) {
+        this(x, y, w, h, "R", onPress);
+    }
+
+    public MobPreviewResetButton(int x, int y, int w, int h, String label, Runnable onPress) {
         super(
                 x,
                 y,
@@ -22,6 +27,7 @@ public final class MobPreviewResetButton extends Button {
                 b -> Objects.requireNonNull(onPress, "onPress").run(),
                 DEFAULT_NARRATION
         );
+        this.label = (label == null || label.isBlank()) ? "R" : label;
     }
 
     @Override
@@ -40,8 +46,6 @@ public final class MobPreviewResetButton extends Button {
         if (wasFocused) this.setFocused(true);
 
         var font = Minecraft.getInstance().font;
-        String label = "R";
-
         int color = this.getFGColor();
         int cx = this.getX() + this.getWidth() / 2;
         int cy = this.getY() + this.getHeight() / 2;

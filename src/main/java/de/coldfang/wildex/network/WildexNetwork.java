@@ -2,6 +2,7 @@ package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.server.WildexDiscoveryService;
+import de.coldfang.wildex.server.WildexShareOfferService;
 import de.coldfang.wildex.server.loot.WildexLootExtractor;
 import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
 import de.coldfang.wildex.util.WildexMobFilters;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("resource")
 public final class WildexNetwork {
 
     public static final String MOD_ID = "wildex";
@@ -78,6 +80,12 @@ public final class WildexNetwork {
             r.playToClient(S2CWildexCompleteStatusPayload.TYPE, S2CWildexCompleteStatusPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CPlayerUiStatePayload.TYPE, S2CPlayerUiStatePayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CShareCandidatesPayload.TYPE, S2CShareCandidatesPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CSharePayoutStatusPayload.TYPE, S2CSharePayoutStatusPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CServerConfigPayload.TYPE, S2CServerConfigPayload.STREAM_CODEC, (payload, ctx) -> {
             });
         }
 
@@ -285,6 +293,83 @@ public final class WildexNetwork {
                             .getState(sp.getUUID());
 
                     PacketDistributor.sendToPlayer(sp, new S2CPlayerUiStatePayload(state.tabId(), state.mobId()));
+                })
+        );
+
+        r.playToServer(
+                C2SRequestServerConfigPayload.TYPE,
+                C2SRequestServerConfigPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CServerConfigPayload(
+                                    CommonConfig.INSTANCE.hiddenMode.get(),
+                                    CommonConfig.INSTANCE.requireBookForKeybind.get(),
+                                    CommonConfig.INSTANCE.debugMode.get(),
+                                    CommonConfig.INSTANCE.shareOffersEnabled.get(),
+                                    CommonConfig.INSTANCE.shareOffersPaymentEnabled.get(),
+                                    CommonConfig.INSTANCE.shareOfferCurrencyItem.get(),
+                                    Math.max(0, CommonConfig.INSTANCE.shareOfferMaxPrice.get())
+                            )
+                    );
+                })
+        );
+
+        r.playToServer(
+                C2SRequestShareCandidatesPayload.TYPE,
+                C2SRequestShareCandidatesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel level)) return;
+
+                    List<WildexShareOfferService.Candidate> candidates = WildexShareOfferService.listAcceptingCandidates(sp);
+                    List<S2CShareCandidatesPayload.Candidate> out = new ArrayList<>(candidates.size());
+                    for (WildexShareOfferService.Candidate c : candidates) {
+                        out.add(new S2CShareCandidatesPayload.Candidate(c.playerId(), c.playerName()));
+                    }
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CShareCandidatesPayload(out, WildexShareOfferService.isAcceptingOffers(sp))
+                    );
+                })
+        );
+
+        r.playToServer(
+                C2SSetShareAcceptOffersPayload.TYPE,
+                C2SSetShareAcceptOffersPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    WildexShareOfferService.setAcceptingOffers(sp, payload.accepting());
+                })
+        );
+
+        r.playToServer(
+                C2SSendShareOfferPayload.TYPE,
+                C2SSendShareOfferPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    WildexShareOfferService.createOffer(sp, payload.targetPlayerId(), payload.mobId(), payload.price());
+                    PacketDistributor.sendToPlayer(sp, new S2CSharePayoutStatusPayload(WildexShareOfferService.getPendingPayoutTotal(sp)));
+                })
+        );
+
+        r.playToServer(
+                C2SRequestSharePayoutStatusPayload.TYPE,
+                C2SRequestSharePayoutStatusPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    PacketDistributor.sendToPlayer(sp, new S2CSharePayoutStatusPayload(WildexShareOfferService.getPendingPayoutTotal(sp)));
+                })
+        );
+
+        r.playToServer(
+                C2SClaimSharePayoutsPayload.TYPE,
+                C2SClaimSharePayoutsPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    WildexShareOfferService.claimPendingPayouts(sp);
+                    PacketDistributor.sendToPlayer(sp, new S2CSharePayoutStatusPayload(WildexShareOfferService.getPendingPayoutTotal(sp)));
                 })
         );
 

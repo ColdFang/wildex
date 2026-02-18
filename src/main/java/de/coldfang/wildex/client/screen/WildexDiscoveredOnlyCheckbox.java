@@ -12,16 +12,6 @@ import java.util.function.Consumer;
 
 public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
-    private static final int FRAME_BG = 0x22FFFFFF;
-    private static final int FRAME_OUTER = 0x88301E14;
-    private static final int FRAME_INNER = 0x55FFFFFF;
-
-    private static final int BOX_IDLE = 0x22000000;
-    private static final int BOX_HOVER = 0x33000000;
-    private static final int CHECK_BG = 0x44000000;
-
-    private static final int INK = 0x2B1A10;
-
     private static final Component NARRATION_TITLE = Component.translatable("gui.wildex.discovered_only");
     private static final Component NARRATION_ON = Component.translatable("narration.wildex.discovered_only.on");
     private static final Component NARRATION_OFF = Component.translatable("narration.wildex.discovered_only.off");
@@ -33,7 +23,8 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
     public WildexDiscoveredOnlyCheckbox(int x, int y, int size, boolean initialChecked, Consumer<Boolean> onChange, Component tooltip) {
         super(x, y, size, size, Component.empty());
         this.checked = initialChecked;
-        this.onChange = onChange == null ? v -> { } : onChange;
+        this.onChange = onChange == null ? v -> {
+        } : onChange;
         this.tooltip = tooltip;
     }
 
@@ -43,6 +34,14 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
     public Component tooltip() {
         return tooltip;
+    }
+
+    public void setChecked(boolean checked, boolean notify) {
+        if (this.checked == checked) return;
+        this.checked = checked;
+        if (notify) {
+            this.onChange.accept(this.checked);
+        }
     }
 
     @Override
@@ -59,21 +58,22 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
     @Override
     protected void renderWidget(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
         int x0 = getX();
         int y0 = getY();
         int x1 = x0 + getWidth();
         int y1 = y0 + getHeight();
 
-        drawFrame(g, x0, y0, x1, y1);
+        drawFrame(g, x0, y0, x1, y1, theme);
 
-        int fill = this.isHoveredOrFocused() ? BOX_HOVER : BOX_IDLE;
+        int fill = this.isHoveredOrFocused() ? theme.checkboxHover() : theme.checkboxIdle();
         g.fill(x0 + 3, y0 + 3, x1 - 3, y1 - 3, fill);
 
         if (checked) {
-            g.fill(x0 + 3, y0 + 3, x1 - 3, y1 - 3, CHECK_BG);
+            g.fill(x0 + 3, y0 + 3, x1 - 3, y1 - 3, theme.checkboxChecked());
 
             var font = Minecraft.getInstance().font;
-            String mark = "✔";
+            String mark = "\u2714";
             int markW = font.width(mark);
             int markH = font.lineHeight;
 
@@ -83,7 +83,7 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
             int tx = cx - (markW / 2);
             int ty = cy - (markH / 2);
 
-            g.drawString(font, mark, tx, ty, INK, false);
+            g.drawString(font, mark, tx, ty, theme.ink(), false);
         }
     }
 
@@ -93,17 +93,17 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
         out.add(NarratedElementType.USAGE, checked ? NARRATION_ON : NARRATION_OFF);
     }
 
-    private static void drawFrame(GuiGraphics g, int x0, int y0, int x1, int y1) {
-        g.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, FRAME_BG);
+    private static void drawFrame(GuiGraphics g, int x0, int y0, int x1, int y1, WildexUiTheme.Palette theme) {
+        g.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, theme.frameBg());
 
-        g.fill(x0, y0, x1, y0 + 1, FRAME_OUTER);
-        g.fill(x0, y1 - 1, x1, y1, FRAME_OUTER);
-        g.fill(x0, y0, x0 + 1, y1, FRAME_OUTER);
-        g.fill(x1 - 1, y0, x1, y1, FRAME_OUTER);
+        g.fill(x0, y0, x1, y0 + 1, theme.frameOuter());
+        g.fill(x0, y1 - 1, x1, y1, theme.frameOuter());
+        g.fill(x0, y0, x0 + 1, y1, theme.frameOuter());
+        g.fill(x1 - 1, y0, x1, y1, theme.frameOuter());
 
-        g.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, FRAME_INNER);
-        g.fill(x0 + 1, y1 - 2, x1 - 1, y1 - 1, FRAME_INNER);
-        g.fill(x0 + 1, y0 + 1, x0 + 2, y1 - 1, FRAME_INNER);
-        g.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, FRAME_INNER);
+        g.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, theme.frameInner());
+        g.fill(x0 + 1, y1 - 2, x1 - 1, y1 - 1, theme.frameInner());
+        g.fill(x0 + 1, y0 + 1, x0 + 2, y1 - 1, theme.frameInner());
+        g.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, theme.frameInner());
     }
 }

@@ -26,7 +26,7 @@ public final class CommonConfig {
     );
     private static final String MIGRATIONS_FILE = "wildex-migrations.properties";
     private static final String MIGRATION_KEY_EXCLUDED_IDS_V130 = "excluded_mob_ids_v130";
-    private static final String MIGRATION_KEY_CONFIG_LAYOUT_V140 = "config_layout_v140";
+    private static final String MIGRATION_KEY_CONFIG_LAYOUT_V200 = "config_layout_v200";
     private static boolean migrationsRunning = false;
 
     static {
@@ -42,6 +42,10 @@ public final class CommonConfig {
     public final ModConfigSpec.BooleanValue debugMode;
     public final ModConfigSpec.BooleanValue kubejsBridgeEnabled;
     public final ModConfigSpec.BooleanValue exposureDiscoveryEnabled;
+    public final ModConfigSpec.BooleanValue shareOffersEnabled;
+    public final ModConfigSpec.BooleanValue shareOffersPaymentEnabled;
+    public final ModConfigSpec.ConfigValue<String> shareOfferCurrencyItem;
+    public final ModConfigSpec.IntValue shareOfferMaxPrice;
     public final ModConfigSpec.IntValue spyglassDiscoveryChargeTicks;
 
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedModIds;
@@ -100,6 +104,31 @@ public final class CommonConfig {
 
         builder.pop();
 
+        builder.push("multiplayer");
+
+        shareOffersEnabled = builder
+                .comment("Enable the Wildex entry share-offer UI in the mob details panel.")
+                .define("shareOffersEnabled", true);
+
+        shareOffersPaymentEnabled = builder
+                .comment("Enable optional price input for share offers.")
+                .define("shareOffersPaymentEnabled", true);
+
+        shareOfferCurrencyItem = builder
+                .comment("Currency item id used for share offers (single item type, e.g. minecraft:emerald).")
+                .define("shareOfferCurrencyItem", "minecraft:emerald", o -> {
+                    if (!(o instanceof String s)) return false;
+                    String v = s.trim();
+                    if (v.isEmpty()) return false;
+                    return net.minecraft.resources.ResourceLocation.tryParse(v) != null;
+                });
+
+        shareOfferMaxPrice = builder
+                .comment("Maximum allowed price value for share offers.")
+                .defineInRange("shareOfferMaxPrice", 64, 0, Integer.MAX_VALUE);
+
+        builder.pop();
+
         builder.push("integrationDebug");
 
         kubejsBridgeEnabled = builder
@@ -146,9 +175,9 @@ public final class CommonConfig {
 
         migrationsRunning = true;
         try {
-            if (!isMigrationDone(props, MIGRATION_KEY_CONFIG_LAYOUT_V140)) {
-                migrateConfigLayoutV140(modConfig);
-                props.setProperty(MIGRATION_KEY_CONFIG_LAYOUT_V140, "true");
+            if (!isMigrationDone(props, MIGRATION_KEY_CONFIG_LAYOUT_V200)) {
+                migrateConfigLayoutV200(modConfig);
+                props.setProperty(MIGRATION_KEY_CONFIG_LAYOUT_V200, "true");
                 changedAny = true;
             }
 
@@ -195,7 +224,7 @@ public final class CommonConfig {
         return true;
     }
 
-    private static boolean migrateConfigLayoutV140(ModConfig modConfig) {
+    private static boolean migrateConfigLayoutV200(ModConfig modConfig) {
         Object loaded = modConfig == null ? null : modConfig.getLoadedConfig();
         if (loaded == null) return false;
 
@@ -205,6 +234,10 @@ public final class CommonConfig {
         changed |= migrateBooleanPath(loaded, "kubejsBridgeEnabled", INSTANCE.kubejsBridgeEnabled);
         changed |= migrateBooleanPath(loaded, "exposureDiscoveryEnabled", INSTANCE.exposureDiscoveryEnabled);
         changed |= migrateExcludedIdsPath(loaded);
+        changed |= migrateBooleanPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOffersEnabled", INSTANCE.shareOffersEnabled);
+        changed |= migrateBooleanPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOffersPaymentEnabled", INSTANCE.shareOffersPaymentEnabled);
+        changed |= migrateStringPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOfferCurrencyItem", INSTANCE.shareOfferCurrencyItem);
+        changed |= migrateIntPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOfferMaxPrice", INSTANCE.shareOfferMaxPrice);
 
         return changed;
     }
@@ -241,6 +274,67 @@ public final class CommonConfig {
         List<String> next = List.copyOf(normalized);
         if (next.equals(INSTANCE.excludedModIds.get())) return false;
         INSTANCE.excludedModIds.set(next);
+        return true;
+    }
+
+    private static boolean migrateBooleanPathBetweenSections(
+            Object loaded,
+            String sourceSection,
+            String targetSection,
+            String key,
+            ModConfigSpec.BooleanValue target
+    ) {
+        if (target == null) return false;
+        Object existingNew = getPathValue(loaded, targetSection, key);
+        if (existingNew != null) return false;
+
+        Object old = getPathValue(loaded, sourceSection, key);
+        if (!(old instanceof Boolean oldBool)) return false;
+
+        if (target.get().equals(oldBool)) return false;
+        target.set(oldBool);
+        return true;
+    }
+
+    private static boolean migrateStringPathBetweenSections(
+            Object loaded,
+            String sourceSection,
+            String targetSection,
+            String key,
+            ModConfigSpec.ConfigValue<String> target
+    ) {
+        if (target == null) return false;
+        Object existingNew = getPathValue(loaded, targetSection, key);
+        if (existingNew != null) return false;
+
+        Object old = getPathValue(loaded, sourceSection, key);
+        if (!(old instanceof String s)) return false;
+        String normalized = s.trim();
+        if (normalized.isEmpty()) return false;
+        if (normalized.equals(target.get())) return false;
+
+        target.set(normalized);
+        return true;
+    }
+
+    private static boolean migrateIntPathBetweenSections(
+            Object loaded,
+            String sourceSection,
+            String targetSection,
+            String key,
+            ModConfigSpec.IntValue target
+    ) {
+        if (target == null) return false;
+        Object existingNew = getPathValue(loaded, targetSection, key);
+        if (existingNew != null) return false;
+
+        Object old = getPathValue(loaded, sourceSection, key);
+        if (!(old instanceof Number n)) return false;
+
+        int raw = n.intValue();
+        int migrated = Math.max(0, raw);
+        if (target.get() == migrated) return false;
+        target.set(migrated);
         return true;
     }
 

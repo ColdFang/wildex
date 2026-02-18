@@ -1,12 +1,14 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.data.extractor.WildexEntityTypeTags;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.data.model.WildexStatsData;
-import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
@@ -38,6 +40,7 @@ public final class WildexRightInfoRenderer {
 
     private static final int PAD_X = 6;
     private static final int PAD_Y = 6;
+    private static final int PAD_RIGHT = 2;
 
     private static final int ICON = 9;
     private static final int ICON_GAP = 1;
@@ -65,8 +68,9 @@ public final class WildexRightInfoRenderer {
 
     private static final int DIVIDER = 0x22301E14;
 
-    private static final int TARGET_MIN_H = 168;
-    private static final float MIN_SCALE = 0.75f;
+    private static final int TARGET_MIN_H = 124;
+    private static final float MIN_SCALE = 0.78f;
+
 
     private static final int SPAWN_LINE_GAP = 2;
     private static final int SPAWN_GROUP_GAP = 4;
@@ -84,10 +88,11 @@ public final class WildexRightInfoRenderer {
     private static final int SPAWN_SUBHEADING_COLOR = 0xB8301E14;
     private static final int SPAWN_SUBHEADING_RULE = 0x33301E14;
 
-    private static final int SCROLLBAR_W = 4;
+    private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_PAD = 2;
-    private static final int SCROLLBAR_BG = 0x22000000;
-    private static final int SCROLLBAR_THUMB = 0x88301E14;
+    private static final int SCROLLBAR_BG = 0xFF000000;
+    private static final int SCROLLBAR_THUMB = 0xFFB9B9B9;
+    private static final int SCROLLBAR_SHOW_THRESHOLD_PX = 2;
 
     private static final int MARQUEE_GAP_PX = 16;
     private static final double MARQUEE_SPEED_PX_PER_SEC = 15.0;
@@ -107,8 +112,6 @@ public final class WildexRightInfoRenderer {
 
     private static final Component SHIFT_HINT_LINE_2 =
             Component.translatable("gui.wildex.hint.shift_hover");
-    private static final int SHIFT_HINT_COLOR = 0x662B1A10;
-
     private record TraitLine(String display, List<TagKey<EntityType<?>>> tags, Predicate<EntityType<?>> directCheck) {
     }
 
@@ -150,6 +153,40 @@ public final class WildexRightInfoRenderer {
     private static int spawnFilterStructureY0 = 0;
     private static int spawnFilterStructureX1 = 0;
     private static int spawnFilterStructureY1 = 0;
+    private static int statsScrollPx = 0;
+    private static int statsViewportH = 1;
+    private static int statsContentH = 1;
+    private static boolean statsHasScrollbar = false;
+    private static boolean statsDraggingScrollbar = false;
+    private static int statsDragOffsetY = 0;
+    private static int statsViewportScreenX0 = 0;
+    private static int statsViewportScreenY0 = 0;
+    private static int statsViewportScreenX1 = 0;
+    private static int statsViewportScreenY1 = 0;
+    private static int statsBarScreenX0 = 0;
+    private static int statsBarScreenY0 = 0;
+    private static int statsBarScreenX1 = 0;
+    private static int statsBarScreenY1 = 0;
+    private static int statsThumbScreenH = 0;
+    private static int statsThumbScreenY0 = 0;
+    private static int statsThumbScreenY1 = 0;
+    private static int lootScrollPx = 0;
+    private static int lootViewportH = 1;
+    private static int lootContentH = 1;
+    private static boolean lootHasScrollbar = false;
+    private static boolean lootDraggingScrollbar = false;
+    private static int lootDragOffsetY = 0;
+    private static int lootViewportScreenX0 = 0;
+    private static int lootViewportScreenY0 = 0;
+    private static int lootViewportScreenX1 = 0;
+    private static int lootViewportScreenY1 = 0;
+    private static int lootBarScreenX0 = 0;
+    private static int lootBarScreenY0 = 0;
+    private static int lootBarScreenX1 = 0;
+    private static int lootBarScreenY1 = 0;
+    private static int lootThumbScreenH = 0;
+    private static int lootThumbScreenY0 = 0;
+    private static int lootThumbScreenY1 = 0;
 
     public void resetSpawnScroll() {
         spawnScrollPx = 0;
@@ -157,6 +194,22 @@ public final class WildexRightInfoRenderer {
         spawnContentH = 1;
         spawnHasScrollbar = false;
         spawnDraggingScrollbar = false;
+    }
+
+    public void resetStatsScroll() {
+        statsScrollPx = 0;
+        statsViewportH = 1;
+        statsContentH = 1;
+        statsHasScrollbar = false;
+        statsDraggingScrollbar = false;
+    }
+
+    public void resetLootScroll() {
+        lootScrollPx = 0;
+        lootViewportH = 1;
+        lootContentH = 1;
+        lootHasScrollbar = false;
+        lootDraggingScrollbar = false;
     }
 
     public void scrollSpawn(double scrollY) {
@@ -194,6 +247,7 @@ public final class WildexRightInfoRenderer {
         return true;
     }
 
+    @SuppressWarnings("unused")
     public boolean handleSpawnMouseDragged(int mouseX, int mouseY, int button) {
         if (button != 0) return false;
         if (!spawnDraggingScrollbar) return false;
@@ -205,6 +259,86 @@ public final class WildexRightInfoRenderer {
         if (button != 0) return false;
         boolean wasDragging = spawnDraggingScrollbar;
         spawnDraggingScrollbar = false;
+        return wasDragging;
+    }
+
+    public boolean scrollStats(int mouseX, int mouseY, double scrollY) {
+        if (!statsHasScrollbar) return false;
+        if (!isInside(mouseX, mouseY, statsViewportScreenX0, statsViewportScreenY0, statsViewportScreenX1, statsViewportScreenY1)) {
+            return false;
+        }
+        int max = Math.max(0, statsContentH - statsViewportH);
+        int step = 10;
+        int next = statsScrollPx - (int) Math.round(scrollY * (double) step);
+        if (next < 0) next = 0;
+        if (next > max) next = max;
+        statsScrollPx = next;
+        return true;
+    }
+
+    public boolean handleStatsMouseClicked(int mouseX, int mouseY, int button) {
+        if (button != 0 || !statsHasScrollbar) return false;
+        if (!isInside(mouseX, mouseY, statsBarScreenX0, statsBarScreenY0, statsBarScreenX1, statsBarScreenY1)) return false;
+        if (isInside(mouseX, mouseY, statsBarScreenX0, statsThumbScreenY0, statsBarScreenX1, statsThumbScreenY1)) {
+            statsDraggingScrollbar = true;
+            statsDragOffsetY = mouseY - statsThumbScreenY0;
+            return true;
+        }
+        setStatsScrollFromThumbTop(mouseY - (statsThumbScreenH / 2));
+        return true;
+    }
+
+    @SuppressWarnings("unused")
+    public boolean handleStatsMouseDragged(int mouseX, int mouseY, int button) {
+        if (button != 0 || !statsDraggingScrollbar) return false;
+        setStatsScrollFromThumbTop(mouseY - statsDragOffsetY);
+        return true;
+    }
+
+    public boolean handleStatsMouseReleased(int button) {
+        if (button != 0) return false;
+        boolean wasDragging = statsDraggingScrollbar;
+        statsDraggingScrollbar = false;
+        return wasDragging;
+    }
+
+    public boolean scrollLoot(int mouseX, int mouseY, double scrollY) {
+        if (!lootHasScrollbar) return false;
+        if (!isInside(mouseX, mouseY, lootViewportScreenX0, lootViewportScreenY0, lootViewportScreenX1, lootViewportScreenY1)) {
+            return false;
+        }
+        int max = Math.max(0, lootContentH - lootViewportH);
+        int step = 10;
+        int next = lootScrollPx - (int) Math.round(scrollY * (double) step);
+        if (next < 0) next = 0;
+        if (next > max) next = max;
+        lootScrollPx = next;
+        return true;
+    }
+
+    public boolean handleLootMouseClicked(int mouseX, int mouseY, int button) {
+        if (button != 0 || !lootHasScrollbar) return false;
+        if (!isInside(mouseX, mouseY, lootBarScreenX0, lootBarScreenY0, lootBarScreenX1, lootBarScreenY1)) return false;
+        if (isInside(mouseX, mouseY, lootBarScreenX0, lootThumbScreenY0, lootBarScreenX1, lootThumbScreenY1)) {
+            lootDraggingScrollbar = true;
+            lootDragOffsetY = mouseY - lootThumbScreenY0;
+            return true;
+        }
+        setLootScrollFromThumbTop(mouseY - (lootThumbScreenH / 2));
+        return true;
+    }
+
+    @SuppressWarnings("unused")
+    public boolean handleLootMouseDragged(int mouseX, int mouseY, int button) {
+        if (button != 0 || !lootDraggingScrollbar) return false;
+        setLootScrollFromThumbTop(mouseY - lootDragOffsetY);
+        return true;
+    }
+
+    public boolean handleLootMouseReleased(int button) {
+        if (button != 0) return false;
+        boolean wasDragging = lootDraggingScrollbar;
+        lootDraggingScrollbar = false;
         return wasDragging;
     }
 
@@ -255,7 +389,7 @@ public final class WildexRightInfoRenderer {
 
             WildexScreenLayout.Area local = new WildexScreenLayout.Area(0, 0, lw, lh);
 
-            if (CommonConfig.INSTANCE.hiddenMode.get() && !WildexDiscoveryCache.isDiscovered(mobRl)) {
+            if (WildexClientConfigView.hiddenMode() && !WildexDiscoveryCache.isDiscovered(mobRl)) {
                 renderLockedHint(graphics, font, local);
                 graphics.pose().popPose();
                 return;
@@ -265,17 +399,12 @@ public final class WildexRightInfoRenderer {
 
             switch (state.selectedTab()) {
                 case STATS -> {
-                    if (shiftDown) {
-                        tooltip = renderStats(
-                                graphics, font, local, state.selectedMobId(), data.stats(), inkColor,
-                                mouseX, mouseY, x0, y0, s
-                        );
-                    } else {
-                        renderStatsNoTooltip(graphics, font, local, state.selectedMobId(), data.stats(), inkColor, x0, y0, s);
-                        renderShiftHint(graphics, font, local);
-                    }
+                    tooltip = renderStatsWithScroll(
+                            graphics, font, local, state.selectedMobId(), data.stats(), inkColor,
+                            mouseX, mouseY, x0, y0, s, shiftDown
+                    );
                 }
-                case LOOT -> renderLoot(graphics, font, local, mobRl, inkColor);
+                case LOOT -> renderLoot(graphics, font, local, mobRl, inkColor, x0, y0, s);
                 case SPAWNS -> tooltip = renderSpawns(graphics, font, local, mobRl, state, inkColor, x0, y0, s, mouseX, mouseY);
                 case MISC -> renderInfoTraits(graphics, font, local, state, inkColor, x0, y0, s);
             }
@@ -290,7 +419,9 @@ public final class WildexRightInfoRenderer {
         }
     }
 
+    @SuppressWarnings("unused")
     private static void renderShiftHint(GuiGraphics g, Font font, WildexScreenLayout.Area area) {
+        int hintColor = WildexUiTheme.current().inkMuted();
         int x0 = area.x();
         int y0 = area.y();
         int x1 = area.x() + area.w();
@@ -312,7 +443,7 @@ public final class WildexRightInfoRenderer {
             int x = x1 - PAD_X - w;
             if (x < x0 + PAD_X) x = x0 + PAD_X;
 
-            g.drawString(font, l, x, y, SHIFT_HINT_COLOR, false);
+            g.drawString(font, l, x, y, hintColor, false);
             y += lineH;
         }
 
@@ -320,14 +451,136 @@ public final class WildexRightInfoRenderer {
         int x2 = x1 - PAD_X - w2;
         if (x2 < x0 + PAD_X) x2 = x0 + PAD_X;
 
-        g.drawString(font, line2, x2, y, SHIFT_HINT_COLOR, false);
+        g.drawString(font, line2, x2, y, hintColor, false);
+    }
+
+    private static TooltipRequest renderStatsWithScroll(
+            GuiGraphics g,
+            Font font,
+            WildexScreenLayout.Area area,
+            String selectedMobId,
+            WildexStatsData s,
+            int inkColor,
+            int mouseX,
+            int mouseY,
+            int screenOriginX,
+            int screenOriginY,
+            float scale,
+            boolean shiftDown
+    ) {
+        int x = area.x();
+        int y = area.y();
+        int w = area.w();
+        int h = area.h();
+        int rightLimitX = x + w - PAD_RIGHT;
+
+        int maxW = Math.max(1, w - (PAD_X * 2));
+        List<FormattedCharSequence> hintL1 = font.split(SHIFT_HINT_LINE_1, maxW);
+        int hintLineH = font.lineHeight + 1;
+        int hintTotalH = (hintL1.size() + 1) * hintLineH;
+        int hintBlockH = hintTotalH + PAD_Y + 2;
+
+        int dividerShiftDown = 5;
+        int dividerY = Math.min((y + h) - 2, (y + h) - hintBlockH - 2 + dividerShiftDown);
+        int viewportX = x;
+        int viewportY = y;
+        int viewportW = w;
+        int viewportH = Math.max(24, dividerY - viewportY - 1);
+
+        int line = Math.max(10, font.lineHeight + 2);
+        int estimatedContentH = Math.max(viewportH, PAD_Y + (line * 9) + 2);
+        statsViewportH = viewportH;
+        statsContentH = estimatedContentH;
+        int maxScroll = Math.max(0, statsContentH - statsViewportH);
+        boolean showStatsScrollbar = maxScroll > SCROLLBAR_SHOW_THRESHOLD_PX;
+        if (!showStatsScrollbar) {
+            statsScrollPx = 0;
+        } else if (statsScrollPx > maxScroll) {
+            statsScrollPx = maxScroll;
+        }
+
+        int sx0 = toScreenX(screenOriginX, scale, viewportX);
+        int sy0 = toScreenY(screenOriginY, scale, viewportY);
+        int sx1 = toScreenX(screenOriginX, scale, viewportX + viewportW);
+        int sy1 = toScreenY(screenOriginY, scale, viewportY + viewportH);
+        statsViewportScreenX0 = sx0;
+        statsViewportScreenY0 = sy0;
+        statsViewportScreenX1 = sx1;
+        statsViewportScreenY1 = sy1;
+
+        g.enableScissor(sx0, sy0, sx1, sy1);
+        TooltipRequest tooltip;
+        try {
+            WildexScreenLayout.Area statsArea = new WildexScreenLayout.Area(viewportX, viewportY - statsScrollPx, viewportW, statsContentH);
+            tooltip = shiftDown
+                    ? renderStats(g, font, statsArea, selectedMobId, s, inkColor, mouseX, mouseY, screenOriginX, screenOriginY, scale)
+                    : renderStats(g, font, statsArea, selectedMobId, s, inkColor, -1, -1, screenOriginX, screenOriginY, scale);
+        } finally {
+            g.disableScissor();
+        }
+
+        int lineY = viewportY + viewportH + 1;
+        if (lineY < y + h - 1) {
+            g.fill(x + PAD_X, lineY, rightLimitX, lineY + 1, DIVIDER);
+        }
+
+        int hintY = lineY + 3;
+        renderShiftHintAt(g, font, area, hintY, y + h - PAD_Y - hintTotalH);
+
+        if (showStatsScrollbar) {
+            int barX0 = rightLimitX - SCROLLBAR_W;
+            int barY0 = viewportY;
+            int barY1 = viewportY + viewportH;
+            g.fill(barX0, barY0, rightLimitX, barY1, SCROLLBAR_BG);
+
+            int thumbH = Math.max(12, Math.round((statsViewportH / (float) statsContentH) * statsViewportH));
+            if (thumbH > statsViewportH) thumbH = statsViewportH;
+            int denom = Math.max(1, statsContentH - statsViewportH);
+            float t = statsScrollPx / (float) denom;
+            int travel = statsViewportH - thumbH;
+            int thumbY0 = viewportY + Math.round(travel * t);
+            int thumbY1 = thumbY0 + thumbH;
+            g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
+
+            statsHasScrollbar = true;
+            cacheStatsScrollbarRect(screenOriginX, screenOriginY, scale, barX0, barY0, rightLimitX, barY1, thumbY0, thumbY1);
+        } else {
+            statsHasScrollbar = false;
+            statsDraggingScrollbar = false;
+        }
+
+        return tooltip;
+    }
+
+    private static void renderShiftHintAt(GuiGraphics g, Font font, WildexScreenLayout.Area area, int preferredY, int minY) {
+        int hintColor = WildexUiTheme.current().inkMuted();
+        int x0 = area.x();
+        int x1 = area.x() + area.w();
+        int maxW = Math.max(1, area.w() - (PAD_X * 2));
+        List<FormattedCharSequence> line1 = font.split(SHIFT_HINT_LINE_1, maxW);
+        FormattedCharSequence line2 = SHIFT_HINT_LINE_2.getVisualOrderText();
+        int lineH = font.lineHeight + 1;
+        int y = Math.max(minY, preferredY);
+        for (FormattedCharSequence l : line1) {
+            int w = font.width(l);
+            int x = x1 - PAD_X - w;
+            if (x < x0 + PAD_X) x = x0 + PAD_X;
+            g.drawString(font, l, x, y, hintColor, false);
+            y += lineH;
+        }
+        int w2 = font.width(line2);
+        int x2 = x1 - PAD_X - w2;
+        if (x2 < x0 + PAD_X) x2 = x0 + PAD_X;
+        g.drawString(font, line2, x2, y, hintColor, false);
     }
 
     private static void renderLockedHint(GuiGraphics g, Font font, WildexScreenLayout.Area area) {
         int x = area.x() + PAD_X;
         int yTop = area.y() + PAD_Y;
+        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+        int lockedColor = modern ? 0xFFD9F6FF : HINT_TEXT_COLOR;
 
-        int rightLimitX = area.x() + area.w() - PAD_X;
+        int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int maxW = Math.max(1, rightLimitX - x);
 
         int lineH = Math.max(10, font.lineHeight + HINT_LINE_GAP);
@@ -343,16 +596,17 @@ public final class WildexRightInfoRenderer {
 
         for (String line : lines) {
             String clipped = clipToWidth(font, line, maxW);
-            g.drawString(font, clipped, x, startY, HINT_TEXT_COLOR, false);
+            g.drawString(font, clipped, x, startY, lockedColor, false);
             startY += lineH;
         }
     }
 
     private static float computeContentScale(int h) {
         if (h <= 0) return MIN_SCALE;
-        float s = (float) h / (float) TARGET_MIN_H;
-        if (s >= 1.0f) return 1.0f;
-        return Math.max(s, MIN_SCALE);
+        float fitScale = (float) h / (float) TARGET_MIN_H;
+        if (fitScale > 1.0f) return 1.0f;
+        if (fitScale < MIN_SCALE) return MIN_SCALE;
+        return fitScale;
     }
 
     private static int toLogical(int px, float s) {
@@ -360,46 +614,105 @@ public final class WildexRightInfoRenderer {
         return Math.max(1, (int) Math.floor(px / (double) s));
     }
 
-    private static void renderLoot(GuiGraphics g, Font font, WildexScreenLayout.Area area, ResourceLocation mobId, int inkColor) {
+    private static void renderLoot(
+            GuiGraphics g,
+            Font font,
+            WildexScreenLayout.Area area,
+            ResourceLocation mobId,
+            int inkColor,
+            int screenOriginX,
+            int screenOriginY,
+            float scale
+    ) {
         int x = area.x() + PAD_X;
-        int y = area.y() + PAD_Y;
-
-        int rightLimitX = area.x() + area.w() - PAD_X;
+        int yTop = area.y() + PAD_Y;
+        int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int maxY = area.y() + area.h() - PAD_Y;
+
+        int viewportX = area.x();
+        int viewportY = yTop;
+        int viewportW = area.w();
+        int viewportH = Math.max(1, maxY - yTop);
 
         List<S2CMobLootPayload.LootLine> lines = WildexLootCache.get(mobId);
         if (lines.isEmpty()) {
-            g.drawString(font, tr("gui.wildex.loot.none"), x, y, inkColor, false);
+            g.drawString(font, tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
+            lootHasScrollbar = false;
+            lootDraggingScrollbar = false;
             return;
         }
 
-        int textX = x + ITEM_ICON + ITEM_GAP_X;
-        int textW = Math.max(1, rightLimitX - textX);
-
-        int shown = 0;
-        for (S2CMobLootPayload.LootLine l : lines) {
-            if (y + ITEM_ICON > maxY) break;
-            ResourceLocation itemId = l.itemId();
-            Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
-            if (item == null) continue;
-
-            ItemStack stack = new ItemStack(item);
-
-            g.renderItem(stack, x, y);
-
-            String name = stack.getHoverName().getString();
-            String count = formatCount(l.minCount(), l.maxCount());
-
-            String line = count.isEmpty() ? name : (name + " " + count);
-            g.drawString(font, clipToWidth(font, line, textW), textX, y + 4, inkColor, false);
-
-            y += LOOT_ROW_H;
-            shown++;
-            if (shown >= 64) break;
+        int totalRows = Math.min(64, lines.size());
+        int contentH = Math.max(LOOT_ROW_H, totalRows * LOOT_ROW_H);
+        lootViewportH = viewportH;
+        lootContentH = contentH;
+        int maxScroll = Math.max(0, contentH - viewportH);
+        boolean showLootScrollbar = maxScroll > SCROLLBAR_SHOW_THRESHOLD_PX;
+        if (!showLootScrollbar) {
+            lootScrollPx = 0;
+        } else if (lootScrollPx > maxScroll) {
+            lootScrollPx = maxScroll;
         }
 
-        if (shown == 0) {
-            g.drawString(font, tr("gui.wildex.loot.none"), x, y, inkColor, false);
+        int sx0 = toScreenX(screenOriginX, scale, viewportX);
+        int sy0 = toScreenY(screenOriginY, scale, viewportY);
+        int sx1 = toScreenX(screenOriginX, scale, viewportX + viewportW);
+        int sy1 = toScreenY(screenOriginY, scale, viewportY + viewportH);
+        lootViewportScreenX0 = sx0;
+        lootViewportScreenY0 = sy0;
+        lootViewportScreenX1 = sx1;
+        lootViewportScreenY1 = sy1;
+
+        int y = yTop - lootScrollPx;
+        int textX = x + ITEM_ICON + ITEM_GAP_X;
+        int textW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - textX);
+
+        g.enableScissor(sx0, sy0, sx1, sy1);
+        try {
+            int shown = 0;
+            for (S2CMobLootPayload.LootLine l : lines) {
+                if (shown >= 64) break;
+                ResourceLocation itemId = l.itemId();
+                Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
+                if (item == null) continue;
+
+                if (y + ITEM_ICON >= yTop && y < maxY) {
+                    ItemStack stack = new ItemStack(item);
+                    g.renderItem(stack, x, y);
+                    String name = stack.getHoverName().getString();
+                    String count = formatCount(l.minCount(), l.maxCount());
+                    String line = count.isEmpty() ? name : (name + " " + count);
+                    drawMarqueeIfNeeded(g, font, line, textX, y + 4, textW, inkColor, screenOriginX, screenOriginY, scale);
+                }
+
+                y += LOOT_ROW_H;
+                shown++;
+            }
+
+            if (showLootScrollbar) {
+                int barX0 = rightLimitX - SCROLLBAR_W;
+                int barY0 = yTop;
+                int barY1 = yTop + viewportH;
+                g.fill(barX0, barY0, rightLimitX, barY1, SCROLLBAR_BG);
+
+                int thumbH = Math.max(8, (int) Math.floor(viewportH * (viewportH / (float) contentH)));
+                if (thumbH > viewportH) thumbH = viewportH;
+
+                int denom = Math.max(1, contentH - viewportH);
+                float t = lootScrollPx / (float) denom;
+                int travel = viewportH - thumbH;
+                int thumbY0 = yTop + Math.round(travel * t);
+                int thumbY1 = thumbY0 + thumbH;
+                g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
+
+                lootHasScrollbar = true;
+                cacheLootScrollbarRect(screenOriginX, screenOriginY, scale, barX0, barY0, rightLimitX, barY1, thumbY0, thumbY1);
+            } else {
+                lootHasScrollbar = false;
+                lootDraggingScrollbar = false;
+            }
+        } finally {
+            g.disableScissor();
         }
     }
 
@@ -420,7 +733,7 @@ public final class WildexRightInfoRenderer {
         int x = area.x() + PAD_X;
         int yTop = area.y() + 2;
 
-        int rightLimitX = area.x() + area.w() - PAD_X;
+        int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int maxY = area.y() + area.h() - PAD_Y;
 
         int filterH = Math.max(10, font.lineHeight + 4);
@@ -496,7 +809,12 @@ public final class WildexRightInfoRenderer {
         spawnViewportH = viewportH;
         spawnContentH = Math.max(1, contentH);
         int maxScroll = Math.max(0, contentH - viewportH);
-        if (spawnScrollPx > maxScroll) spawnScrollPx = maxScroll;
+        boolean showSpawnScrollbar = maxScroll > SCROLLBAR_SHOW_THRESHOLD_PX;
+        if (!showSpawnScrollbar) {
+            spawnScrollPx = 0;
+        } else if (spawnScrollPx > maxScroll) {
+            spawnScrollPx = maxScroll;
+        }
 
         int y = yTop - spawnScrollPx;
 
@@ -552,7 +870,7 @@ public final class WildexRightInfoRenderer {
                 }
             }
 
-            if (contentH > viewportH) {
+            if (showSpawnScrollbar) {
                 int barX0 = rightLimitX - SCROLLBAR_W;
                 int barY1 = yTop + viewportH;
 
@@ -595,9 +913,17 @@ public final class WildexRightInfoRenderer {
             String label,
             boolean active
     ) {
-        int bg = active ? SPAWN_FILTER_ON_BG : SPAWN_FILTER_OFF_BG;
-        int fg = active ? SPAWN_FILTER_TEXT_ON : SPAWN_FILTER_TEXT_OFF;
-        int border = active ? SPAWN_FILTER_BORDER_ON : SPAWN_FILTER_BORDER_OFF;
+        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+        int onBg = SPAWN_FILTER_ON_BG;
+        int onFg = SPAWN_FILTER_TEXT_ON;
+        int onBorder = SPAWN_FILTER_BORDER_ON;
+        int offBg = modern ? 0x3342C7F5 : SPAWN_FILTER_OFF_BG;
+        int offFg = modern ? 0xFFEAF7FF : SPAWN_FILTER_TEXT_OFF;
+        int offBorder = modern ? 0xCC4FCBF3 : SPAWN_FILTER_BORDER_OFF;
+        int bg = active ? offBg : onBg;
+        int fg = active ? offFg : onFg;
+        int border = active ? offBorder : onBorder;
+        int offCross = modern ? 0xFFFF6A7A : SPAWN_FILTER_OFF_CROSS;
         int y1 = y0 + h;
 
         g.fill(x0, y0, x1, y1, bg);
@@ -617,8 +943,8 @@ public final class WildexRightInfoRenderer {
             int iy1 = iy0 + (size - 1);
 
             for (int i = 0; i < size; i++) {
-                g.fill(ix0 + i, iy0 + i, ix0 + i + 1, iy0 + i + 1, SPAWN_FILTER_OFF_CROSS);
-                g.fill(ix1 - i, iy0 + i, ix1 - i + 1, iy0 + i + 1, SPAWN_FILTER_OFF_CROSS);
+                g.fill(ix0 + i, iy0 + i, ix0 + i + 1, iy0 + i + 1, offCross);
+                g.fill(ix1 - i, iy0 + i, ix1 - i + 1, iy0 + i + 1, offCross);
             }
         }
     }
@@ -632,11 +958,14 @@ public final class WildexRightInfoRenderer {
             String text
     ) {
         if (text == null || text.isBlank()) return;
-        g.drawString(font, text, x, y, SPAWN_HEADING_COLOR, false);
+        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+        int headingColor = modern ? 0xFFB7EEFF : SPAWN_HEADING_COLOR;
+        int headingRule = modern ? 0x6658D7FF : SPAWN_HEADING_RULE;
+        g.drawString(font, text, x, y, headingColor, false);
         int ruleY = y + font.lineHeight + 1;
         int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
         if (ruleX1 > x) {
-            g.fill(x, ruleY, ruleX1, ruleY + 1, SPAWN_HEADING_RULE);
+            g.fill(x, ruleY, ruleX1, ruleY + 1, headingRule);
         }
     }
 
@@ -648,16 +977,19 @@ public final class WildexRightInfoRenderer {
             int y,
             int rightLimitX,
             int screenOriginX,
-            int screenOriginY,
-            float scale
+        int screenOriginY,
+        float scale
     ) {
         if (text == null || text.isBlank()) return;
+        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+        int subheadingColor = modern ? 0xFFD9F6FF : SPAWN_SUBHEADING_COLOR;
+        int subheadingRule = modern ? 0x554FCBF3 : SPAWN_SUBHEADING_RULE;
         int maxW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - x);
-        drawMarqueeIfNeeded(g, font, text, x, y, maxW, SPAWN_SUBHEADING_COLOR, screenOriginX, screenOriginY, scale);
+        drawMarqueeIfNeeded(g, font, text, x, y, maxW, subheadingColor, screenOriginX, screenOriginY, scale);
         int ruleY = y + font.lineHeight + 1;
         int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
         if (ruleX1 > x) {
-            g.fill(x, ruleY, ruleX1, ruleY + 1, SPAWN_SUBHEADING_RULE);
+            g.fill(x, ruleY, ruleX1, ruleY + 1, subheadingRule);
         }
     }
 
@@ -704,6 +1036,48 @@ public final class WildexRightInfoRenderer {
         spawnThumbScreenH = Math.max(1, spawnThumbScreenY1 - spawnThumbScreenY0);
     }
 
+    private static void cacheStatsScrollbarRect(
+            int screenOriginX,
+            int screenOriginY,
+            float scale,
+            int barX0,
+            int barY0,
+            int barX1,
+            int barY1,
+            int thumbY0,
+            int thumbY1
+    ) {
+        statsBarScreenX0 = toScreenX(screenOriginX, scale, barX0);
+        statsBarScreenY0 = toScreenY(screenOriginY, scale, barY0);
+        statsBarScreenX1 = toScreenX(screenOriginX, scale, barX1);
+        statsBarScreenY1 = toScreenY(screenOriginY, scale, barY1);
+
+        statsThumbScreenY0 = toScreenY(screenOriginY, scale, thumbY0);
+        statsThumbScreenY1 = toScreenY(screenOriginY, scale, thumbY1);
+        statsThumbScreenH = Math.max(1, statsThumbScreenY1 - statsThumbScreenY0);
+    }
+
+    private static void cacheLootScrollbarRect(
+            int screenOriginX,
+            int screenOriginY,
+            float scale,
+            int barX0,
+            int barY0,
+            int barX1,
+            int barY1,
+            int thumbY0,
+            int thumbY1
+    ) {
+        lootBarScreenX0 = toScreenX(screenOriginX, scale, barX0);
+        lootBarScreenY0 = toScreenY(screenOriginY, scale, barY0);
+        lootBarScreenX1 = toScreenX(screenOriginX, scale, barX1);
+        lootBarScreenY1 = toScreenY(screenOriginY, scale, barY1);
+
+        lootThumbScreenY0 = toScreenY(screenOriginY, scale, thumbY0);
+        lootThumbScreenY1 = toScreenY(screenOriginY, scale, thumbY1);
+        lootThumbScreenH = Math.max(1, lootThumbScreenY1 - lootThumbScreenY0);
+    }
+
     private static void setSpawnScrollFromThumbTop(int desiredThumbTop) {
         if (!spawnHasScrollbar) return;
         int barTravel = Math.max(1, (spawnBarScreenY1 - spawnBarScreenY0) - spawnThumbScreenH);
@@ -716,6 +1090,28 @@ public final class WildexRightInfoRenderer {
         float t = (clampedTop - spawnBarScreenY0) / (float) barTravel;
         int maxScroll = Math.max(0, spawnContentH - spawnViewportH);
         spawnScrollPx = Math.round(maxScroll * t);
+    }
+
+    private static void setStatsScrollFromThumbTop(int desiredThumbTop) {
+        if (!statsHasScrollbar) return;
+        int barTravel = Math.max(1, (statsBarScreenY1 - statsBarScreenY0) - statsThumbScreenH);
+        int minTop = statsBarScreenY0;
+        int maxTop = statsBarScreenY0 + barTravel;
+        int clampedTop = Math.max(minTop, Math.min(maxTop, desiredThumbTop));
+        float t = (clampedTop - statsBarScreenY0) / (float) barTravel;
+        int maxScroll = Math.max(0, statsContentH - statsViewportH);
+        statsScrollPx = Math.round(maxScroll * t);
+    }
+
+    private static void setLootScrollFromThumbTop(int desiredThumbTop) {
+        if (!lootHasScrollbar) return;
+        int barTravel = Math.max(1, (lootBarScreenY1 - lootBarScreenY0) - lootThumbScreenH);
+        int minTop = lootBarScreenY0;
+        int maxTop = lootBarScreenY0 + barTravel;
+        int clampedTop = Math.max(minTop, Math.min(maxTop, desiredThumbTop));
+        float t = (clampedTop - lootBarScreenY0) / (float) barTravel;
+        int maxScroll = Math.max(0, lootContentH - lootViewportH);
+        lootScrollPx = Math.round(maxScroll * t);
     }
 
     private static boolean isInside(int x, int y, int x0, int y0, int x1, int y1) {
@@ -813,7 +1209,7 @@ public final class WildexRightInfoRenderer {
         int x = area.x() + PAD_X;
         int y = area.y() + PAD_Y;
 
-        int rightLimitX = area.x() + area.w() - PAD_X;
+        int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int maxY = area.y() + area.h() - PAD_Y;
 
         int line = Math.max(10, font.lineHeight + 3);
@@ -902,7 +1298,7 @@ public final class WildexRightInfoRenderer {
         int x = area.x() + PAD_X;
         int y = area.y() + PAD_Y;
 
-        int innerW = Math.max(1, area.w() - PAD_X * 2);
+        int innerW = Math.max(1, area.w() - PAD_X - PAD_RIGHT);
         int innerH = Math.max(1, area.h() - PAD_Y * 2);
 
         int maxY = (area.y() + PAD_Y) + innerH;
@@ -914,7 +1310,7 @@ public final class WildexRightInfoRenderer {
         labelColW = Math.min(labelColW, maxLabelBySpace);
 
         int valueX = x + labelColW + COL_GAP;
-        int rightLimitX = area.x() + area.w() - PAD_X;
+        int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int valueW = Math.max(1, rightLimitX - valueX);
 
         int line = Math.max(10, font.lineHeight + 2);
@@ -1308,11 +1704,11 @@ public final class WildexRightInfoRenderer {
     }
 
     private static String fmtOpt(OptionalDouble v) {
-        return v.isPresent() ? fmt(v.getAsDouble()) : "—";
+        return v.isPresent() ? fmt(v.getAsDouble()) : "-";
     }
 
     private static String fmtOptWithUnit(OptionalDouble v, String unit) {
-        return v.isPresent() ? (fmt(v.getAsDouble()) + " " + unit) : "—";
+        return v.isPresent() ? (fmt(v.getAsDouble()) + " " + unit) : "-";
     }
 
     private static String fmt(double v) {
@@ -1340,3 +1736,5 @@ public final class WildexRightInfoRenderer {
         return s.substring(0, lo) + ell;
     }
 }
+
+

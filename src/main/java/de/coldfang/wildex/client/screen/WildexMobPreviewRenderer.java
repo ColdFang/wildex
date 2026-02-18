@@ -1,8 +1,10 @@
 package de.coldfang.wildex.client.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
-import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -31,11 +33,8 @@ public final class WildexMobPreviewRenderer {
 
     private static final float FISH_MODEL_PITCH_DEG = 90.0f;
     private static final float FISH_MODEL_SIDE_YAW_DEG = 90.0f;
-
-    private static final int FRAME_BG = 0x22FFFFFF;
-    private static final int FRAME_OUTER = 0x88301E14;
-    private static final int FRAME_INNER = 0x55FFFFFF;
-    private static final int FRAME_CORNER = 0xAA2B1A10;
+    private static final int PREVIEW_CORNER_CUT = 3;
+    private static final int MODERN_PREVIEW_CLIP_CUT = 9;
 
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 2.40f;
@@ -85,10 +84,12 @@ public final class WildexMobPreviewRenderer {
         hasSmoothedYaw = false;
     }
 
+    @SuppressWarnings("unused")
     public boolean isSafePreviewMode() {
         return safePreviewMode;
     }
 
+    @SuppressWarnings("unused")
     public void setSafePreviewMode(boolean enabled) {
         this.safePreviewMode = enabled;
         this.hasSmoothedYaw = false;
@@ -121,11 +122,13 @@ public final class WildexMobPreviewRenderer {
 
     public boolean endRotationDrag(int button) {
         if (!dragActive || button != dragButton) return false;
+        carryForwardYawAfterDrag();
         dragActive = false;
         dragButton = -1;
         return true;
     }
 
+    @SuppressWarnings("unused")
     public void render(
             GuiGraphics graphics,
             WildexScreenLayout layout,
@@ -136,12 +139,13 @@ public final class WildexMobPreviewRenderer {
     ) {
         if (layout == null || state == null) return;
 
-        Objects.hash(mouseX, mouseY);
-
         WildexScreenLayout.Area area = layout.rightPreviewArea();
         if (area == null) return;
 
-        drawFrame(graphics, area);
+        boolean vintage = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE;
+        if (vintage) {
+            drawFrame(graphics, area);
+        }
 
         String idStr = state.selectedMobId();
         if (idStr == null || idStr.isBlank()) {
@@ -157,7 +161,7 @@ public final class WildexMobPreviewRenderer {
             return;
         }
 
-        boolean hiddenUndiscovered = CommonConfig.INSTANCE.hiddenMode.get() && !WildexDiscoveryCache.isDiscovered(id);
+        boolean hiddenUndiscovered = WildexClientConfigView.hiddenMode() && !WildexDiscoveryCache.isDiscovered(id);
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
@@ -248,8 +252,6 @@ public final class WildexMobPreviewRenderer {
 
         EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
 
-        graphics.enableScissor(innerX0, innerY0, innerX1, innerY1);
-
         graphics.pose().pushPose();
         graphics.pose().translate(cx, cy, 1050.0f);
         graphics.pose().scale(-scale, scale, scale);
@@ -274,29 +276,29 @@ public final class WildexMobPreviewRenderer {
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
+        int clipCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 0 : MODERN_PREVIEW_CLIP_CUT;
         if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
         try {
-            dispatcher.render(
-                    mob,
-                    0.0,
-                    -mob.getBbHeight() * 0.5,
-                    0.0,
-                    0.0f,
-                    renderPartialTick,
-                    graphics.pose(),
-                    graphics.bufferSource(),
-                    LightTexture.FULL_BRIGHT
-            );
-
-            graphics.flush();
+            renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
+                dispatcher.render(
+                        mob,
+                        0.0,
+                        -mob.getBbHeight() * 0.5,
+                        0.0,
+                        0.0f,
+                        renderPartialTick,
+                        graphics.pose(),
+                        graphics.bufferSource(),
+                        LightTexture.FULL_BRIGHT
+                );
+                graphics.flush();
+            });
         } finally {
             if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         }
 
         dispatcher.setRenderShadow(true);
         graphics.pose().popPose();
-
-        graphics.disableScissor();
 
         mob.setYRot(prevYRot);
         mob.setXRot(prevXRot);
@@ -328,6 +330,18 @@ public final class WildexMobPreviewRenderer {
         long gameTime = mc.level == null ? 0L : mc.level.getGameTime();
         float t = gameTime + partialTick;
         return (t * ROT_SPEED_DEG_PER_TICK) % 360.0f;
+    }
+
+    private void carryForwardYawAfterDrag() {
+        if (!hasSmoothedYaw) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
+        float rawYawNow = computeYaw(mc, 0.0f);
+        float visibleYawNow = wrapDegrees(smoothedYaw + manualYawDeg);
+        // Preserve current visible heading, then continue with normal auto-rotation from there.
+        manualYawDeg = wrapDegrees(visibleYawNow - rawYawNow);
+        hasSmoothedYaw = false;
     }
 
     private float resolvePreviewYaw(Minecraft mc, float partialTick) {
@@ -424,8 +438,6 @@ public final class WildexMobPreviewRenderer {
         EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
         dispatcher.setRenderShadow(false);
 
-        graphics.enableScissor(innerX0, innerY0, innerX1, innerY1);
-
         graphics.pose().pushPose();
         graphics.pose().translate(cx, cy, 1050.0f);
         graphics.pose().scale(-scale, scale, scale);
@@ -436,22 +448,22 @@ public final class WildexMobPreviewRenderer {
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
-        dispatcher.render(
-                dragon,
-                0.0,
-                -dragon.getBbHeight() * 0.38,
-                0.0,
-                0.0f,
-                renderPartialTick,
-                graphics.pose(),
-                graphics.bufferSource(),
-                LightTexture.FULL_BRIGHT
-        );
-
-        graphics.flush();
+        int clipCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 0 : MODERN_PREVIEW_CLIP_CUT;
+        renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
+            dispatcher.render(
+                    dragon,
+                    0.0,
+                    -dragon.getBbHeight() * 0.38,
+                    0.0,
+                    0.0f,
+                    renderPartialTick,
+                    graphics.pose(),
+                    graphics.bufferSource(),
+                    LightTexture.FULL_BRIGHT
+            );
+            graphics.flush();
+        });
         graphics.pose().popPose();
-
-        graphics.disableScissor();
 
         dispatcher.setRenderShadow(true);
 
@@ -468,43 +480,119 @@ public final class WildexMobPreviewRenderer {
     }
 
     private static void drawFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
         int x0 = a.x();
         int y0 = a.y();
         int x1 = a.x() + a.w();
         int y1 = a.y() + a.h();
+        int c = PREVIEW_CORNER_CUT;
 
-        graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, FRAME_BG);
+        graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, theme.frameBg());
 
-        graphics.fill(x0, y0, x1, y0 + 1, FRAME_OUTER);
-        graphics.fill(x0, y1 - 1, x1, y1, FRAME_OUTER);
-        graphics.fill(x0, y0, x0 + 1, y1, FRAME_OUTER);
-        graphics.fill(x1 - 1, y0, x1, y1, FRAME_OUTER);
+        graphics.fill(x0 + c, y0, x1 - c, y0 + 1, theme.frameOuter());
+        graphics.fill(x0 + c, y1 - 1, x1 - c, y1, theme.frameOuter());
+        graphics.fill(x0, y0 + c, x0 + 1, y1 - c, theme.frameOuter());
+        graphics.fill(x1 - 1, y0 + c, x1, y1 - c, theme.frameOuter());
 
-        graphics.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, FRAME_INNER);
-        graphics.fill(x0 + 1, y1 - 2, x1 - 1, y1 - 1, FRAME_INNER);
-        graphics.fill(x0 + 1, y0 + 1, x0 + 2, y1 - 1, FRAME_INNER);
-        graphics.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, FRAME_INNER);
+        graphics.fill(x0 + c, y0 + 1, x1 - c, y0 + 2, theme.frameInner());
+        graphics.fill(x0 + c, y1 - 2, x1 - c, y1 - 1, theme.frameInner());
+        graphics.fill(x0 + 1, y0 + c, x0 + 2, y1 - c, theme.frameInner());
+        graphics.fill(x1 - 2, y0 + c, x1 - 1, y1 - c, theme.frameInner());
+
+        drawCornerChamfers(graphics, x0, y0, x1, y1, c, theme.frameOuter());
+        drawCornerChamfers(graphics, x0 + 1, y0 + 1, x1 - 1, y1 - 1, Math.max(1, c - 1), theme.frameInner());
     }
 
     private static void drawFrameOverlay(GuiGraphics graphics, WildexScreenLayout.Area a) {
-        int x0 = a.x();
-        int y0 = a.y();
-        int x1 = a.x() + a.w();
-        int y1 = a.y() + a.h();
+        // No overlay mask: modern uses rounded clipping directly while rendering.
+    }
 
-        int s = 6;
+    private static void renderWithRoundedScissorBands(
+            GuiGraphics graphics,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            int cornerCut,
+            Runnable drawCall
+    ) {
+        int w = x1 - x0;
+        int h = y1 - y0;
+        if (w <= 0 || h <= 0 || drawCall == null) return;
 
-        graphics.fill(x0, y0, x0 + s, y0 + 1, FRAME_CORNER);
-        graphics.fill(x0, y0, x0 + 1, y0 + s, FRAME_CORNER);
+        int maxCut = Math.max(0, (Math.min(w, h) / 2) - 1);
+        int c = Math.max(0, Math.min(cornerCut, maxCut));
 
-        graphics.fill(x1 - s, y0, x1, y0 + 1, FRAME_CORNER);
-        graphics.fill(x1 - 1, y0, x1, y0 + s, FRAME_CORNER);
+        if (c <= 0) {
+            graphics.enableScissor(x0, y0, x1, y1);
+            try {
+                drawCall.run();
+            } finally {
+                graphics.disableScissor();
+            }
+            return;
+        }
 
-        graphics.fill(x0, y1 - 1, x0 + s, y1, FRAME_CORNER);
-        graphics.fill(x0, y1 - s, x0 + 1, y1, FRAME_CORNER);
+        for (int i = 0; i < c; i++) {
+            int inset = c - i;
+            int sy0 = y0 + i;
+            int sx0 = x0 + inset;
+            int sx1 = x1 - inset;
+            if (sx1 <= sx0) continue;
+            graphics.enableScissor(sx0, sy0, sx1, sy0 + 1);
+            try {
+                drawCall.run();
+            } finally {
+                graphics.disableScissor();
+            }
+        }
 
-        graphics.fill(x1 - s, y1 - 1, x1, y1, FRAME_CORNER);
-        graphics.fill(x1 - 1, y1 - s, x1, y1, FRAME_CORNER);
+        int cy0 = y0 + c;
+        int cy1 = y1 - c;
+        if (cy1 > cy0) {
+            graphics.enableScissor(x0, cy0, x1, cy1);
+            try {
+                drawCall.run();
+            } finally {
+                graphics.disableScissor();
+            }
+        }
+
+        for (int i = 0; i < c; i++) {
+            int inset = i + 1;
+            int sy0 = (y1 - c) + i;
+            int sx0 = x0 + inset;
+            int sx1 = x1 - inset;
+            if (sx1 <= sx0) continue;
+            graphics.enableScissor(sx0, sy0, sx1, sy0 + 1);
+            try {
+                drawCall.run();
+            } finally {
+                graphics.disableScissor();
+            }
+        }
+    }
+
+    private static void drawCornerChamfers(
+            GuiGraphics graphics,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            int cut,
+            int color
+    ) {
+        if (cut <= 0) return;
+        for (int i = 0; i < cut; i++) {
+            int l = x0 + (cut - 1 - i);
+            int r = x1 - (cut - i);
+            int t = y0 + i;
+            int b = y1 - 1 - i;
+            graphics.fill(l, t, l + 1, t + 1, color);
+            graphics.fill(r, t, r + 1, t + 1, color);
+            graphics.fill(l, b, l + 1, b + 1, color);
+            graphics.fill(r, b, r + 1, b + 1, color);
+        }
     }
 
     private Mob getOrCreateEntity(Level level, ResourceLocation id) {

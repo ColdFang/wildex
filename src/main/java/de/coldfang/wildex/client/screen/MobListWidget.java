@@ -1,7 +1,9 @@
 package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
-import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.client.WildexClientConfigView;
+import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -19,12 +21,6 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     private static final int ITEM_H = 18;
 
-    private static final int INK_COLOR = 0x2B1A10;
-    private static final int INK_COLOR_SELECTED = 0xF2E8D8;
-
-    private static final int SEL_BG = 0xCC000000;
-    private static final int SEL_BORDER = 0xFFFFFFFF;
-
     private static final int SCROLLBAR_W = 6;
     private static final int TEXT_PAD_X = 10;
     private static final int TEXT_NUDGE_Y = 1;
@@ -37,10 +33,6 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     private static final int DEBUG_CB_SIZE = 9;
     private static final int DEBUG_CB_PAD = 6;
-    private static final int DEBUG_CB_FRAME = 0xCC2B1A10;
-    private static final int DEBUG_CB_BG = 0x22FFFFFF;
-    private static final int DEBUG_CB_CHECK = 0xFF2B1A10;
-
     private final Consumer<ResourceLocation> onSelect;
     private final Consumer<ResourceLocation> onDebugDiscover;
 
@@ -145,7 +137,17 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     private static boolean debugDiscoverEnabled() {
-        return CommonConfig.INSTANCE.hiddenMode.get() && CommonConfig.INSTANCE.debugMode.get();
+        return WildexClientConfigView.hiddenMode() && WildexClientConfigView.debugMode();
+    }
+
+    private static float resolveListTextScale() {
+        Minecraft mc = Minecraft.getInstance();
+        int opt = mc.options.guiScale().get();
+        int gui = opt == 0 ? Math.max(1, mc.getWindow().calculateScale(0, mc.isEnforceUnicode())) : opt;
+        if (gui >= 6) return 0.72f;
+        if (gui == 5) return 0.80f;
+        if (gui == 4) return 0.90f;
+        return 1.0f;
     }
 
     private static float marqueeOffset(long nowMs, int travelPx, int phasePx) {
@@ -171,15 +173,17 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     private static void renderDebugCheckbox(GuiGraphics graphics, int cbX, int cbY) {
-        graphics.fill(cbX, cbY, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, DEBUG_CB_BG);
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+        graphics.fill(cbX, cbY, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, theme.frameBg());
 
-        graphics.fill(cbX, cbY, cbX + DEBUG_CB_SIZE, cbY + 1, DEBUG_CB_FRAME);
-        graphics.fill(cbX, cbY + DEBUG_CB_SIZE - 1, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, DEBUG_CB_FRAME);
-        graphics.fill(cbX, cbY, cbX + 1, cbY + DEBUG_CB_SIZE, DEBUG_CB_FRAME);
-        graphics.fill(cbX + DEBUG_CB_SIZE - 1, cbY, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, DEBUG_CB_FRAME);
+        graphics.fill(cbX, cbY, cbX + DEBUG_CB_SIZE, cbY + 1, theme.frameOuter());
+        graphics.fill(cbX, cbY + DEBUG_CB_SIZE - 1, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, theme.frameOuter());
+        graphics.fill(cbX, cbY, cbX + 1, cbY + DEBUG_CB_SIZE, theme.frameOuter());
+        graphics.fill(cbX + DEBUG_CB_SIZE - 1, cbY, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, theme.frameOuter());
 
-        graphics.fill(cbX + 2, cbY + 4, cbX + DEBUG_CB_SIZE - 2, cbY + 5, DEBUG_CB_CHECK);
-        graphics.fill(cbX + 4, cbY + 2, cbX + 5, cbY + DEBUG_CB_SIZE - 2, DEBUG_CB_CHECK);
+        int plus = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? theme.ink() : theme.buttonInk();
+        graphics.fill(cbX + 2, cbY + 4, cbX + DEBUG_CB_SIZE - 2, cbY + 5, plus);
+        graphics.fill(cbX + 4, cbY + 2, cbX + 5, cbY + DEBUG_CB_SIZE - 2, plus);
     }
 
     public final class Entry extends ObjectSelectionList.Entry<Entry> {
@@ -230,46 +234,86 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int x1 = MobListWidget.this.getX() + MobListWidget.this.width - SCROLLBAR_W;
 
             int y1 = y + rowHeight;
+            int listTopClip = MobListWidget.this.getY() + 2; // keep clear under top divider line
+            int listBottomClip = MobListWidget.this.getY() + MobListWidget.this.getHeight();
+            int rowY0 = Math.max(y, listTopClip);
+            int rowY1 = Math.min(y1, listBottomClip);
+            if (rowY1 <= rowY0) return;
 
             if (selected) {
-                graphics.fill(x0, y, x1, y1, SEL_BG);
+                WildexUiTheme.Palette theme = WildexUiTheme.current();
+                graphics.fill(x0, rowY0, x1, rowY1, theme.selectionBg());
 
-                graphics.fill(x0, y, x1, y + 1, SEL_BORDER);
-                graphics.fill(x0, y1 - 1, x1, y1, SEL_BORDER);
-                graphics.fill(x0, y, x0 + 1, y1, SEL_BORDER);
-                graphics.fill(x1 - 1, y, x1, y1, SEL_BORDER);
+                graphics.fill(x0, rowY0, x1, rowY0 + 1, theme.selectionBorder());
+                graphics.fill(x0, rowY1 - 1, x1, rowY1, theme.selectionBorder());
+                graphics.fill(x0, rowY0, x0 + 1, rowY1, theme.selectionBorder());
+                graphics.fill(x1 - 1, rowY0, x1, rowY1, theme.selectionBorder());
             }
 
-            boolean hiddenMode = CommonConfig.INSTANCE.hiddenMode.get();
+            boolean hiddenMode = WildexClientConfigView.hiddenMode();
             boolean discovered = isDiscovered(hiddenMode);
 
             boolean showDebug = showDebugDiscover(discovered);
 
             int textRightCut = showDebug ? (DEBUG_CB_SIZE + DEBUG_CB_PAD * 2) : 2;
 
-            int color = selected ? INK_COLOR_SELECTED : INK_COLOR;
+            WildexUiTheme.Palette theme = WildexUiTheme.current();
+            int color = selected ? theme.inkOnDark() : theme.ink();
 
             int textX = x0 + TEXT_PAD_X;
-            int textY = y + ((rowHeight - MobListWidget.this.minecraft.font.lineHeight) / 2) + TEXT_NUDGE_Y;
+            float textScale = resolveListTextScale();
+            int scaledLineH = Math.max(1, Math.round(MobListWidget.this.minecraft.font.lineHeight * textScale));
+            int textY = y + ((rowHeight - scaledLineH) / 2) + TEXT_NUDGE_Y;
 
             int clipX1 = x1 - textRightCut;
 
             int availW = Math.max(1, clipX1 - textX);
+            int availLogicalW = Math.max(1, Math.round(availW / Math.max(0.001f, textScale)));
 
             String s = discovered ? this.name.getString() : HIDDEN_LABEL;
             int textW = MobListWidget.this.minecraft.font.width(s);
 
-            graphics.enableScissor(textX, y, clipX1, y1);
+            graphics.enableScissor(textX, rowY0, clipX1, rowY1);
             try {
-                if (!selected || textW <= availW) {
-                    graphics.drawString(MobListWidget.this.minecraft.font, s, textX, textY, color, false);
+                if (!selected || textW <= availLogicalW) {
+                    if (textScale >= 0.999f) {
+                        graphics.drawString(MobListWidget.this.minecraft.font, s, textX, textY, color, false);
+                    } else {
+                        float inv = 1.0f / textScale;
+                        graphics.pose().pushPose();
+                        graphics.pose().scale(textScale, textScale, 1.0f);
+                        graphics.drawString(
+                                MobListWidget.this.minecraft.font,
+                                s,
+                                Math.round(textX * inv),
+                                Math.round(textY * inv),
+                                color,
+                                false
+                        );
+                        graphics.pose().popPose();
+                    }
                 } else {
-                    int travel = (textW - availW) + MARQUEE_GAP_PX;
+                    int travel = (textW - availLogicalW) + MARQUEE_GAP_PX;
                     int phase = this.id.toString().hashCode();
                     float off = marqueeOffset(System.currentTimeMillis(), travel, phase);
 
                     int baseX = textX - Math.round(off);
-                    graphics.drawString(MobListWidget.this.minecraft.font, s, baseX, textY, color, false);
+                    if (textScale >= 0.999f) {
+                        graphics.drawString(MobListWidget.this.minecraft.font, s, baseX, textY, color, false);
+                    } else {
+                        float inv = 1.0f / textScale;
+                        graphics.pose().pushPose();
+                        graphics.pose().scale(textScale, textScale, 1.0f);
+                        graphics.drawString(
+                                MobListWidget.this.minecraft.font,
+                                s,
+                                Math.round(baseX * inv),
+                                Math.round(textY * inv),
+                                color,
+                                false
+                        );
+                        graphics.pose().popPose();
+                    }
                 }
             } finally {
                 graphics.disableScissor();
@@ -287,7 +331,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int barLeft = MobListWidget.this.getScrollbarPosition();
             if (mouseX >= barLeft) return false;
 
-            boolean hiddenMode = CommonConfig.INSTANCE.hiddenMode.get();
+            boolean hiddenMode = WildexClientConfigView.hiddenMode();
             boolean discovered = isDiscovered(hiddenMode);
             boolean showDebug = showDebugDiscover(discovered);
 

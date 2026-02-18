@@ -22,17 +22,21 @@ public final class WildexStyleButton extends Button {
 
     private final Runnable action;
 
-    public WildexStyleButton(int x, int y, int w, int h, Runnable action) {
+    public WildexStyleButton(int x, int y, int w, int h, Component label, Runnable action) {
         super(
                 x,
                 y,
                 w,
                 h,
-                Component.translatable("gui.wildex.theme"),
+                label,
                 b -> {},
                 DEFAULT_NARRATION
         );
         this.action = action;
+    }
+
+    public WildexStyleButton(int x, int y, int w, int h, Runnable action) {
+        this(x, y, w, h, Component.translatable("gui.wildex.theme"), action);
     }
 
     @Override
@@ -52,7 +56,7 @@ public final class WildexStyleButton extends Button {
 
         int fill;
         if (!this.active) fill = FILL_DISABLED;
-        else fill = this.isHoveredOrFocused() ? FILL_HOVER : FILL_IDLE;
+        else fill = this.isHovered() ? FILL_HOVER : FILL_IDLE;
         graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, fill);
 
         var font = Minecraft.getInstance().font;

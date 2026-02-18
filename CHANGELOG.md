@@ -1,5 +1,49 @@
 # Changelog
 
+## 2.0.0 - 2026-02-19
+
+### Added
+- New multiplayer Sharing system in Wildex:
+  - share discovered entries with other online players
+  - optional price per offer (configurable payment item)
+  - offer accept/decline flow with clickable chat actions (`[Accept]` / `[Decline]`)
+  - offer timeout (1 minute) with expiration chat notifications for both players
+  - sender-side active-offer cap (max 3) plus anti-spam send cooldown.
+  - Persistent per-player Accept Offers preference (saved server-side, survives relog/restart).
+  - Share payouts are now queued and claimable later
+  - payments are stored persistently server-side
+  - new Wildex button to claim pending payouts
+  - items are added to inventory or dropped if inventory is full.
+- Exposure integration for discovery progression:
+  - mob discovery can be triggered from Exposure photo workflow (when enabled)
+  - integration remains optional and safe when Exposure is not installed.
+- Server-authoritative config sync for multiplayer clients:
+  - client now respects server Common config for gameplay-relevant behavior
+  - prevents client-side local Common config edits from overriding server rules.
+
+### Changed
+- Replaced Wildex background textures (Vintage/Modern art refresh).
+- Share Overlay and Wildex GUI received a full layout/interaction pass
+- Extended GUI layout refinements for both themes, including tighter panel fitting and high GUI-scale behavior improvements.
+- refined tooltips and localization.
+
+### Fixed
+- Fixed exploit path where client-local Common config changes could affect multiplayer behavior
+- Fixed share dropdown regressions
+- Fixed Mob Preview rotation bug after drag-release (no more sudden catch-up/reset behavior).
+
+### Credits
+- Thanks to user `HockeyZman2000` for the sharing feature suggestion.
+- Thanks to user `vinylwitch` for the Exposure integration suggestion.
+- Thanks to `amon` for the new Wildex textures/artwork.
+
+### Compatibility
+- Existing worlds are supported.
+- No manual world/save migration required.
+- Existing Wildex config migration remains one-time and reentrancy-safe.
+- one time migration for common config (layout migration marker `v200`)
+- Safe upgrade path from `1.3.1`.
+
 ## 1.3.1 - 2026-02-16
 
 ### Added

@@ -1,10 +1,12 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexHeaderData;
-import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -16,17 +18,13 @@ public final class WildexRightHeaderRenderer {
     private static final int PAD_X = 6;
     private static final int PAD_Y = 6;
 
-    private static final int DIVIDER = 0x22301E14;
-
     private static final int LINE_GAP = 6;
-    private static final int DIVIDER_GAP_TOP = 2;
-    private static final int DIVIDER_GAP_BOTTOM = 3;
 
     private static final int COMPACT_THRESHOLD_H = 72;
     private static final float MIN_SCALE = 0.62f;
 
     private static final int MARQUEE_GAP_PX = 18;
-    private static final float MARQUEE_SPEED_PX_PER_SEC = 22.0f;
+    private static final float MARQUEE_SPEED_PX_PER_SEC = 15.0f;
     private static final int MARQUEE_PAUSE_MS = 650;
     public void render(
             GuiGraphics g,
@@ -44,7 +42,7 @@ public final class WildexRightHeaderRenderer {
         ResourceLocation mobRl = ResourceLocation.tryParse(selectedIdStr);
         if (mobRl == null) return;
 
-        if (CommonConfig.INSTANCE.hiddenMode.get() && !WildexDiscoveryCache.isDiscovered(mobRl)) {
+        if (WildexClientConfigView.hiddenMode() && !WildexDiscoveryCache.isDiscovered(mobRl)) {
             return;
         }
 
@@ -63,9 +61,13 @@ public final class WildexRightHeaderRenderer {
 
         int padX = PAD_X;
         int padY = compact ? 4 : PAD_Y;
+        float nameScale = 1.0f;
+        int nameLineGap = compact ? 5 : 7;
         int lineGap = compact ? 4 : LINE_GAP;
-        int dividerGapTop = compact ? 1 : DIVIDER_GAP_TOP;
-        int dividerGapBottom = compact ? 2 : DIVIDER_GAP_BOTTOM;
+        int dividerGapTop = 2;
+        int dividerGapBottom = 1;
+        int lowerLineGap = compact ? 2 : 3;
+        int nameToLowerGap = compact ? 4 : 6;
 
         g.enableScissor(x0, y0, x1, y1);
         try {
@@ -80,18 +82,37 @@ public final class WildexRightHeaderRenderer {
 
             int phase = mobRl.toString().hashCode();
 
-            y = drawValueOnlyLineMarquee(g, font, x0, y0, s, padX, y, maxW, header.name(), inkColor, lineGap, phase);
-            y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
+            Component emphasizedName = header.name() == null
+                    ? Component.empty()
+                    : header.name().copy();
+            boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+            int nameColor = modern ? 0xFF000000 : 0xFFFFFFFF;
+            int detailColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN ? 0xFFE6EEF7 : inkColor;
+            int nameScaledLineH = Math.max(1, Math.round(font.lineHeight * Math.max(1.0f, nameScale)));
+            int bandTop = 0;
+            int bandBottom = y + nameScaledLineH + 2;
+            if (bandBottom > bandTop) {
+                int bx0 = 0;
+                int bx1 = Math.max(1, lw);
+                int by1 = Math.min(lh, bandBottom);
+                if (by1 > bandTop) {
+                    int cornerCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 3 : 0;
+                    int bandColor = modern ? 0xFF29E8F1 : WildexUiTheme.current().selectionBg();
+                    fillTopRoundedBand(g, bx0, bx1, bandTop, by1, bandColor, cornerCut);
+                }
+            }
+            y = drawStyledValueMarquee(g, font, x0, y0, s, padX, y, maxW, emphasizedName, nameColor, nameLineGap, phase, nameScale);
+            y += nameToLowerGap;
 
-            y = drawValueOnlyLinePlain(g, font, padX, y, maxW, formatAggression(header.aggression()), inkColor, lineGap);
+            y = drawValueOnlyLinePlain(g, font, padX, y, maxW, formatAggression(header.aggression()), detailColor, lowerLineGap);
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
             int kills = WildexKillCache.getOrRequest(mobRl);
-            y = drawKillsLine(g, font, padX, y, maxW, Component.literal(Integer.toString(kills)), inkColor, lineGap);
+            y = drawKillsLine(g, font, padX, y, maxW, Component.literal(Integer.toString(kills)), detailColor, lowerLineGap);
             y = drawDivider(g, padX, right, y, lh, dividerGapTop, dividerGapBottom);
 
             String modName = resolveModName(mobRl);
-            drawModLineMarqueeValue(g, font, x0, y0, s, padX, y, maxW, Component.literal(modName), inkColor, phase ^ 0x5A5A);
+            drawModLineMarqueeValue(g, font, x0, y0, s, padX, y, maxW, Component.literal(modName), detailColor, phase ^ 0x5A5A);
 
             g.pose().popPose();
         } finally {
@@ -160,7 +181,7 @@ public final class WildexRightHeaderRenderer {
         return y + Math.max(10, font.lineHeight + lineGap);
     }
 
-    private static int drawValueOnlyLineMarquee(
+    private static int drawStyledValueMarquee(
             GuiGraphics g,
             Font font,
             int baseX,
@@ -172,28 +193,40 @@ public final class WildexRightHeaderRenderer {
             Component value,
             int inkColor,
             int lineGap,
-            int phase
+            int phase,
+            float textScale
     ) {
-        int lineStep = lineStep(font, lineGap);
-        String val = value == null ? "" : value.getString();
-        int w = font.width(val);
+        float scaleFactor = Math.max(1.0f, textScale);
+        int scaledLineH = Math.max(1, Math.round(font.lineHeight * scaleFactor));
+        int lineStep = Math.max(10, scaledLineH + lineGap);
+        Component styled = value == null ? Component.empty() : value;
+        int maxWLogical = Math.max(1, (int) Math.floor(maxW / scaleFactor));
+        int w = font.width(styled);
 
-        if (w <= maxW) {
-            g.drawString(font, val, x, y, inkColor, false);
+        if (w <= maxWLogical) {
+            g.pose().pushPose();
+            g.pose().translate(x, y, 0.0f);
+            g.pose().scale(scaleFactor, scaleFactor, 1.0f);
+            g.drawString(font, styled, 0, 0, inkColor, false);
+            g.pose().popPose();
             return y + lineStep;
         }
 
         int clipX0 = toScreenX(baseX, scale, x);
         int clipX1 = toScreenX(baseX, scale, x + maxW);
         int clipY0 = toScreenY(baseY, scale, y);
-        int clipY1 = toScreenY(baseY, scale, y + font.lineHeight + 1);
+        int clipY1 = toScreenY(baseY, scale, y + scaledLineH + 1);
 
         g.enableScissor(clipX0, clipY0, clipX1, clipY1);
         try {
-            int travel = (w - maxW) + MARQUEE_GAP_PX;
+            int travel = (w - maxWLogical) + MARQUEE_GAP_PX;
             float off = marqueeOffset(System.currentTimeMillis(), travel, phase);
             int dx = Math.round(off);
-            g.drawString(font, val, x - dx, y, inkColor, false);
+            g.pose().pushPose();
+            g.pose().translate(x - dx, y, 0.0f);
+            g.pose().scale(scaleFactor, scaleFactor, 1.0f);
+            g.drawString(font, styled, 0, 0, inkColor, false);
+            g.pose().popPose();
         } finally {
             g.disableScissor();
         }
@@ -283,8 +316,33 @@ public final class WildexRightHeaderRenderer {
     private static int drawDivider(GuiGraphics g, int x, int right, int yAfterLine, int yMax, int gapTop, int gapBottom) {
         int y = yAfterLine - gapTop;
         if (y + 1 >= yMax) return yAfterLine;
-        g.fill(x, y, right, y + 1, DIVIDER);
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+        int dividerColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE
+                ? theme.rowSeparator()
+                : theme.frameInner();
+        g.fill(x, y, right, y + 1, dividerColor);
         return yAfterLine + gapBottom;
+    }
+
+    private static void fillTopRoundedBand(
+            GuiGraphics g,
+            int x0,
+            int x1,
+            int y0,
+            int y1,
+            int color,
+            int cornerCut
+    ) {
+        int cut = Math.max(0, cornerCut);
+        for (int y = y0; y < y1; y++) {
+            int relY = y - y0;
+            int inset = (relY < cut) ? (cut - relY) : 0;
+            int left = x0 + inset;
+            int right = x1 - inset;
+            if (right > left) {
+                g.fill(left, y, right, y + 1, color);
+            }
+        }
     }
 
     private static String resolveModName(ResourceLocation mobRl) {

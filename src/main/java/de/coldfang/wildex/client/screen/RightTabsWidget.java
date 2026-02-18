@@ -1,5 +1,7 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -9,15 +11,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 
 public final class RightTabsWidget extends AbstractWidget {
-
-    private static final int INK_COLOR = 0x2B1A10;
-    private static final int INK_COLOR_ACTIVE = 0xF2E8D8;
-
-    private static final int TAB_BG = 0x22FFFFFF;
-    private static final int TAB_BG_ACTIVE = 0xCC000000;
-
-    private static final int TAB_BORDER = 0xAA2B1A10;
-    private static final int TAB_DIVIDER = 0x55301E14;
 
     private static final int TAB_GAP = 0;
 
@@ -40,6 +33,11 @@ public final class RightTabsWidget extends AbstractWidget {
 
     @Override
     public void renderWidget(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+        int dividerColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE
+                ? theme.rowSeparator()
+                : theme.frameInner();
         WildexTab[] tabs = WildexTab.values();
         if (tabs.length == 0) return;
 
@@ -60,42 +58,52 @@ public final class RightTabsWidget extends AbstractWidget {
             boolean active = (tab == state.selectedTab());
             boolean hovered = mouseX >= tx && mouseX < tx + tw && mouseY >= baseY && mouseY < baseY + tabH;
 
-            int bg = active ? TAB_BG_ACTIVE : TAB_BG;
+            int bg = active
+                    ? (modern ? 0xFF35F0FF : theme.selectionBg())
+                    : theme.frameBg();
             graphics.fill(tx, baseY, tx + tw, baseY + tabH, bg);
 
             boolean drawLeftBorder = (i == 0);
             boolean drawRightBorder = (i == tabs.length - 1);
 
-            graphics.fill(tx, baseY, tx + tw, baseY + 1, TAB_BORDER);
+            graphics.fill(tx, baseY, tx + tw, baseY + 1, theme.frameOuter());
 
             if (drawLeftBorder) {
-                graphics.fill(tx, baseY, tx + 1, baseY + tabH, TAB_BORDER);
+                graphics.fill(tx, baseY, tx + 1, baseY + tabH, theme.frameOuter());
             }
             if (drawRightBorder) {
-                graphics.fill(tx + tw - 1, baseY, tx + tw, baseY + tabH, TAB_BORDER);
+                graphics.fill(tx + tw - 1, baseY, tx + tw, baseY + tabH, theme.frameOuter());
             }
 
             if (i > 0) {
-                graphics.fill(tx, baseY + 1, tx + 1, baseY + tabH, TAB_DIVIDER);
+                graphics.fill(tx, baseY + 1, tx + 1, baseY + tabH, dividerColor);
             }
 
             if (active || hovered) {
-                graphics.fill(tx, baseY, tx + tw, baseY + 1, TAB_BORDER);
+                graphics.fill(tx, baseY, tx + tw, baseY + 1, theme.frameOuter());
 
                 if (!drawLeftBorder) {
-                    graphics.fill(tx, baseY, tx + 1, baseY + tabH, TAB_BORDER);
+                    graphics.fill(tx, baseY, tx + 1, baseY + tabH, theme.frameOuter());
                 }
                 if (!drawRightBorder) {
-                    graphics.fill(tx + tw - 1, baseY, tx + tw, baseY + tabH, TAB_BORDER);
+                    graphics.fill(tx + tw - 1, baseY, tx + tw, baseY + tabH, theme.frameOuter());
                 }
 
                 if (!active) {
-                    graphics.fill(tx, baseY + tabH - 1, tx + tw, baseY + tabH, TAB_BORDER);
+                    graphics.fill(tx, baseY + tabH - 1, tx + tw, baseY + tabH, theme.frameOuter());
                 }
             }
 
+            if (modern && active) {
+                int y0 = baseY + tabH - 2;
+                int y1 = baseY + tabH;
+                graphics.fill(tx + 1, y0, tx + tw - 1, y1, 0xFF0A1418);
+            }
+
             Component label = tab.label();
-            int color = active ? INK_COLOR_ACTIVE : INK_COLOR;
+            int color = active
+                    ? (modern ? 0xFF000000 : theme.inkOnDark())
+                    : theme.ink();
 
             int innerX0 = tx + 1;
             int innerY0 = baseY + 1;

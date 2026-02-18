@@ -5,22 +5,32 @@ import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
+import de.coldfang.wildex.client.data.WildexServerConfigCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
 import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
 import de.coldfang.wildex.network.C2SRequestPlayerUiStatePayload;
+import de.coldfang.wildex.network.C2SRequestServerConfigPayload;
+import de.coldfang.wildex.network.C2SRequestShareCandidatesPayload;
+import de.coldfang.wildex.network.C2SRequestSharePayoutStatusPayload;
 import de.coldfang.wildex.network.C2SRequestDiscoveredMobsPayload;
+import de.coldfang.wildex.network.C2SClaimSharePayoutsPayload;
 import de.coldfang.wildex.network.C2SRequestMobKillsPayload;
 import de.coldfang.wildex.network.C2SRequestMobLootPayload;
 import de.coldfang.wildex.network.C2SRequestMobSpawnsPayload;
 import de.coldfang.wildex.network.C2SSavePlayerUiStatePayload;
+import de.coldfang.wildex.network.C2SSendShareOfferPayload;
+import de.coldfang.wildex.network.C2SSetShareAcceptOffersPayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobPayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobsPayload;
 import de.coldfang.wildex.network.S2CMobKillsPayload;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
 import de.coldfang.wildex.network.S2CPlayerUiStatePayload;
+import de.coldfang.wildex.network.S2CShareCandidatesPayload;
+import de.coldfang.wildex.network.S2CSharePayoutStatusPayload;
+import de.coldfang.wildex.network.S2CServerConfigPayload;
 import de.coldfang.wildex.network.S2CSpyglassDiscoveryEffectPayload;
 import de.coldfang.wildex.network.S2CWildexCompletePayload;
 import de.coldfang.wildex.network.S2CWildexCompleteStatusPayload;
@@ -36,7 +46,15 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 public final class WildexNetworkClient {
+
+    private static volatile List<ShareCandidate> shareCandidates = List.of();
+    private static volatile boolean selfAcceptingOffers = false;
+    private static volatile int pendingSharePayoutTotal = 0;
 
     private WildexNetworkClient() {
     }
@@ -133,6 +151,57 @@ public final class WildexNetworkClient {
                     }
                 })
         );
+
+        r.playToClient(
+                S2CShareCandidatesPayload.TYPE,
+                S2CShareCandidatesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    ArrayList<ShareCandidate> next = new ArrayList<>();
+                    for (S2CShareCandidatesPayload.Candidate c : payload.candidates()) {
+                        next.add(new ShareCandidate(c.playerId(), c.playerName()));
+                    }
+                    shareCandidates = List.copyOf(next);
+                    selfAcceptingOffers = payload.selfAcceptingOffers();
+
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.onShareCandidatesUpdated();
+                    }
+                })
+        );
+
+        r.playToClient(
+                S2CSharePayoutStatusPayload.TYPE,
+                S2CSharePayoutStatusPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    pendingSharePayoutTotal = Math.max(0, payload.pendingTotal());
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.onSharePayoutStatusUpdated();
+                    }
+                })
+        );
+
+        r.playToClient(
+                S2CServerConfigPayload.TYPE,
+                S2CServerConfigPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    WildexServerConfigCache.set(
+                            payload.hiddenMode(),
+                            payload.requireBookForKeybind(),
+                            payload.debugMode(),
+                            payload.shareOffersEnabled(),
+                            payload.shareOffersPaymentEnabled(),
+                            payload.shareOfferCurrencyItem(),
+                            payload.shareOfferMaxPrice()
+                    );
+
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.onServerConfigUpdated();
+                    }
+                })
+        );
     }
 
     public static void requestKillsForSelected(String mobId) {
@@ -195,5 +264,64 @@ public final class WildexNetworkClient {
         if (mc.getConnection() == null) return;
 
         PacketDistributor.sendToServer(new C2SDebugDiscoverMobPayload(mobId));
+    }
+
+    public static void requestShareCandidates() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SRequestShareCandidatesPayload());
+    }
+
+    public static void setShareAcceptOffers(boolean accepting) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SSetShareAcceptOffersPayload(accepting));
+    }
+
+    public static void sendShareOffer(UUID targetPlayerId, ResourceLocation mobId, int price) {
+        if (targetPlayerId == null || mobId == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SSendShareOfferPayload(targetPlayerId, mobId, Math.max(0, price)));
+    }
+
+    public static List<ShareCandidate> shareCandidates() {
+        return shareCandidates;
+    }
+
+    public static boolean selfAcceptingOffers() {
+        return selfAcceptingOffers;
+    }
+
+    public static void clearShareState() {
+        shareCandidates = List.of();
+        selfAcceptingOffers = false;
+        pendingSharePayoutTotal = 0;
+        WildexServerConfigCache.clear();
+    }
+
+    public static void requestSharePayoutStatus() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SRequestSharePayoutStatusPayload());
+    }
+
+    public static void claimSharePayouts() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SClaimSharePayoutsPayload());
+    }
+
+    public static int pendingSharePayoutTotal() {
+        return pendingSharePayoutTotal;
+    }
+
+    public static void requestServerConfig() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SRequestServerConfigPayload());
+    }
+
+    public record ShareCandidate(UUID playerId, String playerName) {
     }
 }

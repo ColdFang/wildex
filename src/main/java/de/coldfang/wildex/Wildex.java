@@ -10,6 +10,7 @@ import de.coldfang.wildex.network.WildexSpyglassDiscoveryEvents;
 import de.coldfang.wildex.registry.WildexCreativeTabEvents;
 import de.coldfang.wildex.registry.ModItems;
 import de.coldfang.wildex.server.WildexCompletionSyncOnJoinEvents;
+import de.coldfang.wildex.server.WildexShareOfferCommands;
 import de.coldfang.wildex.world.WildexGiveBookOnFirstJoinEvents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -49,6 +50,7 @@ public class Wildex {
         NeoForge.EVENT_BUS.register(WildexSpyglassDiscoveryEvents.class);
         NeoForge.EVENT_BUS.register(WildexGiveBookOnFirstJoinEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionSyncOnJoinEvents.class);
+        NeoForge.EVENT_BUS.register(WildexShareOfferCommands.class);
         WildexExposureIntegrationBootstrap.registerIfAvailable();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {

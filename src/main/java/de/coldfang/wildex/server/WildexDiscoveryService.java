@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+@SuppressWarnings("resource")
 public final class WildexDiscoveryService {
 
     private WildexDiscoveryService() {
@@ -37,6 +38,7 @@ public final class WildexDiscoveryService {
         KILL,
         SPYGLASS,
         DEBUG,
-        EXPOSURE
+        EXPOSURE,
+        SHARE
     }
 }
