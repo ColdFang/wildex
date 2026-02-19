@@ -87,8 +87,8 @@ public final class WildexDiscoveryToast implements Toast {
         String s = title == null ? "" : title.getString();
         if (s.isBlank()) return;
 
-        if (font.width(s) <= maxW) {
-            g.drawString(font, s, x, y + 5, 0xFFFFFF, false);
+        if (WildexUiText.width(font, s) <= maxW) {
+            WildexUiText.draw(g, font, s, x, y + 5, 0xFFFFFF, false);
             return;
         }
 
@@ -96,12 +96,12 @@ public final class WildexDiscoveryToast implements Toast {
         if (lines.isEmpty()) return;
 
         if (lines.size() == 1) {
-            g.drawString(font, lines.getFirst(), x, y + 5, 0xFFFFFF, false);
+            WildexUiText.draw(g, font, lines.getFirst(), x, y + 5, 0xFFFFFF, false);
             return;
         }
 
-        g.drawString(font, lines.getFirst(), x, y, 0xFFFFFF, false);
-        g.drawString(font, lines.getLast(), x, y + TEXT_LINE_GAP, 0xFFFFFF, false);
+        WildexUiText.draw(g, font, lines.getFirst(), x, y, 0xFFFFFF, false);
+        WildexUiText.draw(g, font, lines.getLast(), x, y + TEXT_LINE_GAP, 0xFFFFFF, false);
     }
 
     private static List<String> wrapToTwoLines(Font font, String s, int maxW) {
@@ -141,7 +141,7 @@ public final class WildexDiscoveryToast implements Toast {
         while (lo < hi) {
             int mid = (lo + hi + 1) >>> 1;
             String sub = s.substring(0, mid);
-            if (font.width(sub) <= maxW) lo = mid;
+            if (WildexUiText.width(font, sub) <= maxW) lo = mid;
             else hi = mid - 1;
         }
         return lo;
@@ -149,10 +149,10 @@ public final class WildexDiscoveryToast implements Toast {
 
     private static String clipToWidth(Font font, String s, int maxW) {
         if (s == null || s.isEmpty()) return "";
-        if (font.width(s) <= maxW) return s;
+        if (WildexUiText.width(font, s) <= maxW) return s;
 
         String ell = "...";
-        int ellW = font.width(ell);
+        int ellW = WildexUiText.width(font, ell);
         if (ellW >= maxW) return "";
 
         int lo = 0;
@@ -160,7 +160,7 @@ public final class WildexDiscoveryToast implements Toast {
         while (lo < hi) {
             int mid = (lo + hi + 1) >>> 1;
             String sub = s.substring(0, mid);
-            if (font.width(sub) + ellW <= maxW) lo = mid;
+            if (WildexUiText.width(font, sub) + ellW <= maxW) lo = mid;
             else hi = mid - 1;
         }
         return s.substring(0, lo) + ell;
@@ -241,3 +241,6 @@ public final class WildexDiscoveryToast implements Toast {
         }
     }
 }
+
+
+

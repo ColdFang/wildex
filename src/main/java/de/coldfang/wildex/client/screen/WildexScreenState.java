@@ -48,3 +48,6 @@ public final class WildexScreenState {
         this.spawnFilterStructures = structures;
     }
 }
+
+
+

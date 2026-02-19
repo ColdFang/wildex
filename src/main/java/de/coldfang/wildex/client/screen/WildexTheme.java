@@ -9,3 +9,6 @@ public record WildexTheme(
         WildexUiTheme.Palette palette
 ) {
 }
+
+
+

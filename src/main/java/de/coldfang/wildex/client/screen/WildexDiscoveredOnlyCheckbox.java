@@ -74,8 +74,8 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
             var font = Minecraft.getInstance().font;
             String mark = "\u2714";
-            int markW = font.width(mark);
-            int markH = font.lineHeight;
+            int markW = WildexUiText.width(font, mark);
+            int markH = WildexUiText.lineHeight(font);
 
             int cx = x0 + (getWidth() / 2);
             int cy = y0 + (getHeight() / 2);
@@ -83,7 +83,7 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
             int tx = cx - (markW / 2);
             int ty = cy - (markH / 2);
 
-            g.drawString(font, mark, tx, ty, theme.ink(), false);
+            WildexUiText.draw(g, font, mark, tx, ty, theme.ink(), false);
         }
     }
 
@@ -107,3 +107,6 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
         g.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, theme.frameInner());
     }
 }
+
+
+

@@ -97,6 +97,10 @@ final class WildexRightInfoLootRenderer {
             int screenOriginY,
             float scale
     ) {
+        int itemIcon = scaledLootIconPx();
+        int itemGapX = scaledLootIconGapPx();
+        int lootRowH = scaledLootRowHeightPx(itemIcon);
+
         int x = area.x() + WildexRightInfoRenderer.PAD_X;
         int yTop = area.y() + WildexRightInfoRenderer.PAD_Y;
         int rightLimitX = area.x() + area.w() - WildexRightInfoRenderer.PAD_RIGHT;
@@ -109,14 +113,14 @@ final class WildexRightInfoLootRenderer {
 
         List<S2CMobLootPayload.LootLine> lines = WildexLootCache.get(mobId);
         if (lines.isEmpty()) {
-            g.drawString(font, WildexRightInfoTabUtil.tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
             lootHasScrollbar = false;
             lootDraggingScrollbar = false;
             return;
         }
 
         int totalRows = Math.min(64, lines.size());
-        int contentH = Math.max(LOOT_ROW_H, totalRows * LOOT_ROW_H);
+        int contentH = Math.max(lootRowH, totalRows * lootRowH);
         lootViewportH = viewportH;
         lootContentH = contentH;
         int maxScroll = Math.max(0, contentH - viewportH);
@@ -137,10 +141,10 @@ final class WildexRightInfoLootRenderer {
         lootViewportScreenY1 = sy1;
 
         int y = yTop - lootScrollPx;
-        int textX = x + ITEM_ICON + ITEM_GAP_X;
+        int textX = x + itemIcon + itemGapX;
         int textW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - textX);
 
-        g.enableScissor(sx0, sy0, sx1, sy1);
+        WildexScissor.enablePhysical(g, sx0, sy0, sx1, sy1);
         try {
             int shown = 0;
             for (S2CMobLootPayload.LootLine l : lines) {
@@ -149,16 +153,17 @@ final class WildexRightInfoLootRenderer {
                 Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
                 if (item == null) continue;
 
-                if (y + ITEM_ICON >= yTop && y < maxY) {
+                if (y + itemIcon >= yTop && y < maxY) {
                     ItemStack stack = new ItemStack(item);
-                    g.renderItem(stack, x, y);
+                    drawScaledItem(g, stack, x, y, itemIcon);
                     String name = stack.getHoverName().getString();
                     String count = formatCount(l.minCount(), l.maxCount());
                     String line = count.isEmpty() ? name : (name + " " + count);
-                    WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, line, textX, y + 4, textW, inkColor, screenOriginX, screenOriginY, scale);
+                    int textY = y + Math.max(0, (itemIcon - WildexUiText.lineHeight(font)) / 2);
+                    WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, line, textX, textY, textW, inkColor, screenOriginX, screenOriginY, scale);
                 }
 
-                y += LOOT_ROW_H;
+                y += lootRowH;
                 shown++;
             }
 
@@ -230,4 +235,33 @@ final class WildexRightInfoLootRenderer {
         if (a == b) return "x" + a;
         return "x" + a + "-" + b;
     }
+
+    private static int scaledLootIconPx() {
+        return Math.max(8, Math.round(ITEM_ICON * WildexUiScale.get()));
+    }
+
+    private static int scaledLootIconGapPx() {
+        return Math.max(2, Math.round(ITEM_GAP_X * WildexUiScale.get()));
+    }
+
+    private static int scaledLootRowHeightPx(int iconPx) {
+        return Math.max(iconPx + 2, Math.round(LOOT_ROW_H * WildexUiScale.get()));
+    }
+
+    private static void drawScaledItem(GuiGraphics g, ItemStack stack, int x, int y, int iconPx) {
+        if (iconPx == ITEM_ICON) {
+            g.renderItem(stack, x, y);
+            return;
+        }
+        float s = iconPx / (float) ITEM_ICON;
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0.0f);
+        g.pose().scale(s, s, 1.0f);
+        g.renderItem(stack, 0, 0);
+        g.pose().popPose();
+    }
 }
+
+
+
+

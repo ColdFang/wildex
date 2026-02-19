@@ -39,8 +39,8 @@ public final class WildexPanelButton extends Button {
         var font = Minecraft.getInstance().font;
         int color = this.active ? theme.buttonInk() : theme.buttonInkDisabled();
         String s = getMessage().getString();
-        int textW = font.width(s);
-        int textH = font.lineHeight;
+        int textW = WildexUiText.width(font, s);
+        int textH = WildexUiText.lineHeight(font);
         int availW = Math.max(1, getWidth() - 6);
         int availH = Math.max(1, getHeight() - 4);
 
@@ -57,7 +57,7 @@ public final class WildexPanelButton extends Button {
         graphics.pose().pushPose();
         graphics.pose().translate(drawX, drawY, 0.0f);
         graphics.pose().scale(ts, ts, 1.0f);
-        graphics.drawString(font, s, 0, 0, color, false);
+        WildexUiText.draw(graphics, font, s, 0, 0, color, false);
         graphics.pose().popPose();
     }
 
@@ -75,3 +75,6 @@ public final class WildexPanelButton extends Button {
         g.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, theme.frameInner());
     }
 }
+
+
+

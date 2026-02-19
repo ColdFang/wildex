@@ -16,6 +16,7 @@ public final class ClientConfig {
     public final ModConfigSpec.EnumValue<DesignStyle> designStyle;
     public final ModConfigSpec.BooleanValue showDiscoveryToasts;
     public final ModConfigSpec.BooleanValue showDiscoveredSpyglassOverlay;
+    public final ModConfigSpec.DoubleValue wildexUiScale;
 
     private ClientConfig(ModConfigSpec.Builder builder) {
         builder.push("ui");
@@ -31,6 +32,10 @@ public final class ClientConfig {
         showDiscoveredSpyglassOverlay = builder
                 .comment("Show a small overlay when aiming at an already discovered mob with a spyglass.")
                 .define("showDiscoveredSpyglassOverlay", true);
+
+        wildexUiScale = builder
+                .comment("Wildex UI scale factor. 2.0 = 100% display size.")
+                .defineInRange("wildexUiScale", 2.0d, 1.00d, 4.00d);
 
         builder.pop();
     }

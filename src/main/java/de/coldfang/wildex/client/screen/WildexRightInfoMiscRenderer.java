@@ -46,7 +46,7 @@ final class WildexRightInfoMiscRenderer {
         int rightLimitX = area.x() + area.w() - WildexRightInfoRenderer.PAD_RIGHT;
         int maxY = area.y() + area.h() - WildexRightInfoRenderer.PAD_Y;
 
-        int line = Math.max(10, font.lineHeight + 3);
+        int line = Math.max(10, WildexUiText.lineHeight(font) + 3);
 
         EntityType<?> type = resolveSelectedType(state.selectedMobId());
         if (type == null) return;
@@ -54,7 +54,7 @@ final class WildexRightInfoMiscRenderer {
         String tick = "\u2714";
         String cross = "\u2716";
 
-        int markW = Math.max(font.width(tick), font.width(cross));
+        int markW = Math.max(WildexUiText.width(font, tick), WildexUiText.width(font, cross));
         int markColW = Math.max(10, markW + 2);
         int markColX0 = rightLimitX - markColW;
         int dividerX = markColX0 - Math.max(2, COL_GAP / 2);
@@ -64,7 +64,7 @@ final class WildexRightInfoMiscRenderer {
         int labelMaxW = Math.max(1, (dividerX - 2) - x);
 
         for (int i = 0; i < INFO_TRAITS.size(); i++) {
-            if (y + font.lineHeight > maxY) break;
+            if (y + WildexUiText.lineHeight(font) > maxY) break;
 
             TraitLine t = INFO_TRAITS.get(i);
             boolean has = evalTrait(type, t);
@@ -76,10 +76,10 @@ final class WildexRightInfoMiscRenderer {
                     g, font, WildexRightInfoTabUtil.tr(t.display()), x, y, labelMaxW, inkColor, screenOriginX, screenOriginY, scale
             );
 
-            int markX = markColX0 + Math.max(0, (markColW - font.width(mark)) / 2);
-            g.drawString(font, mark, markX, y, markColor, false);
+            int markX = markColX0 + Math.max(0, (markColW - WildexUiText.width(font, mark)) / 2);
+            WildexUiText.draw(g, font, mark, markX, y, markColor, false);
 
-            int dividerY = y + font.lineHeight + 1;
+            int dividerY = y + WildexUiText.lineHeight(font) + 1;
             if (i < INFO_TRAITS.size() - 1 && dividerY + 1 < maxY) {
                 g.fill(x, dividerY, rightLimitX, dividerY + 1, DIVIDER);
             }
@@ -103,3 +103,6 @@ final class WildexRightInfoMiscRenderer {
         return BuiltInRegistries.ENTITY_TYPE.getOptional(rl).orElse(null);
     }
 }
+
+
+

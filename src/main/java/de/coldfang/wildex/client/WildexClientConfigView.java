@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexServerConfigCache;
+import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
 import net.minecraft.client.Minecraft;
 
@@ -48,5 +49,12 @@ public final class WildexClientConfigView {
 
     public static int shareOfferMaxPrice() {
         return useServerValue() ? WildexServerConfigCache.shareOfferMaxPrice() : CommonConfig.INSTANCE.shareOfferMaxPrice.get();
+    }
+
+    public static float wildexUiScale() {
+        double raw = ClientConfig.INSTANCE.wildexUiScale.get();
+        if (raw < 1.00d) return 1.00f;
+        if (raw > 4.00d) return 4.00f;
+        return (float) raw;
     }
 }

@@ -11,10 +11,8 @@ import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.OptionInstance;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
@@ -49,40 +47,18 @@ public final class WildexScreen extends Screen {
             Component.translatable("tooltip.wildex.preview_controls.line2")
     );
 
-    private static final ResourceLocation TROPHY_ICON =
-            ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy.png");
-    private static final int TROPHY_TEX_SIZE = 128;
-    private static final int TROPHY_DRAW_SIZE = 32;
-    private static final int TROPHY_FRAME_PAD_X = 2;
-    private static final int TROPHY_FRAME_PAD_Y = 4;
-    private static final int TROPHY_BG_EXTEND_RIGHT = 8;
-    private static final int TROPHY_BG_EXTEND_LEFT = 4;
-    private static final int TROPHY_BG_VINTAGE = 0xE6EFE3D2;
-    private static final int TROPHY_BG_MODERN = 0xCC171310;
-
-    private static final Component TROPHY_TIP_TITLE = Component.translatable("tooltip.wildex.spyglass_pulse.title");
-    private static final List<Component> TROPHY_TOOLTIP = List.of(
-            TROPHY_TIP_TITLE,
-            Component.translatable("tooltip.wildex.spyglass_pulse.line1"),
-            Component.translatable("tooltip.wildex.spyglass_pulse.line2"),
-            Component.translatable("tooltip.wildex.spyglass_pulse.line3"),
-            Component.empty(),
-            Component.translatable("tooltip.wildex.spyglass_pulse.line4")
-    );
-
-    private static final int TROPHY_ATTACH_GAP_X = 0;
-    private static final int TROPHY_ATTACH_GAP_Y = 15;
-
     private static final int STYLE_BUTTON_W = 56;
     private static final int STYLE_BUTTON_H = 14;
     private static final int STYLE_BUTTON_MARGIN = 6;
     private static final int STYLE_BUTTON_Y_OFFSET = 2;
-    // TEMP: GUI scale test button for fast layout iteration. Remove before release.
-    private static final int TEST_GUI_SCALE_BUTTON_X = 6;
-    private static final int TEST_GUI_SCALE_BUTTON_Y = 6;
-    private static final int TEST_GUI_SCALE_BUTTON_W = 62;
-    private static final int TEST_GUI_SCALE_BUTTON_H = 14;
-    private static final Component TEST_GUI_SCALE_TOOLTIP = Component.literal("Cycle Minecraft GUI Scale (TEMP)");
+
+    private static final int UI_SLIDER_W = 150;
+    private static final int UI_SLIDER_H = 12;
+    private static final int UI_SLIDER_KNOB_W = 10;
+    private static final int UI_SLIDER_X = 8;
+    private static final int UI_SLIDER_Y = 8;
+    private static final float UI_SLIDER_RENDER_SCALE = 2.0f;
+    private static final float UI_SLIDER_LABEL_SCALE = 2.0f;
 
     private static final float VERSION_SCALE = 0.55f;
     private static final float PREVIEW_HINT_SCALE = 0.62f;
@@ -95,6 +71,7 @@ public final class WildexScreen extends Screen {
     private final WildexMobDataResolver mobDataResolver = new WildexMobDataResolver();
     private final WildexRightInfoRenderer rightInfoRenderer = new WildexRightInfoRenderer();
     private final WildexRightHeaderRenderer rightHeaderRenderer = new WildexRightHeaderRenderer();
+    private final WildexTrophyRenderer trophyRenderer = new WildexTrophyRenderer();
 
     private WildexScreenLayout layout;
 
@@ -102,7 +79,7 @@ public final class WildexScreen extends Screen {
     private MobListWidget mobList;
     private MobPreviewResetButton previewResetButton;
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
-    private Button testGuiScaleButton;
+    private WildexStyleButton styleButton;
     private RightTabsWidget rightTabsWidget;
     private WildexShareOverlayController shareOverlay;
 
@@ -115,13 +92,46 @@ public final class WildexScreen extends Screen {
     private int lastDiscoveryCount = -1;
     private final String versionLabel = resolveVersionLabel();
 
+    private float cachedGuiScale = 1.0f;
+    private int physicalScreenW = 1;
+    private int physicalScreenH = 1;
+    private WildexScreenSpace screenSpace;
+    private boolean draggingUiScaleSlider = false;
+    private int uiSliderX = UI_SLIDER_X;
+    private int uiSliderY = UI_SLIDER_Y;
+    private int uiSliderW = UI_SLIDER_W;
+    private int uiSliderH = UI_SLIDER_H;
+    private int uiSliderKnobW = UI_SLIDER_KNOB_W;
+    private int currentMobListItemHeight = MobListWidget.itemHeightForUiScale(WildexUiScale.get());
+
+    private int scaledTopButtonW() {
+        return Math.max(20, Math.round(STYLE_BUTTON_W * WildexUiScale.get()));
+    }
+
+    private int scaledTopButtonH() {
+        return Math.max(10, Math.round(STYLE_BUTTON_H * WildexUiScale.get()));
+    }
+
+    private int scaledTopButtonMargin() {
+        return Math.max(2, Math.round(STYLE_BUTTON_MARGIN * WildexUiScale.get()));
+    }
+
+    private int scaledTopButtonYOffset() {
+        return Math.round(STYLE_BUTTON_Y_OFFSET * WildexUiScale.get());
+    }
+
     public WildexScreen() {
         super(TITLE);
     }
 
     @Override
     protected void init() {
-        this.layout = WildexScreenLayout.compute(this.width, this.height);
+        Minecraft mc = Minecraft.getInstance();
+        this.layout = WildexScreenLayout.compute(
+                Math.max(1, mc.getWindow().getWidth()),
+                Math.max(1, mc.getWindow().getHeight()),
+                WildexUiScale.get()
+        );
         WildexUiTheme.Palette theme = WildexUiTheme.current();
         this.state.setSelectedTab(WildexTab.STATS);
         this.state.setSelectedMobId("");
@@ -130,15 +140,15 @@ public final class WildexScreen extends Screen {
         this.rightInfoRenderer.resetLootScroll();
 
         WildexScreenLayout.Area styleButtonArea = this.layout.styleButtonArea(
-                STYLE_BUTTON_W,
-                STYLE_BUTTON_H,
-                STYLE_BUTTON_MARGIN,
-                STYLE_BUTTON_Y_OFFSET
+                scaledTopButtonW(),
+                scaledTopButtonH(),
+                scaledTopButtonMargin(),
+                scaledTopButtonYOffset()
         );
 
         this.clearWidgets();
 
-        this.addRenderableWidget(new WildexStyleButton(
+        this.styleButton = this.addRenderableWidget(new WildexStyleButton(
                 styleButtonArea.x(),
                 styleButtonArea.y(),
                 styleButtonArea.w(),
@@ -153,14 +163,6 @@ public final class WildexScreen extends Screen {
                 this.minecraft.setScreen(new WildexScreen());
             }
         }));
-        if (WildexClientConfigView.debugMode()) {
-            this.testGuiScaleButton = this.addRenderableWidget(Button.builder(testGuiScaleLabel(), b -> cycleGuiScaleForTesting())
-                    .bounds(TEST_GUI_SCALE_BUTTON_X, TEST_GUI_SCALE_BUTTON_Y, TEST_GUI_SCALE_BUTTON_W, TEST_GUI_SCALE_BUTTON_H)
-                    .build());
-        } else {
-            this.testGuiScaleButton = null;
-        }
-
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestDiscoveredMobs();
         }
@@ -217,6 +219,7 @@ public final class WildexScreen extends Screen {
                 listY,
                 listW,
                 listH,
+                this.currentMobListItemHeight,
                 this::onMobSelected,
                 this::onDebugDiscoverMob
         );
@@ -430,8 +433,10 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        int mx = (int) Math.floor(mouseX);
-        int my = (int) Math.floor(mouseY);
+        double mxD = toPhysicalMouseXD(mouseX);
+        double myD = toPhysicalMouseYD(mouseY);
+        int mx = (int) Math.floor(mxD);
+        int my = (int) Math.floor(myD);
 
         if (this.shareOverlay != null && this.layout != null && this.shareOverlay.handleDropdownMouseScrolled(mx, my, scrollY, this.layout)) {
             return true;
@@ -443,41 +448,50 @@ public final class WildexScreen extends Screen {
         }
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.STATS) {
-            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mxD, myD, scrollX, scrollY);
             if (rightInfoRenderer.scrollStats(mx, my, scrollY)) {
                 return true;
             }
         }
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
-            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mxD, myD, scrollX, scrollY);
             WildexScreenLayout.Area a = this.layout.rightInfoArea();
-            if (a != null && mouseX >= a.x() && mouseX < a.x() + a.w() && mouseY >= a.y() && mouseY < a.y() + a.h()) {
+            if (a != null && mx >= a.x() && mx < a.x() + a.w() && my >= a.y() && my < a.y() + a.h()) {
                 rightInfoRenderer.scrollSpawn(scrollY);
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.LOOT) {
-            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return super.mouseScrolled(mxD, myD, scrollX, scrollY);
             if (rightInfoRenderer.scrollLoot(mx, my, scrollY)) {
                 return true;
             }
         }
 
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mxD, myD, scrollX, scrollY);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this.shareOverlay != null && this.layout != null && this.shareOverlay.handleDropdownMouseClicked(mouseX, mouseY, button, this.layout)) {
+        double mxD = toPhysicalMouseXD(mouseX);
+        double myD = toPhysicalMouseYD(mouseY);
+        int mx = (int) Math.floor(mxD);
+        int my = (int) Math.floor(myD);
+
+        if (button == 0 && isOnUiScaleSlider(mx, my)) {
+            this.draggingUiScaleSlider = true;
+            setUiScaleFromSliderMouse(mx);
             return true;
         }
 
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+        if (this.shareOverlay != null && this.layout != null && this.shareOverlay.handleDropdownMouseClicked(mx, my, button, this.layout)) {
+            return true;
+        }
+
+        if (super.mouseClicked(mxD, myD, button)) return true;
 
         if (this.layout != null) {
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (mobPreviewRenderer.isMouseOverPreview(this.layout, mx, my) && mobPreviewRenderer.beginRotationDrag(mx, my, button)) {
                 return true;
             }
@@ -485,24 +499,18 @@ public final class WildexScreen extends Screen {
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleSpawnMouseClicked(mx, my, button, this.state)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.STATS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleStatsMouseClicked(mx, my, button)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.LOOT) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleLootMouseClicked(mx, my, button)) {
                 return true;
             }
@@ -513,11 +521,21 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY)) return true;
+        double mxD = toPhysicalMouseXD(mouseX);
+        double myD = toPhysicalMouseYD(mouseY);
+        int mx = (int) Math.floor(mxD);
+        int my = (int) Math.floor(myD);
+        double dragXD = dragX * this.cachedGuiScale;
+        double dragYD = dragY * this.cachedGuiScale;
+
+        if (button == 0 && this.draggingUiScaleSlider) {
+            setUiScaleFromSliderMouse(mx);
+            return true;
+        }
+
+        if (super.mouseDragged(mxD, myD, button, dragXD, dragYD)) return true;
 
         if (this.layout != null) {
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (mobPreviewRenderer.updateRotationDrag(mx, my, button)) {
                 return true;
             }
@@ -525,24 +543,18 @@ public final class WildexScreen extends Screen {
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleSpawnMouseDragged(mx, my, button)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.STATS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleStatsMouseDragged(mx, my, button)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.LOOT) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            int mx = (int) Math.floor(mouseX);
-            int my = (int) Math.floor(mouseY);
             if (rightInfoRenderer.handleLootMouseDragged(mx, my, button)) {
                 return true;
             }
@@ -553,7 +565,17 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (super.mouseReleased(mouseX, mouseY, button)) return true;
+        double mxD = toPhysicalMouseXD(mouseX);
+        double myD = toPhysicalMouseYD(mouseY);
+        int mx = (int) Math.floor(mxD);
+        int my = (int) Math.floor(myD);
+
+        if (button == 0 && this.draggingUiScaleSlider) {
+            this.draggingUiScaleSlider = false;
+            return true;
+        }
+
+        if (super.mouseReleased(mxD, myD, button)) return true;
 
         if (mobPreviewRenderer.endRotationDrag(button)) {
             return true;
@@ -586,146 +608,137 @@ public final class WildexScreen extends Screen {
     }
 
     @Override
+    public void renderTransparentBackground(@NotNull GuiGraphics graphics) {
+    }
+
+    @Override
+    protected void renderBlurredBackground(float partialTick) {
+    }
+
+    @Override
     public void render(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        Minecraft mc = Minecraft.getInstance();
+        this.screenSpace = WildexScreenSpace.fromWindow(mc);
+        this.cachedGuiScale = this.screenSpace.guiScale();
+        this.physicalScreenW = this.screenSpace.physicalWidth();
+        this.physicalScreenH = this.screenSpace.physicalHeight();
+        int physicalMouseX = this.screenSpace.toPhysicalX(mouseX);
+        int physicalMouseY = this.screenSpace.toPhysicalY(mouseY);
+
+        this.layout = WildexScreenLayout.compute(this.physicalScreenW, this.physicalScreenH, WildexUiScale.get());
+        syncMobListItemHeightIfNeeded();
+        syncWidgetPositions();
+
+        this.screenSpace.pushInverseScale(graphics);
+
         WildexUiTheme.Palette theme = WildexUiTheme.current();
         applyThemeToInputs(theme);
         syncShareTopButtonsPosition();
 
-        boolean trophyDrawn = false;
-        int trophyX = 0;
-        int trophyY = 0;
-        int trophyHitW = TROPHY_DRAW_SIZE;
-        int trophyHitH = TROPHY_DRAW_SIZE;
-        if (WildexClientConfigView.hiddenMode() && WildexCompletionCache.isComplete()) {
-            int frameW = TROPHY_DRAW_SIZE + (TROPHY_FRAME_PAD_X * 2);
-            int frameH = TROPHY_DRAW_SIZE + (TROPHY_FRAME_PAD_Y * 2);
-            int texLeft = Math.round(layout.x());
-            int texBottom = Math.round(layout.y() + (WildexScreenLayout.TEX_H * layout.scale()));
-            int anchorX = texLeft - frameW + TROPHY_ATTACH_GAP_X;
-            int anchorY = texBottom - frameH - TROPHY_ATTACH_GAP_Y;
-            WildexScreenLayout.Area trophyArea = new WildexScreenLayout.Area(anchorX, anchorY, frameW, frameH);
-            int trophyBg = WildexThemes.isVintageLayout() ? TROPHY_BG_VINTAGE : TROPHY_BG_MODERN;
-            WildexUiRenderUtil.drawDockedTrophyFrame(graphics, trophyArea, theme, 3, trophyBg, TROPHY_BG_EXTEND_LEFT, TROPHY_BG_EXTEND_RIGHT);
+        WildexTrophyRenderer.Hitbox trophyHitbox = trophyRenderer.render(
+                graphics,
+                this.layout,
+                WildexClientConfigView.hiddenMode() && WildexCompletionCache.isComplete()
+        );
 
-            trophyX = anchorX + TROPHY_FRAME_PAD_X;
-            trophyY = anchorY + TROPHY_FRAME_PAD_Y;
-            trophyHitW = frameW;
-            trophyHitH = frameH;
-
-            graphics.blit(
-                    TROPHY_ICON,
-                    trophyX,
-                    trophyY,
-                    TROPHY_DRAW_SIZE,
-                    TROPHY_DRAW_SIZE,
-                    0,
-                    0,
-                    TROPHY_TEX_SIZE,
-                    TROPHY_TEX_SIZE,
-                    TROPHY_TEX_SIZE,
-                    TROPHY_TEX_SIZE
-            );
-
-            trophyDrawn = true;
-        }
-
-        renderer.render(graphics, layout, state, mouseX, mouseY, partialTick);
+        renderer.render(graphics, this.layout, state, physicalMouseX, physicalMouseY, partialTick);
         renderVersionLabel(graphics);
 
-        WildexScreenLayout.Area entriesArea = layout.leftEntriesCounterArea();
+        WildexScreenLayout.Area entriesArea = this.layout.leftEntriesCounterArea();
         Component entriesText = Component.translatable("gui.wildex.entries_count", (this.visibleEntries == null ? 0 : this.visibleEntries.size()));
         float entriesScale = resolveEntriesTextScale();
-        int textW = Math.max(1, Math.round(this.font.width(entriesText) * entriesScale));
-        int textH = Math.max(1, Math.round(this.font.lineHeight * entriesScale));
-        int entriesX = layout.leftSearchArea().x();
+        int textW = Math.max(1, Math.round(WildexUiText.width(font, entriesText) * entriesScale));
+        int textH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * entriesScale));
+        int entriesX = this.layout.leftSearchArea().x();
         int entriesY = entriesArea.y() + ((entriesArea.h() - textH) / 2) + 1;
-        int maxEntriesY = layout.leftSearchArea().y() - textH - 1;
+        int maxEntriesY = this.layout.leftSearchArea().y() - textH - 1;
         entriesY = Math.min(entriesY, maxEntriesY);
         WildexUiRenderUtil.drawScaledText(graphics, this.font, entriesText, entriesX, entriesY, entriesScale, theme.ink());
 
         if (WildexClientConfigView.hiddenMode()) {
-            WildexScreenLayout.Area discArea = layout.leftDiscoveryCounterArea();
+            WildexScreenLayout.Area discArea = this.layout.leftDiscoveryCounterArea();
 
             int discovered = WildexDiscoveryCache.count();
             int total = mobIndex.totalCount();
 
             Component discText = Component.translatable("gui.wildex.discovered_count", discovered, total);
             float discScale = resolveEntriesTextScale();
-            int discTextH = Math.max(1, Math.round(this.font.lineHeight * discScale));
+            int discTextH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * discScale));
 
             int discX = discArea.x();
-            int discY = discArea.y() + ((discArea.h() - discTextH) / 2);
+            int discY = discArea.y() + ((discArea.h() - discTextH) / 2) + Math.max(1, Math.round(2 * WildexUiScale.get()));
             WildexUiRenderUtil.drawScaledText(graphics, this.font, discText, discX, discY, discScale, theme.ink());
         }
 
-        mobPreviewRenderer.render(graphics, layout, state, mouseX, mouseY, partialTick);
-        WildexScreenLayout.Area previewArea = layout.rightPreviewArea();
-        WildexScreenLayout.Area previewResetArea = layout.previewResetButtonArea();
-        HintBounds previewHint = drawPreviewControlsHint(graphics, layout, previewArea, previewResetArea);
+        mobPreviewRenderer.render(graphics, this.layout, state, physicalMouseX, physicalMouseY, partialTick);
+        WildexScreenLayout.Area previewArea = this.layout.rightPreviewArea();
+        WildexScreenLayout.Area previewResetArea = this.layout.previewResetButtonArea();
+        HintBounds previewHint = drawPreviewControlsHint(graphics, this.layout, previewArea, previewResetArea);
 
         boolean showShareNotice = this.shareOverlay != null && this.shareOverlay.shouldShowNotice();
         boolean showSharePanel = this.shareOverlay != null && this.shareOverlay.isPanelVisible();
         if (showSharePanel) {
-            WildexUiRenderUtil.drawPanelFrame(graphics, layout.sharePanelArea(), theme);
+            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.sharePanelArea(), theme);
             renderSharePanel(graphics);
         } else if (showShareNotice) {
-            WildexUiRenderUtil.drawPanelFrame(graphics, layout.rightTabsArea(), theme);
+            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
             renderShareSingleplayerNotice(graphics);
         } else {
-            WildexUiRenderUtil.drawPanelFrame(graphics, layout.rightTabsArea(), theme);
+            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
         }
 
         WildexMobData data = mobDataResolver.resolve(state.selectedMobId());
 
-        rightHeaderRenderer.render(graphics, this.font, layout.rightHeaderArea(), state, data.header(), theme.ink());
+        rightHeaderRenderer.render(graphics, this.font, this.layout.rightHeaderArea(), state, data.header(), theme.ink());
         if (WildexThemes.isVintageLayout()) {
-            WildexUiRenderUtil.drawRoundedPanelFrame(graphics, layout.rightHeaderArea(), theme, 3);
+            WildexUiRenderUtil.drawRoundedPanelFrame(graphics, this.layout.rightHeaderArea(), theme, 3);
         }
 
         if (!showSharePanel && !showShareNotice) {
             rightInfoRenderer.render(
                     graphics,
                     this.font,
-                    layout.rightInfoArea(),
+                    this.layout.rightInfoArea(),
                     state,
                     data,
                     theme.ink(),
-                    mouseX,
-                    mouseY
+                    physicalMouseX,
+                    physicalMouseY
             );
         }
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        drawUiScaleSlider(graphics, physicalMouseX, physicalMouseY);
+
+        super.render(graphics, physicalMouseX, physicalMouseY, partialTick);
         renderMobListTopDivider(graphics);
 
         if (this.previewResetButton != null && this.previewResetButton.isHovered()) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(RESET_PREVIEW_TOOLTIP), mouseX, mouseY, this.width, this.height, theme);
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(RESET_PREVIEW_TOOLTIP), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
 
         if (this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isHovered()) {
             Component tip = this.discoveredOnlyCheckbox.tooltip();
-            if (tip != null) graphics.renderTooltip(this.font, tip, mouseX, mouseY);
+            if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
 
-        if (trophyDrawn && isMouseOverRect(mouseX, mouseY, trophyX - TROPHY_FRAME_PAD_X, trophyY - TROPHY_FRAME_PAD_Y, trophyHitW, trophyHitH)) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, TROPHY_TOOLTIP, mouseX, mouseY, this.width, this.height, theme);
+        if (trophyHitbox != null && trophyHitbox.contains(physicalMouseX, physicalMouseY)) {
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, trophyRenderer.tooltip(), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
 
-        if (!mobPreviewRenderer.isDraggingPreview() && isMouseOverPreviewControlsHint(mouseX, mouseY, previewHint)) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, PREVIEW_CONTROLS_TOOLTIP, mouseX, mouseY, this.width, this.height, theme);
+        if (!mobPreviewRenderer.isDraggingPreview() && isMouseOverPreviewControlsHint(physicalMouseX, physicalMouseY, previewHint)) {
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, PREVIEW_CONTROLS_TOOLTIP, physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
         if (this.shareOverlay != null && this.shareOverlay.isShareEntryButtonHovered()) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareTooltip()), mouseX, mouseY, this.width, this.height, theme);
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareTooltip()), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
         if (this.shareOverlay != null && this.shareOverlay.isShareClaimButtonHovered()) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareClaimTooltip()), mouseX, mouseY, this.width, this.height, theme);
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareClaimTooltip()), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
         if (this.shareOverlay != null && this.shareOverlay.isShareOpenOffersHovered()) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareOpenOffersTooltip()), mouseX, mouseY, this.width, this.height, theme);
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareOpenOffersTooltip()), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
-        if (this.testGuiScaleButton != null && this.testGuiScaleButton.isHovered()) {
-            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(TEST_GUI_SCALE_TOOLTIP), mouseX, mouseY, this.width, this.height, theme);
-        }
+
+        this.screenSpace.popScale(graphics);
     }
 
     private boolean isSingleplayerSession() {
@@ -782,9 +795,9 @@ public final class WildexScreen extends Screen {
 
         WildexScreenLayout.PreviewControlsHintAnchor anchor = screenLayout.previewControlsHintAnchor();
         int hintBaseX = anchor.x();
-        int textW = this.font.width(PREVIEW_CONTROLS_LABEL);
+        int textW = WildexUiText.width(font, PREVIEW_CONTROLS_LABEL);
         int scaledTextW = Math.max(1, Math.round(textW * PREVIEW_HINT_SCALE));
-        int scaledTextH = Math.max(1, Math.round(this.font.lineHeight * PREVIEW_HINT_SCALE));
+        int scaledTextH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * PREVIEW_HINT_SCALE));
         int hintBaseY = anchor.bottomY() - scaledTextH;
         if (anchor.alignCenterToResetButton() && previewResetArea != null) {
             hintBaseY = previewResetArea.y() + Math.max(0, (previewResetArea.h() - scaledTextH) / 2);
@@ -797,9 +810,9 @@ public final class WildexScreen extends Screen {
         if (availableW <= 2) return null;
 
         graphics.pose().pushPose();
-        graphics.enableScissor(hintBaseX, hintBaseY, hintBaseX + availableW, hintBaseY + scaledTextH + 1);
+        WildexScissor.enablePhysical(graphics, hintBaseX, hintBaseY, hintBaseX + availableW, hintBaseY + scaledTextH + 1);
         graphics.pose().scale(PREVIEW_HINT_SCALE, PREVIEW_HINT_SCALE, 1.0f);
-        graphics.drawString(
+        WildexUiText.draw(graphics, 
                 this.font,
                 PREVIEW_CONTROLS_LABEL,
                 Math.round(drawX * inv),
@@ -816,13 +829,13 @@ public final class WildexScreen extends Screen {
     private void renderVersionLabel(GuiGraphics graphics) {
         if (this.versionLabel.isBlank() || this.layout == null) return;
 
-        int scaledTextW = Math.max(1, Math.round(this.font.width(this.versionLabel) * VERSION_SCALE));
-        int scaledTextH = Math.max(1, Math.round(this.font.lineHeight * VERSION_SCALE));
+        int scaledTextW = Math.max(1, Math.round(WildexUiText.width(font, this.versionLabel) * VERSION_SCALE));
+        int scaledTextH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * VERSION_SCALE));
         WildexScreenLayout.Area versionArea = this.layout.versionLabelArea(
-                STYLE_BUTTON_W,
-                STYLE_BUTTON_H,
-                STYLE_BUTTON_MARGIN,
-                STYLE_BUTTON_Y_OFFSET,
+                scaledTopButtonW(),
+                scaledTopButtonH(),
+                scaledTopButtonMargin(),
+                scaledTopButtonYOffset(),
                 scaledTextW,
                 scaledTextH
         );
@@ -831,7 +844,7 @@ public final class WildexScreen extends Screen {
 
         graphics.pose().pushPose();
         graphics.pose().scale(VERSION_SCALE, VERSION_SCALE, 1.0f);
-        graphics.drawString(this.font, this.versionLabel, Math.round(versionArea.x() * inv), Math.round(versionArea.y() * inv), WildexUiTheme.current().inkMuted(), false);
+        WildexUiText.draw(graphics, this.font, this.versionLabel, Math.round(versionArea.x() * inv), Math.round(versionArea.y() * inv), WildexUiTheme.current().inkMuted(), false);
         graphics.pose().popPose();
     }
 
@@ -871,38 +884,183 @@ public final class WildexScreen extends Screen {
         return "v" + v;
     }
 
-    // TEMP helper: cycles Minecraft's native GUI scale for quick layout testing.
-    private void cycleGuiScaleForTesting() {
-        Minecraft mc = Minecraft.getInstance();
-
-        OptionInstance<Integer> option = mc.options.guiScale();
-        int current = option.get();
-        int max = Math.max(1, mc.getWindow().calculateScale(0, mc.isEnforceUnicode()));
-        int next;
-        if (current == 0) next = 1;
-        else if (current >= max) next = 0;
-        else next = current + 1;
-
-        option.set(next);
-        mc.options.save();
-        mc.resizeDisplay();
-        this.init();
-    }
-
-    private Component testGuiScaleLabel() {
-        Minecraft mc = Minecraft.getInstance();
-        int scale = mc.options.guiScale().get();
-        return Component.literal(scale == 0 ? "GUI Auto" : "GUI " + scale);
-    }
-
     private float resolveEntriesTextScale() {
-        Minecraft mc = Minecraft.getInstance();
-        int opt = mc.options.guiScale().get();
-        int gui = opt == 0 ? Math.max(1, mc.getWindow().calculateScale(0, mc.isEnforceUnicode())) : opt;
-        if (gui >= 6) return 0.72f;
-        if (gui == 5) return 0.80f;
-        if (gui == 4) return 0.90f;
+        float s = WildexUiScale.get();
+        if (s <= 0.62f) return 0.72f;
+        if (s <= 0.74f) return 0.80f;
+        if (s <= 0.86f) return 0.90f;
         return 1.0f;
+    }
+
+    private double toPhysicalMouseXD(double mouseX) {
+        if (this.screenSpace != null) return mouseX * this.screenSpace.guiScale();
+        return mouseX * this.cachedGuiScale;
+    }
+
+    private double toPhysicalMouseYD(double mouseY) {
+        if (this.screenSpace != null) return mouseY * this.screenSpace.guiScale();
+        return mouseY * this.cachedGuiScale;
+    }
+
+    private void syncMobListItemHeightIfNeeded() {
+        if (this.layout == null || this.mobList == null) return;
+        int next = MobListWidget.itemHeightForUiScale(WildexUiScale.get());
+        if (next == this.currentMobListItemHeight) return;
+
+        this.currentMobListItemHeight = next;
+        ResourceLocation keepSelected = this.mobList.selectedId();
+
+        this.removeWidget(this.mobList);
+
+        WildexScreenLayout.Area content = this.layout.leftContentArea();
+        WildexScreenLayout.Area action = this.layout.leftActionArea();
+        int listGap = Math.round(LIST_GAP * this.layout.scale());
+        int bottomCut = Math.round(LIST_BOTTOM_CUT * this.layout.scale());
+
+        int listX = content.x();
+        int listY = action.y() + action.h() + listGap;
+        int listW = content.w();
+        int listH = Math.max(1, (content.y() + content.h()) - listY - bottomCut);
+
+        this.mobList = new MobListWidget(
+                Minecraft.getInstance(),
+                listX,
+                listY,
+                listW,
+                listH,
+                this.currentMobListItemHeight,
+                this::onMobSelected,
+                this::onDebugDiscoverMob
+        );
+        this.addRenderableWidget(this.mobList);
+        this.mobList.setEntries(this.visibleEntries);
+        if (keepSelected != null) this.mobList.setSelectedId(keepSelected);
+    }
+
+    private void syncWidgetPositions() {
+        if (this.layout == null) return;
+
+        WildexScreenLayout.Area styleButtonArea = this.layout.styleButtonArea(
+                scaledTopButtonW(),
+                scaledTopButtonH(),
+                scaledTopButtonMargin(),
+                scaledTopButtonYOffset()
+        );
+        if (this.styleButton != null) {
+            this.styleButton.setX(styleButtonArea.x());
+            this.styleButton.setY(styleButtonArea.y());
+            this.styleButton.setWidth(styleButtonArea.w());
+            this.styleButton.setHeight(styleButtonArea.h());
+        }
+
+        if (this.searchBox != null) {
+            WildexScreenLayout.Area a = this.layout.leftSearchArea();
+            this.searchBox.setX(a.x());
+            this.searchBox.setY(a.y());
+            this.searchBox.setWidth(a.w());
+            this.searchBox.setHeight(a.h());
+        }
+
+        if (this.discoveredOnlyCheckbox != null) {
+            WildexScreenLayout.Area action = this.layout.leftActionArea();
+            int size = Math.max(8, action.h());
+            int cbX = (action.x() + action.w()) - size;
+            int cbY = action.y() + ((action.h() - size) / 2);
+            this.discoveredOnlyCheckbox.setX(cbX);
+            this.discoveredOnlyCheckbox.setY(cbY);
+            this.discoveredOnlyCheckbox.setWidth(size);
+            this.discoveredOnlyCheckbox.setHeight(size);
+        }
+
+        if (this.mobList != null) {
+            WildexScreenLayout.Area content = this.layout.leftContentArea();
+            WildexScreenLayout.Area action = this.layout.leftActionArea();
+            int listGap = Math.round(LIST_GAP * this.layout.scale());
+            int bottomCut = Math.round(LIST_BOTTOM_CUT * this.layout.scale());
+
+            int listX = content.x();
+            int listY = action.y() + action.h() + listGap;
+            int listW = content.w();
+            int listH = Math.max(1, (content.y() + content.h()) - listY - bottomCut);
+            this.mobList.setX(listX);
+            this.mobList.setY(listY);
+            this.mobList.setWidth(listW);
+            this.mobList.setHeight(listH);
+        }
+
+        if (this.rightTabsWidget != null) {
+            WildexScreenLayout.Area a = this.layout.rightTabsArea();
+            this.rightTabsWidget.setX(a.x());
+            this.rightTabsWidget.setY(a.y());
+            this.rightTabsWidget.setWidth(a.w());
+            this.rightTabsWidget.setHeight(a.h());
+        }
+
+        if (this.previewResetButton != null) {
+            WildexScreenLayout.Area a = this.layout.previewResetButtonArea();
+            this.previewResetButton.setX(a.x());
+            this.previewResetButton.setY(a.y());
+            this.previewResetButton.setWidth(a.w());
+            this.previewResetButton.setHeight(a.h());
+        }
+
+        if (this.shareOverlay != null) {
+            this.shareOverlay.relayout(this.layout);
+        }
+
+    }
+
+    private void drawUiScaleSlider(GuiGraphics graphics, int mouseX, int mouseY) {
+        float s = UI_SLIDER_RENDER_SCALE;
+        this.uiSliderX = UI_SLIDER_X;
+        this.uiSliderY = UI_SLIDER_Y;
+        this.uiSliderW = Math.max(80, Math.round(UI_SLIDER_W * s));
+        this.uiSliderH = Math.max(8, Math.round(UI_SLIDER_H * s));
+        this.uiSliderKnobW = Math.max(8, Math.round(UI_SLIDER_KNOB_W * s));
+
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+
+        graphics.fill(this.uiSliderX, this.uiSliderY, this.uiSliderX + this.uiSliderW, this.uiSliderY + this.uiSliderH, 0xFF1E1E1E);
+        graphics.fill(this.uiSliderX + 1, this.uiSliderY + 1, this.uiSliderX + this.uiSliderW - 1, this.uiSliderY + this.uiSliderH - 1, 0xFF454545);
+
+        float t = WildexUiScale.toNormalized(WildexUiScale.get());
+        int travel = Math.max(1, this.uiSliderW - this.uiSliderKnobW);
+        int knobX = this.uiSliderX + Math.round(travel * t);
+        int knobColor = isOnUiScaleSlider(mouseX, mouseY) || this.draggingUiScaleSlider ? 0xFFECECEC : 0xFFD8D8D8;
+        graphics.fill(knobX, this.uiSliderY, knobX + this.uiSliderKnobW, this.uiSliderY + this.uiSliderH, knobColor);
+        graphics.fill(knobX, this.uiSliderY, knobX + this.uiSliderKnobW, this.uiSliderY + 1, 0xFF111111);
+        graphics.fill(knobX, this.uiSliderY + this.uiSliderH - 1, knobX + this.uiSliderKnobW, this.uiSliderY + this.uiSliderH, 0xFF111111);
+
+        int percent = WildexUiScale.toDisplayPercent(WildexUiScale.get());
+        Component label = Component.literal("Wildex UI " + percent + "%");
+        float ls = UI_SLIDER_LABEL_SCALE;
+        int labelY = this.uiSliderY + this.uiSliderH + Math.round(3 * s);
+        graphics.pose().pushPose();
+        graphics.pose().scale(ls, ls, 1.0f);
+        graphics.drawString(
+                this.font,
+                label,
+                Math.round(this.uiSliderX / ls),
+                Math.round(labelY / ls),
+                theme.inkOnDark(),
+                false
+        );
+        graphics.pose().popPose();
+    }
+
+    private boolean isOnUiScaleSlider(int mouseX, int mouseY) {
+        return mouseX >= this.uiSliderX
+                && mouseX < this.uiSliderX + this.uiSliderW
+                && mouseY >= this.uiSliderY
+                && mouseY < this.uiSliderY + this.uiSliderH;
+    }
+
+    private void setUiScaleFromSliderMouse(int mouseX) {
+        int travel = Math.max(1, this.uiSliderW - this.uiSliderKnobW);
+        int rel = Math.max(0, Math.min(travel, mouseX - this.uiSliderX));
+        float t = rel / (float) travel;
+        float next = WildexUiScale.fromNormalized(t);
+        WildexUiScale.set(next);
     }
 
     public void applyServerUiState(String tabId, String mobId) {
@@ -975,4 +1133,8 @@ public final class WildexScreen extends Screen {
         return rl;
     }
 }
+
+
+
+
 

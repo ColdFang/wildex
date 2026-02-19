@@ -140,7 +140,7 @@ public final class WildexRightInfoRenderer {
         int lw = toLogical(area.w(), s);
         int lh = toLogical(area.h(), s);
 
-        graphics.enableScissor(x0, y0, x1, y1);
+        WildexScissor.enablePhysical(graphics, x0, y0, x1, y1);
         TooltipRequest tooltip = null;
         try {
             graphics.pose().pushPose();
@@ -201,7 +201,7 @@ public final class WildexRightInfoRenderer {
         int rightLimitX = area.x() + area.w() - PAD_RIGHT;
         int maxW = Math.max(1, rightLimitX - x);
 
-        int lineH = Math.max(10, font.lineHeight + HINT_LINE_GAP);
+        int lineH = Math.max(10, WildexUiText.lineHeight(font) + HINT_LINE_GAP);
 
         String[] lines = {
                 WildexRightInfoTabUtil.tr("gui.wildex.locked.line1"),
@@ -214,7 +214,7 @@ public final class WildexRightInfoRenderer {
 
         for (String line : lines) {
             String clipped = WildexRightInfoTabUtil.clipToWidth(font, line, maxW);
-            g.drawString(font, clipped, x, startY, lockedColor, false);
+            WildexUiText.draw(g, font, clipped, x, startY, lockedColor, false);
             startY += lineH;
         }
     }
@@ -242,8 +242,8 @@ public final class WildexRightInfoRenderer {
         if (wrapped.isEmpty()) return;
 
         int textW = 0;
-        for (FormattedCharSequence s : wrapped) textW = Math.max(textW, font.width(s));
-        int textH = wrapped.size() * font.lineHeight + Math.max(0, (wrapped.size() - 1) * TIP_LINE_GAP);
+        for (FormattedCharSequence s : wrapped) textW = Math.max(textW, WildexUiText.width(font, s));
+        int textH = wrapped.size() * WildexUiText.lineHeight(font) + Math.max(0, (wrapped.size() - 1) * TIP_LINE_GAP);
 
         int boxW = textW + TIP_PAD * 2;
         int boxH = textH + TIP_PAD * 2;
@@ -277,8 +277,12 @@ public final class WildexRightInfoRenderer {
         int ty = y0 + TIP_PAD;
 
         for (FormattedCharSequence line : wrapped) {
-            g.drawString(font, line, tx, ty, TIP_TEXT, false);
-            ty += font.lineHeight + TIP_LINE_GAP;
+            WildexUiText.draw(g, font, line, tx, ty, TIP_TEXT, false);
+            ty += WildexUiText.lineHeight(font) + TIP_LINE_GAP;
         }
     }
 }
+
+
+
+

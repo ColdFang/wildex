@@ -31,10 +31,10 @@ final class WildexRightInfoTabUtil {
 
     static String clipToWidth(Font font, String s, int maxW) {
         if (s == null || s.isEmpty()) return "";
-        if (font.width(s) <= maxW) return s;
+        if (WildexUiText.width(font, s) <= maxW) return s;
 
         String ell = "...";
-        int ellW = font.width(ell);
+        int ellW = WildexUiText.width(font, ell);
         if (ellW >= maxW) return "";
 
         int lo = 0;
@@ -42,7 +42,7 @@ final class WildexRightInfoTabUtil {
         while (lo < hi) {
             int mid = (lo + hi + 1) >>> 1;
             String sub = s.substring(0, mid);
-            if (font.width(sub) + ellW <= maxW) lo = mid;
+            if (WildexUiText.width(font, sub) + ellW <= maxW) lo = mid;
             else hi = mid - 1;
         }
         return s.substring(0, lo) + ell;
@@ -63,16 +63,16 @@ final class WildexRightInfoTabUtil {
         if (text == null) return;
         if (maxW <= 0) return;
 
-        int fullW = font.width(text);
+        int fullW = WildexUiText.width(font, text);
         if (fullW <= maxW) {
-            g.drawString(font, text, x, y, color, false);
+            WildexUiText.draw(g, font, text, x, y, color, false);
             return;
         }
 
         int sx0 = toScreenX(screenOriginX, scale, x);
         int sy0 = toScreenY(screenOriginY, scale, y);
         int sx1 = toScreenX(screenOriginX, scale, x + maxW);
-        int sy1 = toScreenY(screenOriginY, scale, y + font.lineHeight + 1);
+        int sy1 = toScreenY(screenOriginY, scale, y + WildexUiText.lineHeight(font) + 1);
 
         long now = Util.getMillis();
         double seconds = now / 1000.0;
@@ -81,12 +81,16 @@ final class WildexRightInfoTabUtil {
         double offset = (seconds * MARQUEE_SPEED_PX_PER_SEC) % travel;
         int baseX = x - (int) Math.floor(offset);
 
-        g.enableScissor(sx0, sy0, sx1, sy1);
+        WildexScissor.enablePhysical(g, sx0, sy0, sx1, sy1);
         try {
-            g.drawString(font, text, baseX, y, color, false);
-            g.drawString(font, text, baseX + travel, y, color, false);
+            WildexUiText.draw(g, font, text, baseX, y, color, false);
+            WildexUiText.draw(g, font, text, baseX + travel, y, color, false);
         } finally {
             g.disableScissor();
         }
     }
 }
+
+
+
+

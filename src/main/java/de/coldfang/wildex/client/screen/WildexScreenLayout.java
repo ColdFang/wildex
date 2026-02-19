@@ -14,6 +14,8 @@ public final class WildexScreenLayout {
     private static final int PAGE_INSET_ALL_SIDES = 2;
     private static final int MODERN_PREVIEW_DECOUPLED_NUDGE_X = 4;
     private static final int MODERN_PREVIEW_DECOUPLED_NUDGE_Y = 1;
+    private static final int MODERN_PREVIEW_EXTRA_SHIFT_Y = 2;
+    private static final int MODERN_RESET_EXTRA_SHIFT_Y = 4;
     private static final int PREVIEW_HINT_PAD_X = 6;
     private static final int PREVIEW_HINT_PAD_Y = 4;
     private static final int MODERN_CONTROLS_EXTRA_SHIFT_X = 3;
@@ -27,7 +29,7 @@ public final class WildexScreenLayout {
             true,
             16, 22, 6, 0, 0,
             16, -4, 0,
-            150, 0.95f, 79 + 25, 16, -34,
+            144, 0.95f, 79 + 25, 16, -34,
             14, 4, 3, 9, 26,
             13, 24, 14, 19,
             14, 1, 87, 0, 10, 8
@@ -35,8 +37,8 @@ public final class WildexScreenLayout {
 
     private static final Metrics VINTAGE = new Metrics(
             102, 79, 50, 9, 38,
-            6, 4, 14, 15,
-            8, 7, -7, 7,
+            6, 4, 14, 25,
+            8, 7, -17, 7,
             30, 2, 5,
             -15,
             false,
@@ -115,7 +117,7 @@ public final class WildexScreenLayout {
         this.previewControlsHintAnchor = previewControlsHintAnchor;
     }
 
-    public static WildexScreenLayout compute(int screenW, int screenH) {
+    public static WildexScreenLayout compute(int screenW, int screenH, float userUiScale) {
         WildexTheme theme = WildexThemes.current();
         DesignStyle profile = theme.layoutProfile();
         Metrics m = metricsFor(profile);
@@ -126,7 +128,7 @@ public final class WildexScreenLayout {
         float maxScaleH = (float) (safeH - (SAFE_TOP_PADDING + SAFE_BOTTOM_PADDING)) / (float) TEX_H;
         float maxScale = Math.max(0.01f, Math.min(maxScaleW, maxScaleH));
 
-        float scale = Math.min(DESIGN_SCALE, maxScale);
+        float scale = Math.min(DESIGN_SCALE * WildexUiScale.clamp(userUiScale), maxScale);
 
         int scaledW = Math.round(TEX_W * scale);
         int scaledH = Math.round(TEX_H * scale);
@@ -168,7 +170,9 @@ public final class WildexScreenLayout {
         int leftContentH = Math.max(1, leftPage.h() - (padY * 2));
         Area leftContent = new Area(leftContentX, leftContentY, leftContentW, leftContentH);
 
-        int searchH = Math.max(12, Math.round(m.searchHeight() * scale));
+        float uiScale = WildexUiScale.clamp(userUiScale);
+        int searchExtraH = Math.max(0, Math.round((uiScale - 1.0f) * 4.0f));
+        int searchH = Math.max(12, Math.round(m.searchHeight() * scale) + searchExtraH);
         Area searchArea = new Area(leftContentX, leftContentY + 2, leftContentW, searchH);
 
         int actionGap = Math.max(0, Math.round(m.actionRowGap() * scale));
@@ -220,14 +224,15 @@ public final class WildexScreenLayout {
         int resetSize = Math.max(10, Math.round(m.previewResetBtnSize() * scale));
         int resetMargin = Math.max(2, Math.round(m.previewResetBtnMargin() * scale));
         int resetBelowGap = Math.max(1, Math.round(2 * scale));
+        int resetGrow = Math.max(1, Math.round(3 * scale));
         int resetY = (profile == DesignStyle.MODERN)
                 ? (preview.y() + preview.h()) + resetBelowGap - 2
                 : (preview.y() + preview.h()) - resetSize - resetMargin;
         Area previewReset = new Area(
-                (preview.x() + preview.w()) - resetSize - resetMargin,
-                resetY,
-                resetSize,
-                resetSize
+                (preview.x() + preview.w()) - resetSize - resetMargin - resetGrow,
+                resetY - resetGrow,
+                resetSize + resetGrow,
+                resetSize + resetGrow
         );
 
         int rightContentX = rightPage.x() + spinePad;
@@ -269,10 +274,11 @@ public final class WildexScreenLayout {
         if (profile == DesignStyle.MODERN) {
             preview = new Area(
                     preview.x() + MODERN_PREVIEW_DECOUPLED_NUDGE_X,
-                    preview.y() + MODERN_PREVIEW_DECOUPLED_NUDGE_Y,
+                    preview.y() + MODERN_PREVIEW_DECOUPLED_NUDGE_Y + MODERN_PREVIEW_EXTRA_SHIFT_Y,
                     preview.w(),
                     preview.h()
             );
+            previewReset = shiftY(previewReset, MODERN_RESET_EXTRA_SHIFT_Y);
         }
 
         Area sharePanelArea = mergeRightPanelAreas(tabsArea, infoArea);
@@ -538,3 +544,6 @@ public final class WildexScreenLayout {
     ) {
     }
 }
+
+
+

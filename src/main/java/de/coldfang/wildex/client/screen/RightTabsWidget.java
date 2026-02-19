@@ -108,7 +108,7 @@ public final class RightTabsWidget extends AbstractWidget {
             int innerX1 = tx + tw - 1;
             int innerY1 = baseY + tabH - 1;
 
-            graphics.enableScissor(innerX0, innerY0, innerX1, innerY1);
+            WildexScissor.enablePhysical(graphics, innerX0, innerY0, innerX1, innerY1);
 
             int padX = (tw <= 44) ? 4 : TAB_PAD_X;
             int padTop = (tabH <= 16) ? 1 : TEXT_PAD_Y_TOP;
@@ -119,8 +119,8 @@ public final class RightTabsWidget extends AbstractWidget {
             int textYBase = baseY + 1 + padTop;
 
             String s = label.getString();
-            int textW = font.width(s);
-            int textH = font.lineHeight;
+            int textW = WildexUiText.width(font, s);
+            int textH = WildexUiText.lineHeight(font);
 
             int maxTextW = Math.max(1, tw - (padX * 2));
 
@@ -139,7 +139,7 @@ public final class RightTabsWidget extends AbstractWidget {
             graphics.pose().pushPose();
             graphics.pose().translate(drawX, drawY, 0);
             graphics.pose().scale(ts, ts, 1.0f);
-            graphics.drawString(font, s, 0, 0, color, false);
+            WildexUiText.draw(graphics, font, s, 0, 0, color, false);
             graphics.pose().popPose();
 
             graphics.disableScissor();
@@ -169,3 +169,7 @@ public final class RightTabsWidget extends AbstractWidget {
         return true;
     }
 }
+
+
+
+

@@ -34,6 +34,8 @@ public final class WildexMobPreviewRenderer {
     private static final float FISH_MODEL_SIDE_YAW_DEG = 90.0f;
     private static final int PREVIEW_CORNER_CUT = 3;
     private static final int MODERN_PREVIEW_CLIP_CUT = 9;
+    private static final int MODERN_PREVIEW_CLIP_TOP_TRIM = 10;
+    private static final int MODERN_PREVIEW_CLIP_BOTTOM_TRIM = 2;
 
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 2.40f;
@@ -179,7 +181,7 @@ public final class WildexMobPreviewRenderer {
         if (isEnderDragon(id)) {
             if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
             try {
-                renderDragonEntity(graphics, area, mob, partialTick, zoom);
+                renderDragonEntity(graphics, area, mob, partialTick, zoom, layout.scale());
             } finally {
                 if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
             }
@@ -196,6 +198,18 @@ public final class WildexMobPreviewRenderer {
         int innerY0 = y0 + 2;
         int innerX1 = x1 - 2;
         int innerY1 = y1 - 2;
+        if (!WildexThemes.isVintageLayout()) {
+            int topTrim = Math.max(0, Math.round(MODERN_PREVIEW_CLIP_TOP_TRIM * layout.scale()));
+            int bottomTrim = Math.max(0, Math.round(MODERN_PREVIEW_CLIP_BOTTOM_TRIM * layout.scale()));
+            int maxTrim = Math.max(0, (innerY1 - innerY0) - 1);
+            if (topTrim + bottomTrim > maxTrim) {
+                float total = Math.max(1.0f, topTrim + bottomTrim);
+                topTrim = Math.round((topTrim / total) * maxTrim);
+                bottomTrim = maxTrim - topTrim;
+            }
+            innerY0 += topTrim;
+            innerY1 -= bottomTrim;
+        }
 
         int cx = area.x() + Math.round(area.w() * 0.5f);
         int cy = area.y() + Math.round(area.h() * 0.5f);
@@ -385,7 +399,8 @@ public final class WildexMobPreviewRenderer {
             WildexScreenLayout.Area area,
             Mob dragon,
             float partialTick,
-            float zoom
+            float zoom,
+            float layoutScale
     ) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -399,6 +414,18 @@ public final class WildexMobPreviewRenderer {
         int innerY0 = y0 + 2;
         int innerX1 = x1 - 2;
         int innerY1 = y1 - 2;
+        if (!WildexThemes.isVintageLayout()) {
+            int topTrim = Math.max(0, Math.round(MODERN_PREVIEW_CLIP_TOP_TRIM * layoutScale));
+            int bottomTrim = Math.max(0, Math.round(MODERN_PREVIEW_CLIP_BOTTOM_TRIM * layoutScale));
+            int maxTrim = Math.max(0, (innerY1 - innerY0) - 1);
+            if (topTrim + bottomTrim > maxTrim) {
+                float total = Math.max(1.0f, topTrim + bottomTrim);
+                topTrim = Math.round((topTrim / total) * maxTrim);
+                bottomTrim = maxTrim - topTrim;
+            }
+            innerY0 += topTrim;
+            innerY1 -= bottomTrim;
+        }
 
         int cx = area.x() + Math.round(area.w() * 0.5f);
         int cy = area.y() + Math.round(area.h() * 0.5f);
@@ -523,7 +550,7 @@ public final class WildexMobPreviewRenderer {
         int c = Math.max(0, Math.min(cornerCut, maxCut));
 
         if (c <= 0) {
-            graphics.enableScissor(x0, y0, x1, y1);
+            WildexScissor.enablePhysical(graphics, x0, y0, x1, y1);
             try {
                 drawCall.run();
             } finally {
@@ -538,7 +565,7 @@ public final class WildexMobPreviewRenderer {
             int sx0 = x0 + inset;
             int sx1 = x1 - inset;
             if (sx1 <= sx0) continue;
-            graphics.enableScissor(sx0, sy0, sx1, sy0 + 1);
+            WildexScissor.enablePhysical(graphics, sx0, sy0, sx1, sy0 + 1);
             try {
                 drawCall.run();
             } finally {
@@ -549,7 +576,7 @@ public final class WildexMobPreviewRenderer {
         int cy0 = y0 + c;
         int cy1 = y1 - c;
         if (cy1 > cy0) {
-            graphics.enableScissor(x0, cy0, x1, cy1);
+            WildexScissor.enablePhysical(graphics, x0, cy0, x1, cy1);
             try {
                 drawCall.run();
             } finally {
@@ -563,7 +590,7 @@ public final class WildexMobPreviewRenderer {
             int sx0 = x0 + inset;
             int sx1 = x1 - inset;
             if (sx1 <= sx0) continue;
-            graphics.enableScissor(sx0, sy0, sx1, sy0 + 1);
+            WildexScissor.enablePhysical(graphics, sx0, sy0, sx1, sy0 + 1);
             try {
                 drawCall.run();
             } finally {
@@ -634,3 +661,7 @@ public final class WildexMobPreviewRenderer {
         return Math.max(ZOOM_MIN, Math.min(v, ZOOM_MAX));
     }
 }
+
+
+
+

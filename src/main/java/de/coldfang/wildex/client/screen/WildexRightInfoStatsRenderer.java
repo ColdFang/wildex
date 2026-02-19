@@ -137,7 +137,7 @@ final class WildexRightInfoStatsRenderer {
 
         int maxW = Math.max(1, w - (WildexRightInfoRenderer.PAD_X * 2));
         List<FormattedCharSequence> hintL1 = font.split(WildexRightInfoRenderer.SHIFT_HINT_LINE_1, maxW);
-        int hintLineH = font.lineHeight + 1;
+        int hintLineH = WildexUiText.lineHeight(font) + 1;
         int hintTotalH = (hintL1.size() + 1) * hintLineH;
         int hintBlockH = hintTotalH + WildexRightInfoRenderer.PAD_Y + 2;
 
@@ -148,7 +148,7 @@ final class WildexRightInfoStatsRenderer {
         int viewportW = w;
         int viewportH = Math.max(24, dividerY - viewportY - 1);
 
-        int line = Math.max(10, font.lineHeight + 2);
+        int line = Math.max(10, WildexUiText.lineHeight(font) + 2);
         int estimatedContentH = Math.max(viewportH, WildexRightInfoRenderer.PAD_Y + (line * 9) + 2);
         statsViewportH = viewportH;
         statsContentH = estimatedContentH;
@@ -169,7 +169,7 @@ final class WildexRightInfoStatsRenderer {
         statsViewportScreenX1 = sx1;
         statsViewportScreenY1 = sy1;
 
-        g.enableScissor(sx0, sy0, sx1, sy1);
+        WildexScissor.enablePhysical(g, sx0, sy0, sx1, sy1);
         WildexRightInfoRenderer.TooltipRequest tooltip;
         try {
             WildexScreenLayout.Area statsArea = new WildexScreenLayout.Area(viewportX, viewportY - statsScrollPx, viewportW, statsContentH);
@@ -220,19 +220,19 @@ final class WildexRightInfoStatsRenderer {
         int maxW = Math.max(1, area.w() - (WildexRightInfoRenderer.PAD_X * 2));
         List<FormattedCharSequence> line1 = font.split(WildexRightInfoRenderer.SHIFT_HINT_LINE_1, maxW);
         FormattedCharSequence line2 = WildexRightInfoRenderer.SHIFT_HINT_LINE_2.getVisualOrderText();
-        int lineH = font.lineHeight + 1;
+        int lineH = WildexUiText.lineHeight(font) + 1;
         int y = Math.max(minY, preferredY);
         for (FormattedCharSequence l : line1) {
-            int w = font.width(l);
+            int w = WildexUiText.width(font, l);
             int x = x1 - WildexRightInfoRenderer.PAD_X - w;
             if (x < x0 + WildexRightInfoRenderer.PAD_X) x = x0 + WildexRightInfoRenderer.PAD_X;
-            g.drawString(font, l, x, y, hintColor, false);
+            WildexUiText.draw(g, font, l, x, y, hintColor, false);
             y += lineH;
         }
-        int w2 = font.width(line2);
+        int w2 = WildexUiText.width(font, line2);
         int x2 = x1 - WildexRightInfoRenderer.PAD_X - w2;
         if (x2 < x0 + WildexRightInfoRenderer.PAD_X) x2 = x0 + WildexRightInfoRenderer.PAD_X;
-        g.drawString(font, line2, x2, y, hintColor, false);
+        WildexUiText.draw(g, font, line2, x2, y, hintColor, false);
     }
 
     private static WildexRightInfoRenderer.TooltipRequest renderStats(
@@ -257,17 +257,20 @@ final class WildexRightInfoStatsRenderer {
         int maxY = (area.y() + WildexRightInfoRenderer.PAD_Y) + innerH;
 
         int contentW = Math.max(1, innerW);
-        int maxLabelBySpace = Math.max(24, contentW - COL_GAP - STATS_MIN_VALUE_COL_W);
-        int labelColW = Math.round(contentW * STATS_LABEL_COL_RATIO);
-        labelColW = Math.max(STATS_LABEL_COL_MIN, Math.min(labelColW, STATS_LABEL_COL_MAX));
+        int colGap = Math.max(4, Math.round(COL_GAP * WildexUiScale.get()));
+        int maxLabelBySpace = Math.max(24, contentW - colGap - STATS_MIN_VALUE_COL_W);
+        int labelColWBase = Math.round(contentW * STATS_LABEL_COL_RATIO);
+        labelColWBase = Math.max(STATS_LABEL_COL_MIN, Math.min(labelColWBase, STATS_LABEL_COL_MAX));
+        int requiredLabelW = requiredLabelColumnWidth(font);
+        int labelColW = Math.max(labelColWBase, requiredLabelW);
         labelColW = Math.min(labelColW, maxLabelBySpace);
 
-        int valueX = x + labelColW + COL_GAP;
+        int valueX = x + labelColW + colGap;
         int rightLimitX = area.x() + area.w() - WildexRightInfoRenderer.PAD_RIGHT;
         int valueW = Math.max(1, rightLimitX - valueX);
 
-        int line = Math.max(10, font.lineHeight + 2);
-        int dividerX = x + labelColW + (COL_GAP / 2);
+        int line = Math.max(10, WildexUiText.lineHeight(font) + 2);
+        int dividerX = x + labelColW + (colGap / 2);
         int dividerStartY = y;
 
         WildexRightInfoRenderer.TooltipRequest tooltip = null;
@@ -334,6 +337,28 @@ final class WildexRightInfoStatsRenderer {
 
         return tooltip;
     }
+
+    private static int requiredLabelColumnWidth(Font font) {
+        int pad = Math.max(4, Math.round(4 * WildexUiScale.get()));
+        int max = 0;
+        for (String key : STAT_LABEL_KEYS) {
+            int w = WildexUiText.width(font, WildexRightInfoTabUtil.tr(key));
+            if (w > max) max = w;
+        }
+        return max + pad;
+    }
+
+    private static final String[] STAT_LABEL_KEYS = new String[] {
+            "gui.wildex.stats.health",
+            "gui.wildex.stats.armor",
+            "gui.wildex.stats.move_speed",
+            "gui.wildex.stats.attack_damage",
+            "gui.wildex.stats.follow_range",
+            "gui.wildex.stats.knockback_res",
+            "gui.wildex.stats.hitbox_width",
+            "gui.wildex.stats.hitbox_height",
+            "gui.wildex.stats.eye_height"
+    };
 
     private static boolean isHover(int mx, int my, int x, int y, int w, int h) {
         if (mx < 0 || my < 0) return false;
@@ -410,11 +435,13 @@ final class WildexRightInfoStatsRenderer {
             float scale
     ) {
         if (y >= maxY) return y;
+        int icon = scaledIconPx();
+        int iconGap = scaledIconGapPx();
 
         WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
         if (maxHealth.isEmpty()) {
-            g.drawString(font, "-", valueX, y, inkColor, false);
+            WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
@@ -425,10 +452,10 @@ final class WildexRightInfoStatsRenderer {
         int full = shownHp / 2;
         boolean half = (shownHp % 2) == 1;
 
-        int iconY = y - 1;
-        if (iconY + ICON >= maxY) return y + lineHeight;
+        int iconY = y + Math.max(0, (lineHeight - icon) / 2);
+        if (iconY + icon >= maxY) return y + lineHeight;
 
-        int per = ICON + ICON_GAP;
+        int per = icon + iconGap;
         int fitIcons = Math.max(0, valueW / per);
 
         int iconsWanted = Math.min(MAX_HEART_ICONS, full + (half ? 1 : 0));
@@ -438,28 +465,28 @@ final class WildexRightInfoStatsRenderer {
             String mult = "x" + String.format(Locale.ROOT, "%.1f", heartsTotal);
 
             if (fitIcons <= 0) {
-                g.drawString(font, WildexRightInfoTabUtil.clipToWidth(font, mult, Math.max(1, valueW)), valueX, y, inkColor, false);
+                WildexUiText.draw(g, font, WildexRightInfoTabUtil.clipToWidth(font, mult, Math.max(1, valueW)), valueX, y, inkColor, false);
                 return y + lineHeight;
             }
 
-            g.blitSprite(HEART_FULL, valueX, iconY, ICON, ICON);
+            g.blitSprite(HEART_FULL, valueX, iconY, icon, icon);
 
             int textX = valueX + per + 2;
             int maxTextW = Math.max(1, (valueX + valueW) - textX);
-            g.drawString(font, WildexRightInfoTabUtil.clipToWidth(font, mult, maxTextW), textX, y, inkColor, false);
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.clipToWidth(font, mult, maxTextW), textX, y, inkColor, false);
             return y + lineHeight;
         }
 
         for (int i = 0; i < full; i++) {
             int dx = valueX + i * per;
-            if (dx + ICON > valueX + valueW) break;
-            g.blitSprite(HEART_FULL, dx, iconY, ICON, ICON);
+            if (dx + icon > valueX + valueW) break;
+            g.blitSprite(HEART_FULL, dx, iconY, icon, icon);
         }
 
         if (half) {
             int dx = valueX + full * per;
-            if (dx + ICON <= valueX + valueW) {
-                g.blitSprite(HEART_HALF, dx, iconY, ICON, ICON);
+            if (dx + icon <= valueX + valueW) {
+                g.blitSprite(HEART_HALF, dx, iconY, icon, icon);
             }
         }
 
@@ -484,32 +511,34 @@ final class WildexRightInfoStatsRenderer {
             float scale
     ) {
         if (y >= maxY) return y;
+        int icon = scaledIconPx();
+        int iconGap = scaledIconGapPx();
 
         WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
         if (armor.isEmpty()) {
-            g.drawString(font, "-", valueX, y, inkColor, false);
+            WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
         int a = Math.max(0, (int) Math.round(armor.getAsDouble()));
         if (a <= 0) {
-            g.drawString(font, "-", valueX, y, inkColor, false);
+            WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
         int full = a / 2;
         boolean half = (a % 2) == 1;
 
-        int iconY = y - 1;
-        if (iconY + ICON >= maxY) return y + lineHeight;
+        int iconY = y + Math.max(0, (lineHeight - icon) / 2);
+        if (iconY + icon >= maxY) return y + lineHeight;
 
-        int per = ICON + ICON_GAP;
+        int per = icon + iconGap;
         int maxIconsFit = Math.max(0, valueW / per);
         int maxIconsToShow = Math.min(10, maxIconsFit);
 
         if (maxIconsToShow <= 0) {
-            g.drawString(font, Integer.toString(a), valueX, y, inkColor, false);
+            WildexUiText.draw(g, font, Integer.toString(a), valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
@@ -517,15 +546,15 @@ final class WildexRightInfoStatsRenderer {
         int fullToDraw = Math.min(full, maxIconsToShow);
         for (int i = 0; i < fullToDraw; i++) {
             int dx = valueX + i * per;
-            if (dx + ICON > valueX + valueW) break;
-            g.blitSprite(ARMOR_FULL, dx, iconY, ICON, ICON);
+            if (dx + icon > valueX + valueW) break;
+            g.blitSprite(ARMOR_FULL, dx, iconY, icon, icon);
             shown++;
         }
 
         if (half && shown < maxIconsToShow) {
             int dx = valueX + shown * per;
-            if (dx + ICON <= valueX + valueW) {
-                g.blitSprite(ARMOR_HALF, dx, iconY, ICON, ICON);
+            if (dx + icon <= valueX + valueW) {
+                g.blitSprite(ARMOR_HALF, dx, iconY, icon, icon);
                 shown++;
             }
         }
@@ -535,7 +564,7 @@ final class WildexRightInfoStatsRenderer {
             String extra = "(+" + (totalIcons - shown) + ")";
             int extraX = valueX + shown * per + 4;
             int maxTextW = Math.max(1, (valueX + valueW) - extraX);
-            g.drawString(font, WildexRightInfoTabUtil.clipToWidth(font, extra, maxTextW), extraX, y, inkColor, false);
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.clipToWidth(font, extra, maxTextW), extraX, y, inkColor, false);
         }
 
         return y + lineHeight;
@@ -564,8 +593,16 @@ final class WildexRightInfoStatsRenderer {
 
         int maxW = Math.max(1, rightLimitX - valueX);
         String clipped = WildexRightInfoTabUtil.clipToWidth(font, value, maxW);
-        g.drawString(font, clipped, valueX, y, inkColor, false);
+        WildexUiText.draw(g, font, clipped, valueX, y, inkColor, false);
         return y + lineHeight;
+    }
+
+    private static int scaledIconPx() {
+        return Math.max(6, Math.round(ICON * WildexUiScale.get()));
+    }
+
+    private static int scaledIconGapPx() {
+        return Math.max(1, Math.round(ICON_GAP * WildexUiScale.get()));
     }
 
     private static void cacheScrollbarRect(
@@ -616,3 +653,7 @@ final class WildexRightInfoStatsRenderer {
         return String.format(Locale.ROOT, "%.2f", v);
     }
 }
+
+
+
+

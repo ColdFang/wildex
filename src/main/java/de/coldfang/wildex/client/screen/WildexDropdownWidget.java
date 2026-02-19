@@ -117,9 +117,9 @@ public final class WildexDropdownWidget extends AbstractWidget {
         String text = selectedValue();
         if (text.isBlank()) text = emptyText;
         int tx = getX() + TEXT_PAD_X;
-        int ty = getY() + (getHeight() - font.lineHeight) / 2;
-        graphics.drawString(font, text, tx, ty, theme.ink(), false);
-        graphics.drawString(font, open ? (openUpwards ? "^" : "v") : ">", getX() + getWidth() - 8, ty, theme.ink(), false);
+        int ty = getY() + (getHeight() - WildexUiText.lineHeight(font)) / 2;
+        WildexUiText.draw(graphics, font, text, tx, ty, theme.ink(), false);
+        WildexUiText.draw(graphics, font, open ? (openUpwards ? "^" : "v") : ">", getX() + getWidth() - 8, ty, theme.ink(), false);
 
         if (!open || options.isEmpty()) return;
 
@@ -151,11 +151,11 @@ public final class WildexDropdownWidget extends AbstractWidget {
                 graphics.fill(listX + 1, ry, listX + listW - 1, ry + 1, theme.rowSeparator());
             }
 
-            int rty = ry + (rowH - font.lineHeight) / 2;
+            int rty = ry + (rowH - WildexUiText.lineHeight(font)) / 2;
             String rowText = options.get(optionIdx);
             int maxTextW = Math.max(8, textRight - (listX + TEXT_PAD_X));
             rowText = font.plainSubstrByWidth(rowText, maxTextW);
-            graphics.drawString(font, rowText, listX + TEXT_PAD_X, rty, theme.ink(), false);
+            WildexUiText.draw(graphics, font, rowText, listX + TEXT_PAD_X, rty, theme.ink(), false);
         }
 
         if (drawScrollbar) {
@@ -369,3 +369,6 @@ public final class WildexDropdownWidget extends AbstractWidget {
         g.fill(x1 - 2, y + 1, x1 - 1, y1 - 1, theme.frameInner());
     }
 }
+
+
+

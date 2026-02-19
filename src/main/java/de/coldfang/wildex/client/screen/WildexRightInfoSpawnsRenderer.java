@@ -131,15 +131,15 @@ final class WildexRightInfoSpawnsRenderer {
         int rightLimitX = area.x() + area.w() - WildexRightInfoRenderer.PAD_RIGHT;
         int maxY = area.y() + area.h() - WildexRightInfoRenderer.PAD_Y;
 
-        int filterH = Math.max(10, font.lineHeight + 4);
+        int filterH = Math.max(10, WildexUiText.lineHeight(font) + 4);
         int filterY = yTop;
-        int filterTextY = filterY + Math.max(0, (filterH - font.lineHeight) / 2) + 1;
+        int filterTextY = filterY + Math.max(0, (filterH - WildexUiText.lineHeight(font)) / 2) + 1;
 
         String biomeLabel = WildexRightInfoTabUtil.tr("gui.wildex.spawn.filter.biomes.short");
         String structureLabel = WildexRightInfoTabUtil.tr("gui.wildex.spawn.filter.structures.short");
 
-        int biomeW = font.width(biomeLabel) + (SPAWN_FILTER_PAD_X * 2);
-        int structureW = font.width(structureLabel) + (SPAWN_FILTER_PAD_X * 2);
+        int biomeW = WildexUiText.width(font, biomeLabel) + (SPAWN_FILTER_PAD_X * 2);
+        int structureW = WildexUiText.width(font, structureLabel) + (SPAWN_FILTER_PAD_X * 2);
 
         int filterX = area.x() + 2;
         int biomeX0 = filterX;
@@ -173,14 +173,14 @@ final class WildexRightInfoSpawnsRenderer {
         if (!structuresEnabled) structureSections = List.of();
 
         if (naturalSections.isEmpty() && structureSections.isEmpty()) {
-            g.drawString(font, WildexRightInfoTabUtil.tr("gui.wildex.spawn.none"), x, yTop, inkColor, false);
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.spawn.none"), x, yTop, inkColor, false);
             spawnHasScrollbar = false;
             spawnDraggingScrollbar = false;
             return hoverTip;
         }
 
-        int lineH = Math.max(10, font.lineHeight + SPAWN_LINE_GAP);
-        int titleH = Math.max(10, font.lineHeight + 3);
+        int lineH = Math.max(10, WildexUiText.lineHeight(font) + SPAWN_LINE_GAP);
+        int titleH = Math.max(10, WildexUiText.lineHeight(font) + 3);
 
         int contentH = 0;
         if (!naturalSections.isEmpty()) {
@@ -219,16 +219,16 @@ final class WildexRightInfoSpawnsRenderer {
         int contentSx1 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, area.x() + area.w());
         int contentSy1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, maxY);
 
-        g.enableScissor(contentSx0, contentSy0, contentSx1, contentSy1);
+        WildexScissor.enablePhysical(g, contentSx0, contentSy0, contentSx1, contentSy1);
         try {
             if (!naturalSections.isEmpty()) {
-                if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                if (y + WildexUiText.lineHeight(font) > yTop - lineH && y < maxY) {
                     drawSpawnHeading(g, font, x, y, rightLimitX, WildexRightInfoTabUtil.tr("gui.wildex.spawn.heading.natural"));
                 }
                 y += titleH;
 
                 for (S2CMobSpawnsPayload.DimSection s : naturalSections) {
-                    if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                    if (y + WildexUiText.lineHeight(font) > yTop - lineH && y < maxY) {
                         String title = formatDimensionTitle(s.dimensionId());
                         drawSpawnSubheading(g, font, title, x, y, rightLimitX, screenOriginX, screenOriginY, scale);
                     }
@@ -236,7 +236,7 @@ final class WildexRightInfoSpawnsRenderer {
 
                     List<ResourceLocation> biomes = s.biomeIds() == null ? List.of() : s.biomeIds();
                     for (ResourceLocation b : biomes) {
-                        if (y + font.lineHeight >= yTop - lineH && y < maxY) {
+                        if (y + WildexUiText.lineHeight(font) >= yTop - lineH && y < maxY) {
                             WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, b.toString(), x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale);
                         }
                         y += lineH;
@@ -247,13 +247,13 @@ final class WildexRightInfoSpawnsRenderer {
             if (!structureSections.isEmpty()) {
                 if (!naturalSections.isEmpty()) y += SPAWN_GROUP_GAP;
 
-                if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                if (y + WildexUiText.lineHeight(font) > yTop - lineH && y < maxY) {
                     drawSpawnHeading(g, font, x, y, rightLimitX, WildexRightInfoTabUtil.tr("gui.wildex.spawn.heading.structures"));
                 }
                 y += titleH;
 
                 for (S2CMobSpawnsPayload.StructureSection s : structureSections) {
-                    if (y + font.lineHeight > yTop - lineH && y < maxY) {
+                    if (y + WildexUiText.lineHeight(font) > yTop - lineH && y < maxY) {
                         WildexRightInfoTabUtil.drawMarqueeIfNeeded(
                                 g, font, formatStructureTitle(s.structureId()), x, y, textMaxW, inkColor, screenOriginX, screenOriginY, scale
                         );
@@ -321,7 +321,7 @@ final class WildexRightInfoSpawnsRenderer {
         g.fill(x0, y0, x0 + 1, y1, border);
         g.fill(x1 - 1, y0, x1, y1, border);
 
-        g.drawString(font, label, x0 + SPAWN_FILTER_PAD_X, textY, fg, false);
+        WildexUiText.draw(g, font, label, x0 + SPAWN_FILTER_PAD_X, textY, fg, false);
 
         if (!active) {
             int size = 5;
@@ -341,8 +341,8 @@ final class WildexRightInfoSpawnsRenderer {
         int headingColor = modern ? 0xFFEAF7FF : SPAWN_HEADING_COLOR;
         int ruleColor = modern ? 0x664FCBF3 : SPAWN_HEADING_RULE;
         int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
-        g.drawString(font, text, x, y, headingColor, false);
-        int ruleY = y + font.lineHeight + 1;
+        WildexUiText.draw(g, font, text, x, y, headingColor, false);
+        int ruleY = y + WildexUiText.lineHeight(font) + 1;
         if (ruleX1 > x + 8) g.fill(x, ruleY, ruleX1, ruleY + 1, ruleColor);
     }
 
@@ -363,7 +363,7 @@ final class WildexRightInfoSpawnsRenderer {
         int ruleColor = modern ? 0x554FCBF3 : SPAWN_SUBHEADING_RULE;
         int maxW = Math.max(1, (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) - x);
         WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, text, x, y, maxW, subColor, screenOriginX, screenOriginY, scale);
-        int ruleY = y + font.lineHeight + 1;
+        int ruleY = y + WildexUiText.lineHeight(font) + 1;
         int ruleX1 = rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD;
         if (ruleX1 > x + 8) g.fill(x, ruleY, ruleX1, ruleY + 1, ruleColor);
     }
@@ -445,3 +445,7 @@ final class WildexRightInfoSpawnsRenderer {
         return structureId.toString();
     }
 }
+
+
+
+

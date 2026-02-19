@@ -33,7 +33,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     private static final int DEBUG_CB_PAD = 6;
     private final Consumer<ResourceLocation> onSelect;
     private final Consumer<ResourceLocation> onDebugDiscover;
-
+    private final int itemHeightPx;
     private ResourceLocation selectedId;
 
     public MobListWidget(
@@ -42,14 +42,20 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int y,
             int w,
             int h,
+            int itemHeightPx,
             Consumer<ResourceLocation> onSelect,
             Consumer<ResourceLocation> onDebugDiscover
     ) {
-        super(mc, w, h, y, ITEM_H);
+        super(mc, w, h, y, Math.max(14, itemHeightPx));
+        this.itemHeightPx = Math.max(14, itemHeightPx);
         this.onSelect = onSelect == null ? id -> { } : onSelect;
         this.onDebugDiscover = onDebugDiscover == null ? id -> { } : onDebugDiscover;
         this.setX(x);
         this.setRenderHeader(false, 0);
+    }
+
+    public static int itemHeightForUiScale(float uiScale) {
+        return Math.max(14, Math.round(ITEM_H * WildexUiScale.clamp(uiScale)));
     }
 
     public void setEntries(List<EntityType<?>> types) {
@@ -129,6 +135,11 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     protected void renderSelection(@NotNull GuiGraphics graphics, int y, int rowWidth, int itemHeight, int borderColor, int innerColor) {
     }
 
+    @Override
+    protected void enableScissor(@NotNull GuiGraphics graphics) {
+        WildexScissor.enablePhysical(graphics, this.getX(), this.getY(), this.getRight(), this.getBottom());
+    }
+
     private void syncSelectedIdFromSelected() {
         Entry sel = this.getSelected();
         this.selectedId = sel == null ? null : sel.id;
@@ -139,12 +150,10 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     private static float resolveListTextScale() {
-        Minecraft mc = Minecraft.getInstance();
-        int opt = mc.options.guiScale().get();
-        int gui = opt == 0 ? Math.max(1, mc.getWindow().calculateScale(0, mc.isEnforceUnicode())) : opt;
-        if (gui >= 6) return 0.72f;
-        if (gui == 5) return 0.80f;
-        if (gui == 4) return 0.90f;
+        float s = WildexUiScale.get();
+        if (s <= 0.62f) return 0.72f;
+        if (s <= 0.74f) return 0.80f;
+        if (s <= 0.86f) return 0.90f;
         return 1.0f;
     }
 
@@ -232,7 +241,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int x1 = MobListWidget.this.getX() + MobListWidget.this.width - SCROLLBAR_W;
 
             int y1 = y + rowHeight;
-            int listTopClip = MobListWidget.this.getY() + 2; // keep clear under top divider line
+            int topClipPad = WildexThemes.isModernLayout() ? 4 : 2;
+            int listTopClip = MobListWidget.this.getY() + topClipPad; // keep clear under top divider line
             int listBottomClip = MobListWidget.this.getY() + MobListWidget.this.getHeight();
             int rowY0 = Math.max(y, listTopClip);
             int rowY1 = Math.min(y1, listBottomClip);
@@ -260,7 +270,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             int textX = x0 + TEXT_PAD_X;
             float textScale = resolveListTextScale();
-            int scaledLineH = Math.max(1, Math.round(MobListWidget.this.minecraft.font.lineHeight * textScale));
+            int scaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(MobListWidget.this.minecraft.font) * textScale));
             int textY = y + ((rowHeight - scaledLineH) / 2) + TEXT_NUDGE_Y;
 
             int clipX1 = x1 - textRightCut;
@@ -269,18 +279,18 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int availLogicalW = Math.max(1, Math.round(availW / Math.max(0.001f, textScale)));
 
             String s = discovered ? this.name.getString() : HIDDEN_LABEL;
-            int textW = MobListWidget.this.minecraft.font.width(s);
+            int textW = WildexUiText.width(MobListWidget.this.minecraft.font, s);
 
-            graphics.enableScissor(textX, rowY0, clipX1, rowY1);
+            WildexScissor.enablePhysical(graphics, textX, rowY0, clipX1, rowY1);
             try {
                 if (!selected || textW <= availLogicalW) {
                     if (textScale >= 0.999f) {
-                        graphics.drawString(MobListWidget.this.minecraft.font, s, textX, textY, color, false);
+                        WildexUiText.draw(graphics, MobListWidget.this.minecraft.font, s, textX, textY, color, false);
                     } else {
                         float inv = 1.0f / textScale;
                         graphics.pose().pushPose();
                         graphics.pose().scale(textScale, textScale, 1.0f);
-                        graphics.drawString(
+                        WildexUiText.draw(graphics, 
                                 MobListWidget.this.minecraft.font,
                                 s,
                                 Math.round(textX * inv),
@@ -297,12 +307,12 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
                     int baseX = textX - Math.round(off);
                     if (textScale >= 0.999f) {
-                        graphics.drawString(MobListWidget.this.minecraft.font, s, baseX, textY, color, false);
+                        WildexUiText.draw(graphics, MobListWidget.this.minecraft.font, s, baseX, textY, color, false);
                     } else {
                         float inv = 1.0f / textScale;
                         graphics.pose().pushPose();
                         graphics.pose().scale(textScale, textScale, 1.0f);
-                        graphics.drawString(
+                        WildexUiText.draw(graphics, 
                                 MobListWidget.this.minecraft.font,
                                 s,
                                 Math.round(baseX * inv),
@@ -355,3 +365,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         }
     }
 }
+
+
+
+

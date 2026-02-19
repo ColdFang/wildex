@@ -49,7 +49,7 @@ public final class WildexShareOverlayController {
     private final Supplier<String> selectedMobIdSupplier;
 
     private WildexStyleButton shareEntryButton;
-    private WildexPanelButton shareClaimPayoutsButton;
+    private WildexStyleButton shareClaimPayoutsButton;
     private WildexDiscoveredOnlyCheckbox shareOpenToOffersCheckbox;
     private WildexDropdownWidget sharePlayersDropdown;
     private WildexSearchBox sharePriceInput;
@@ -102,14 +102,18 @@ public final class WildexShareOverlayController {
         WildexScreenLayout.Area leftAction = layout.leftActionArea();
         int leftRefSize = Math.max(8, leftAction.h());
         int shareCheckboxSize = Math.max(12, leftRefSize);
-        int shareButtonH = styleButtonH;
-        int shareButtonW = styleButtonW;
-        int claimButtonW = Math.max(54, this.font.width(SHARE_CLAIM_PAYOUTS_LABEL) + 10);
+        int styleW = scaledStyleButtonW();
+        int styleH = scaledStyleButtonH();
+        int styleMargin = scaledStyleButtonMargin();
+        int styleYOffset = scaledStyleButtonYOffset();
+        int shareButtonH = styleH;
+        int shareButtonW = styleW;
+        int claimButtonW = shareButtonW;
         WildexScreenLayout.Area shareTopArea = layout.shareEntryButtonArea(
-                styleButtonW, styleButtonH, styleButtonMargin, styleButtonYOffset, shareButtonW, shareButtonH
+                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH
         );
         WildexScreenLayout.Area claimTopArea = layout.shareClaimButtonArea(
-                styleButtonW, styleButtonH, styleButtonMargin, styleButtonYOffset, shareButtonW, shareButtonH, claimButtonW
+                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH, claimButtonW
         );
 
         this.shareEntryButton = new WildexStyleButton(
@@ -139,13 +143,14 @@ public final class WildexShareOverlayController {
         );
         this.host.addShareWidget(this.shareEntryButton);
 
-        this.shareClaimPayoutsButton = new WildexPanelButton(
+        this.shareClaimPayoutsButton = new WildexStyleButton(
                 claimTopArea.x(),
                 claimTopArea.y(),
                 claimButtonW,
                 shareButtonH,
                 SHARE_CLAIM_PAYOUTS_LABEL,
-                WildexNetworkClient::claimSharePayouts
+                WildexNetworkClient::claimSharePayouts,
+                () -> new ItemStack(resolveShareCurrencyItem())
         );
         this.host.addShareWidget(this.shareClaimPayoutsButton);
 
@@ -153,7 +158,8 @@ public final class WildexShareOverlayController {
         float fitScale = Math.max(0.65f, Math.min(1.0f, panel.h() / 170.0f));
         float scaleNorm = Math.max(0.55f, resolveShareOverlayScale() * fitScale);
         int pad = Math.max(3, Math.round(8 * scaleNorm));
-        int rowH = Math.max(11, Math.round(18 * scaleNorm));
+        int rowTextMin = WildexUiText.lineHeight(font) + Math.max(6, Math.round(6 * scaleNorm));
+        int rowH = Math.max(rowTextMin, Math.round(20 * scaleNorm));
         int ddW = Math.max(80, panel.w() - (pad * 2) - 1);
 
         int offersCbX = panel.x() + pad;
@@ -175,20 +181,21 @@ public final class WildexShareOverlayController {
         int headingGap = Math.max(4, Math.round(12 * scaleNorm));
         int dropdownTopGap = Math.max(2, Math.round(6 * scaleNorm));
 
-        int sendH = Math.max(11, Math.round(18 * scaleNorm));
-        int sendY = panel.y() + panel.h() - pad - sendH;
-        int priceRowH = Math.max(11, Math.round(16 * scaleNorm));
+        int sendH = Math.max(rowTextMin, Math.round(20 * scaleNorm));
+        int sendBottomLift = Math.max(2, Math.round(4 * scaleNorm));
+        int sendY = panel.y() + panel.h() - pad - sendH - sendBottomLift;
+        int priceRowH = Math.max(WildexUiText.lineHeight(font) + Math.max(6, Math.round(6 * scaleNorm)), Math.round(18 * scaleNorm));
         int priceToSendGap = Math.max(2, Math.round(8 * scaleNorm));
         int priceY = sendY - priceToSendGap - priceRowH;
         int priceLabelGap = Math.max(1, Math.round(4 * scaleNorm));
-        int priceLabelY = priceY - this.font.lineHeight - priceLabelGap;
+        int priceLabelY = priceY - WildexUiText.lineHeight(font) - priceLabelGap;
 
         int headingY = offersCbY + shareCheckboxSize + dividerGap + headingGap;
         int minBetweenDropdownAndPriceLabel = Math.max(2, Math.round(8 * scaleNorm));
         int ddYMax = priceLabelY - minBetweenDropdownAndPriceLabel - rowH;
         int ddYMin = offersCbY + shareCheckboxSize + dividerGap + 1;
         int ddYFromPrice = priceLabelY - rowH - Math.max(2, Math.round(6 * scaleNorm));
-        int ddYWanted = Math.max(ddYMin, Math.max(ddYFromPrice, headingY + this.font.lineHeight + dropdownTopGap));
+        int ddYWanted = Math.max(ddYMin, Math.max(ddYFromPrice, headingY + WildexUiText.lineHeight(font) + dropdownTopGap));
         int ddY = Math.max(ddYMin, Math.min(ddYWanted, ddYMax));
 
         this.sharePlayersDropdown = new WildexDropdownWidget(panel.x() + pad, ddY, ddW, rowH);
@@ -217,7 +224,7 @@ public final class WildexShareOverlayController {
         this.sharePriceInput.setTextColorUneditable(theme.ink());
         this.sharePriceInput.setBordered(false);
         this.sharePriceInput.setTextShadow(false);
-        int textNudgeY = Math.max(1, (priceRowH - this.font.lineHeight) / 2);
+        int textNudgeY = Math.max(1, (priceRowH - WildexUiText.lineHeight(font)) / 2);
         this.sharePriceInput.setTextNudge(2, textNudgeY);
         this.sharePriceInput.setResponder(raw -> {
             if (raw == null) return;
@@ -377,20 +384,119 @@ public final class WildexShareOverlayController {
         if (layout == null || this.shareEntryButton == null || this.shareClaimPayoutsButton == null) return;
         if (!WildexClientConfigView.hiddenMode() || !WildexClientConfigView.shareOffersEnabled()) return;
 
-        int shareButtonH = this.shareEntryButton.getHeight();
-        int shareButtonW = this.shareEntryButton.getWidth();
-        int claimButtonW = this.shareClaimPayoutsButton.getWidth();
+        int styleW = scaledStyleButtonW();
+        int styleH = scaledStyleButtonH();
+        int styleMargin = scaledStyleButtonMargin();
+        int styleYOffset = scaledStyleButtonYOffset();
+        int shareButtonH = styleH;
+        int shareButtonW = styleW;
+        int claimButtonW = shareButtonW;
         WildexScreenLayout.Area shareTopArea = layout.shareEntryButtonArea(
-                styleButtonW, styleButtonH, styleButtonMargin, styleButtonYOffset, shareButtonW, shareButtonH
+                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH
         );
         WildexScreenLayout.Area claimTopArea = layout.shareClaimButtonArea(
-                styleButtonW, styleButtonH, styleButtonMargin, styleButtonYOffset, shareButtonW, shareButtonH, claimButtonW
+                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH, claimButtonW
         );
 
         this.shareEntryButton.setX(shareTopArea.x());
         this.shareEntryButton.setY(shareTopArea.y());
+        this.shareEntryButton.setWidth(shareButtonW);
+        this.shareEntryButton.setHeight(shareButtonH);
         this.shareClaimPayoutsButton.setX(claimTopArea.x());
         this.shareClaimPayoutsButton.setY(claimTopArea.y());
+        this.shareClaimPayoutsButton.setWidth(claimButtonW);
+        this.shareClaimPayoutsButton.setHeight(shareButtonH);
+    }
+
+    public void relayout(WildexScreenLayout layout) {
+        if (layout == null) return;
+        if (!WildexClientConfigView.hiddenMode() || !WildexClientConfigView.shareOffersEnabled()) return;
+        syncTopButtonsPosition(layout);
+
+        WildexScreenLayout.Area panel = layout.sharePanelArea();
+        WildexScreenLayout.Area leftAction = layout.leftActionArea();
+        int leftRefSize = Math.max(8, leftAction.h());
+        int shareCheckboxSize = Math.max(12, leftRefSize);
+
+        float fitScale = Math.max(0.65f, Math.min(1.0f, panel.h() / 170.0f));
+        float scaleNorm = Math.max(0.55f, resolveShareOverlayScale() * fitScale);
+        int pad = Math.max(3, Math.round(8 * scaleNorm));
+        int rowTextMin = WildexUiText.lineHeight(font) + Math.max(6, Math.round(6 * scaleNorm));
+        int rowH = Math.max(rowTextMin, Math.round(20 * scaleNorm));
+        int ddW = Math.max(80, panel.w() - (pad * 2) - 1);
+
+        int offersCbX = panel.x() + pad;
+        int offersCbY = panel.y() + pad;
+        if (this.shareOpenToOffersCheckbox != null) {
+            this.shareOpenToOffersCheckbox.setX(offersCbX);
+            this.shareOpenToOffersCheckbox.setY(offersCbY);
+            this.shareOpenToOffersCheckbox.setWidth(shareCheckboxSize);
+            this.shareOpenToOffersCheckbox.setHeight(shareCheckboxSize);
+        }
+
+        int dividerGap = Math.max(2, Math.round(6 * scaleNorm));
+        int headingGap = Math.max(4, Math.round(12 * scaleNorm));
+        int dropdownTopGap = Math.max(2, Math.round(6 * scaleNorm));
+
+        int sendH = Math.max(rowTextMin, Math.round(20 * scaleNorm));
+        int sendBottomLift = Math.max(2, Math.round(4 * scaleNorm));
+        int sendY = panel.y() + panel.h() - pad - sendH - sendBottomLift;
+        int priceRowH = Math.max(WildexUiText.lineHeight(font) + Math.max(6, Math.round(6 * scaleNorm)), Math.round(18 * scaleNorm));
+        int priceToSendGap = Math.max(2, Math.round(8 * scaleNorm));
+        int priceY = sendY - priceToSendGap - priceRowH;
+        int priceLabelGap = Math.max(1, Math.round(4 * scaleNorm));
+        int priceLabelY = priceY - WildexUiText.lineHeight(font) - priceLabelGap;
+
+        int headingY = offersCbY + shareCheckboxSize + dividerGap + headingGap;
+        int minBetweenDropdownAndPriceLabel = Math.max(2, Math.round(8 * scaleNorm));
+        int ddYMax = priceLabelY - minBetweenDropdownAndPriceLabel - rowH;
+        int ddYMin = offersCbY + shareCheckboxSize + dividerGap + 1;
+        int ddYFromPrice = priceLabelY - rowH - Math.max(2, Math.round(6 * scaleNorm));
+        int ddYWanted = Math.max(ddYMin, Math.max(ddYFromPrice, headingY + WildexUiText.lineHeight(font) + dropdownTopGap));
+        int ddY = Math.max(ddYMin, Math.min(ddYWanted, ddYMax));
+
+        if (this.sharePlayersDropdown != null) {
+            this.sharePlayersDropdown.setX(panel.x() + pad);
+            this.sharePlayersDropdown.setY(ddY);
+            this.sharePlayersDropdown.setWidth(ddW);
+            this.sharePlayersDropdown.setHeight(rowH);
+            int rowsFit = Math.max(3, Math.min(5, (priceLabelY - ddY - minBetweenDropdownAndPriceLabel) / rowH));
+            this.sharePlayersDropdown.setMaxVisibleRows(rowsFit);
+        }
+
+        int iconSize = Math.max(10, Math.round(12 * scaleNorm));
+        int iconGap = 3;
+        int priceW = Math.max(40, (ddW / 2) - iconSize - iconGap);
+        if (this.sharePriceInput != null) {
+            this.sharePriceInput.setX(panel.x() + pad);
+            this.sharePriceInput.setY(priceY);
+            this.sharePriceInput.setWidth(priceW);
+            this.sharePriceInput.setHeight(priceRowH);
+            int textNudgeY = Math.max(1, (priceRowH - WildexUiText.lineHeight(font)) / 2);
+            this.sharePriceInput.setTextNudge(2, textNudgeY);
+        }
+
+        if (this.shareSendOfferButton != null) {
+            this.shareSendOfferButton.setX(panel.x() + pad);
+            this.shareSendOfferButton.setY(sendY);
+            this.shareSendOfferButton.setWidth(ddW);
+            this.shareSendOfferButton.setHeight(sendH);
+        }
+
+        WildexScreenLayout.Area previewAreaForMargins = layout.rightPreviewArea();
+        WildexScreenLayout.Area previewReset = layout.previewResetButtonArea();
+        int closeSize = Math.max(10, previewReset.w());
+        int resetRightMargin = Math.max(0, (previewAreaForMargins.x() + previewAreaForMargins.w()) - (previewReset.x() + previewReset.w()));
+        int resetBottomMargin = Math.max(0, (previewAreaForMargins.y() + previewAreaForMargins.h()) - (previewReset.y() + previewReset.h()));
+        int closeX = (panel.x() + panel.w()) - closeSize - resetRightMargin;
+        int closeY = panel.y() + resetBottomMargin + (WildexThemes.isModernLayout() ? 5 : 0);
+
+        if (this.shareCloseOverlayButton != null) {
+            this.shareCloseOverlayButton.setX(closeX);
+            this.shareCloseOverlayButton.setY(closeY);
+            this.shareCloseOverlayButton.setWidth(closeSize);
+            this.shareCloseOverlayButton.setHeight(closeSize);
+        }
     }
 
     public boolean isPanelOpen() {
@@ -417,19 +523,26 @@ public final class WildexShareOverlayController {
         WildexUiTheme.Palette theme = WildexUiTheme.current();
         WildexScreenLayout.Area info = layout.rightInfoArea();
         int maxW = Math.max(20, info.w() - 16);
-        List<FormattedCharSequence> lines = this.font.split(SHARE_SINGLEPLAYER_NOTICE, maxW);
-        int totalH = lines.size() * this.font.lineHeight;
+        float textScale = WildexUiScale.get();
+        int logicalMaxW = Math.max(1, Math.round(maxW / Math.max(0.001f, textScale)));
+        List<FormattedCharSequence> lines = this.font.split(SHARE_SINGLEPLAYER_NOTICE, logicalMaxW);
+        int totalH = lines.size() * WildexUiText.lineHeight(font);
         int maxLineW = 0;
         for (FormattedCharSequence line : lines) {
-            maxLineW = Math.max(maxLineW, this.font.width(line));
+            maxLineW = Math.max(maxLineW, WildexUiText.width(font, line));
         }
 
         int x = info.x() + Math.max(4, (info.w() - maxLineW) / 2);
+        int maxX = info.x() + info.w() - maxLineW - 4;
+        if (x > maxX) x = maxX;
+        if (x < info.x() + 4) x = info.x() + 4;
         int y = info.y() + Math.max(4, (info.h() - totalH) / 2);
+        WildexScissor.enablePhysical(graphics, info.x() + 2, info.y() + 2, info.x() + info.w() - 2, info.y() + info.h() - 2);
         for (FormattedCharSequence line : lines) {
-            graphics.drawString(this.font, line, x, y, theme.ink(), false);
-            y += this.font.lineHeight;
+            WildexUiText.draw(graphics, this.font, line, x, y, theme.ink(), false);
+            y += WildexUiText.lineHeight(font);
         }
+        graphics.disableScissor();
     }
 
     public void renderPanel(GuiGraphics graphics, WildexScreenLayout layout) {
@@ -445,7 +558,7 @@ public final class WildexShareOverlayController {
         if (this.shareOpenToOffersCheckbox != null && this.shareOpenToOffersCheckbox.visible) {
             int lx = this.shareOpenToOffersCheckbox.getX() + this.shareOpenToOffersCheckbox.getWidth() + 5;
             int ly = this.shareOpenToOffersCheckbox.getY()
-                    + ((this.shareOpenToOffersCheckbox.getHeight() - this.font.lineHeight) / 2);
+                    + ((this.shareOpenToOffersCheckbox.getHeight() - WildexUiText.lineHeight(font)) / 2);
             int textRightLimit = panel.x() + panel.w() - pad;
             if (this.shareCloseOverlayButton != null && this.shareCloseOverlayButton.visible) {
                 textRightLimit = Math.min(textRightLimit, this.shareCloseOverlayButton.getX() - 4);
@@ -453,12 +566,12 @@ public final class WildexShareOverlayController {
             int maxLabelWidth = Math.max(0, textRightLimit - lx);
             if (maxLabelWidth > 0) {
                 String label = ellipsizeToWidth(SHARE_ACCEPT_OFFERS_LABEL.getString(), maxLabelWidth);
-                graphics.drawString(this.font, label, lx, ly, theme.ink(), false);
+                WildexUiText.draw(graphics, this.font, label, lx, ly, theme.ink(), false);
             }
 
             int lineY;
             if (this.sharePlayersDropdown != null && this.sharePlayersDropdown.visible) {
-                int headingY = this.sharePlayersDropdown.getY() - this.font.lineHeight - headingOffset;
+                int headingY = this.sharePlayersDropdown.getY() - WildexUiText.lineHeight(font) - headingOffset;
                 lineY = headingY - dividerOffset;
             } else {
                 lineY = this.shareOpenToOffersCheckbox.getY() + this.shareOpenToOffersCheckbox.getHeight() + 6;
@@ -470,30 +583,31 @@ public final class WildexShareOverlayController {
         }
 
         if (this.sharePlayersDropdown != null && this.sharePlayersDropdown.visible) {
-            int headingY = this.sharePlayersDropdown.getY() - this.font.lineHeight - headingOffset;
+            int headingY = this.sharePlayersDropdown.getY() - WildexUiText.lineHeight(font) - headingOffset;
             int minimumHeadingY = panel.y() + pad;
             if (headingY >= minimumHeadingY) {
-                graphics.drawString(this.font, SHARE_SEND_HEADING_LABEL, panel.x() + pad, headingY, theme.heading(), false);
+                WildexUiText.draw(graphics, this.font, SHARE_SEND_HEADING_LABEL, panel.x() + pad, headingY, theme.heading(), false);
             }
         }
 
         if (WildexClientConfigView.shareOffersPaymentEnabled()) {
             if (this.sharePriceInput != null) {
-                int priceLabelY = this.sharePriceInput.getY() - this.font.lineHeight - priceLabelOffset;
-                graphics.drawString(this.font, SHARE_PRICE_LABEL, this.sharePriceInput.getX(), priceLabelY, theme.ink(), false);
+                int priceLabelY = this.sharePriceInput.getY() - WildexUiText.lineHeight(font) - priceLabelOffset;
+                WildexUiText.draw(graphics, this.font, SHARE_PRICE_LABEL, this.sharePriceInput.getX(), priceLabelY, theme.ink(), false);
                 int iconX = this.sharePriceInput.getX() + this.sharePriceInput.getWidth() + 2;
-                int iconY = this.sharePriceInput.getY() + ((this.sharePriceInput.getHeight() - 16) / 2);
+                int iconSize = Math.max(10, Math.round(12 * scaleNorm));
+                int iconY = this.sharePriceInput.getY() + ((this.sharePriceInput.getHeight() - iconSize) / 2);
                 Item currency = resolveShareCurrencyItem();
-                graphics.renderItem(new ItemStack(currency), iconX, iconY);
+                drawScaledItem(graphics, new ItemStack(currency), iconX, iconY, iconSize);
                 int maxPrice = Math.max(0, WildexClientConfigView.shareOfferMaxPrice());
                 Component maxText = Component.translatable("gui.wildex.share.max_price", maxPrice);
-                int maxX = iconX + 18;
-                int maxY = this.sharePriceInput.getY() + ((this.sharePriceInput.getHeight() - this.font.lineHeight) / 2);
+                int maxX = iconX + iconSize + 2;
+                int maxY = this.sharePriceInput.getY() + ((this.sharePriceInput.getHeight() - WildexUiText.lineHeight(font)) / 2);
                 int textRightLimit = panel.x() + panel.w() - pad;
                 int maxTextW = Math.max(0, textRightLimit - maxX);
                 if (maxTextW > 0) {
                     String clipped = ellipsizeToWidth(maxText.getString(), maxTextW);
-                    graphics.drawString(this.font, clipped, maxX, maxY, theme.ink(), false);
+                    WildexUiText.draw(graphics, this.font, clipped, maxX, maxY, theme.ink(), false);
                 }
             }
         }
@@ -555,8 +669,13 @@ public final class WildexShareOverlayController {
         }
         if (this.shareClaimPayoutsButton != null) {
             boolean hasPayouts = WildexNetworkClient.pendingSharePayoutTotal() > 0;
-            this.shareClaimPayoutsButton.visible = enabled && hasPayouts;
-            this.shareClaimPayoutsButton.active = enabled && hasPayouts;
+            Minecraft mc = Minecraft.getInstance();
+            boolean singleplayerDebug = mc != null
+                    && mc.hasSingleplayerServer()
+                    && mc.getCurrentServer() == null
+                    && WildexClientConfigView.debugMode();
+            this.shareClaimPayoutsButton.visible = enabled && (hasPayouts || singleplayerDebug);
+            this.shareClaimPayoutsButton.active = enabled && (hasPayouts || singleplayerDebug);
         }
         if (this.shareOpenToOffersCheckbox != null) {
             this.shareOpenToOffersCheckbox.visible = panel && !notice;
@@ -599,9 +718,9 @@ public final class WildexShareOverlayController {
 
     private String ellipsizeToWidth(String raw, int maxWidth) {
         if (raw == null || raw.isEmpty() || maxWidth <= 0) return "";
-        if (this.font.width(raw) <= maxWidth) return raw;
+        if (WildexUiText.width(font, raw) <= maxWidth) return raw;
         String dots = "...";
-        int dotsWidth = this.font.width(dots);
+        int dotsWidth = WildexUiText.width(font, dots);
         if (dotsWidth >= maxWidth) return this.font.plainSubstrByWidth(raw, maxWidth);
         String head = this.font.plainSubstrByWidth(raw, maxWidth - dotsWidth);
         return head + dots;
@@ -617,12 +736,43 @@ public final class WildexShareOverlayController {
     }
 
     private static float resolveShareOverlayScale() {
-        Minecraft mc = Minecraft.getInstance();
-        int opt = mc.options.guiScale().get();
-        int gui = opt == 0 ? Math.max(1, mc.getWindow().calculateScale(0, mc.isEnforceUnicode())) : opt;
-        if (gui >= 6) return 0.72f;
-        if (gui == 5) return 0.80f;
-        if (gui == 4) return 0.90f;
-        return 1.0f;
+        float s = WildexUiScale.get();
+        if (s <= 1.00f) return 0.90f;
+        if (s <= 1.50f) return 1.05f;
+        if (s <= 2.00f) return 1.20f;
+        if (s <= 3.00f) return 1.35f;
+        return 1.50f;
+    }
+
+    private static void drawScaledItem(GuiGraphics graphics, ItemStack stack, int x, int y, int size) {
+        if (size == 16) {
+            graphics.renderItem(stack, x, y);
+            return;
+        }
+        float s = size / 16.0f;
+        graphics.pose().pushPose();
+        graphics.pose().translate(x, y, 0.0f);
+        graphics.pose().scale(s, s, 1.0f);
+        graphics.renderItem(stack, 0, 0);
+        graphics.pose().popPose();
+    }
+
+    private int scaledStyleButtonW() {
+        return Math.max(20, Math.round(this.styleButtonW * WildexUiScale.get()));
+    }
+
+    private int scaledStyleButtonH() {
+        return Math.max(10, Math.round(this.styleButtonH * WildexUiScale.get()));
+    }
+
+    private int scaledStyleButtonMargin() {
+        return Math.max(2, Math.round(this.styleButtonMargin * WildexUiScale.get()));
+    }
+
+    private int scaledStyleButtonYOffset() {
+        return Math.round(this.styleButtonYOffset * WildexUiScale.get());
     }
 }
+
+
+

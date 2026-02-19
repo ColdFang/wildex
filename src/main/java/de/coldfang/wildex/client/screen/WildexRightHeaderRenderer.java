@@ -67,7 +67,7 @@ public final class WildexRightHeaderRenderer {
         int lowerLineGap = compact ? 2 : 3;
         int nameToLowerGap = compact ? 4 : 6;
 
-        g.enableScissor(x0, y0, x1, y1);
+        WildexScissor.enablePhysical(g, x0, y0, x1, y1);
         try {
             g.pose().pushPose();
             g.pose().translate(x0, y0, 0);
@@ -86,7 +86,7 @@ public final class WildexRightHeaderRenderer {
             boolean modern = WildexThemes.isModernLayout();
             int nameColor = modern ? 0xFF000000 : 0xFFFFFFFF;
             int detailColor = modern ? 0xFFE6EEF7 : inkColor;
-            int nameScaledLineH = Math.max(1, Math.round(font.lineHeight * Math.max(1.0f, nameScale)));
+            int nameScaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * Math.max(1.0f, nameScale)));
             int bandTop = 0;
             int bandBottom = y + nameScaledLineH + 2;
             if (bandBottom > bandTop) {
@@ -162,21 +162,21 @@ public final class WildexRightHeaderRenderer {
 
     private static int drawLinePlainWithLabel(GuiGraphics g, Font font, int x, int y, int maxW, String leftLabel, Component value, int inkColor, int lineGap) {
         String left = leftLabel + " ";
-        int leftW = font.width(left);
+        int leftW = WildexUiText.width(font, left);
 
         String val = value == null ? "" : value.getString();
         int valMaxW = Math.max(1, maxW - leftW);
 
-        g.drawString(font, left, x, y, inkColor, false);
-        g.drawString(font, clipToWidth(font, val, valMaxW), x + leftW, y, inkColor, false);
+        WildexUiText.draw(g, font, left, x, y, inkColor, false);
+        WildexUiText.draw(g, font, clipToWidth(font, val, valMaxW), x + leftW, y, inkColor, false);
 
-        return y + Math.max(10, font.lineHeight + lineGap);
+        return y + Math.max(10, WildexUiText.lineHeight(font) + lineGap);
     }
 
     private static int drawValueOnlyLinePlain(GuiGraphics g, Font font, int x, int y, int maxW, Component value, int inkColor, int lineGap) {
         String val = value == null ? "" : value.getString();
-        g.drawString(font, clipToWidth(font, val, maxW), x, y, inkColor, false);
-        return y + Math.max(10, font.lineHeight + lineGap);
+        WildexUiText.draw(g, font, clipToWidth(font, val, maxW), x, y, inkColor, false);
+        return y + Math.max(10, WildexUiText.lineHeight(font) + lineGap);
     }
 
     private static int drawStyledValueMarquee(
@@ -195,17 +195,17 @@ public final class WildexRightHeaderRenderer {
             float textScale
     ) {
         float scaleFactor = Math.max(1.0f, textScale);
-        int scaledLineH = Math.max(1, Math.round(font.lineHeight * scaleFactor));
+        int scaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * scaleFactor));
         int lineStep = Math.max(10, scaledLineH + lineGap);
         Component styled = value == null ? Component.empty() : value;
         int maxWLogical = Math.max(1, (int) Math.floor(maxW / scaleFactor));
-        int w = font.width(styled);
+        int w = WildexUiText.width(font, styled);
 
         if (w <= maxWLogical) {
             g.pose().pushPose();
             g.pose().translate(x, y, 0.0f);
             g.pose().scale(scaleFactor, scaleFactor, 1.0f);
-            g.drawString(font, styled, 0, 0, inkColor, false);
+            WildexUiText.draw(g, font, styled, 0, 0, inkColor, false);
             g.pose().popPose();
             return y + lineStep;
         }
@@ -215,7 +215,7 @@ public final class WildexRightHeaderRenderer {
         int clipY0 = toScreenY(baseY, scale, y);
         int clipY1 = toScreenY(baseY, scale, y + scaledLineH + 1);
 
-        g.enableScissor(clipX0, clipY0, clipX1, clipY1);
+        WildexScissor.enablePhysical(g, clipX0, clipY0, clipX1, clipY1);
         try {
             int travel = (w - maxWLogical) + MARQUEE_GAP_PX;
             float off = marqueeOffset(System.currentTimeMillis(), travel, phase);
@@ -223,7 +223,7 @@ public final class WildexRightHeaderRenderer {
             g.pose().pushPose();
             g.pose().translate(x - dx, y, 0.0f);
             g.pose().scale(scaleFactor, scaleFactor, 1.0f);
-            g.drawString(font, styled, 0, 0, inkColor, false);
+            WildexUiText.draw(g, font, styled, 0, 0, inkColor, false);
             g.pose().popPose();
         } finally {
             g.disableScissor();
@@ -246,32 +246,32 @@ public final class WildexRightHeaderRenderer {
             int phase
     ) {
         String left = tr("gui.wildex.header.mod") + " ";
-        int leftW = font.width(left);
+        int leftW = WildexUiText.width(font, left);
 
         String val = value == null ? "" : value.getString();
-        int valW = font.width(val);
+        int valW = WildexUiText.width(font, val);
         int valMaxW = Math.max(1, maxW - leftW);
 
-        g.drawString(font, left, x, y, inkColor, false);
+        WildexUiText.draw(g, font, left, x, y, inkColor, false);
 
         int valX = x + leftW;
 
         if (valW <= valMaxW) {
-            g.drawString(font, val, valX, y, inkColor, false);
+            WildexUiText.draw(g, font, val, valX, y, inkColor, false);
             return;
         }
 
         int clipX0 = toScreenX(baseX, scale, valX);
         int clipX1 = toScreenX(baseX, scale, valX + valMaxW);
         int clipY0 = toScreenY(baseY, scale, y);
-        int clipY1 = toScreenY(baseY, scale, y + font.lineHeight + 1);
+        int clipY1 = toScreenY(baseY, scale, y + WildexUiText.lineHeight(font) + 1);
 
-        g.enableScissor(clipX0, clipY0, clipX1, clipY1);
+        WildexScissor.enablePhysical(g, clipX0, clipY0, clipX1, clipY1);
         try {
             int travel = (valW - valMaxW) + MARQUEE_GAP_PX;
             float off = marqueeOffset(System.currentTimeMillis(), travel, phase);
             int dx = Math.round(off);
-            g.drawString(font, val, valX - dx, y, inkColor, false);
+            WildexUiText.draw(g, font, val, valX - dx, y, inkColor, false);
         } finally {
             g.disableScissor();
         }
@@ -308,7 +308,7 @@ public final class WildexRightHeaderRenderer {
     }
 
     private static int lineStep(Font font, int lineGap) {
-        return Math.max(10, font.lineHeight + lineGap);
+        return Math.max(10, WildexUiText.lineHeight(font) + lineGap);
     }
 
     private static int drawDivider(GuiGraphics g, int x, int right, int yAfterLine, int yMax, int gapTop, int gapBottom) {
@@ -371,10 +371,10 @@ public final class WildexRightHeaderRenderer {
 
     private static String clipToWidth(Font font, String s, int maxW) {
         if (s == null || s.isEmpty()) return "";
-        if (font.width(s) <= maxW) return s;
+        if (WildexUiText.width(font, s) <= maxW) return s;
 
         String ell = "...";
-        int ellW = font.width(ell);
+        int ellW = WildexUiText.width(font, ell);
         if (ellW >= maxW) return "";
 
         int lo = 0;
@@ -382,9 +382,13 @@ public final class WildexRightHeaderRenderer {
         while (lo < hi) {
             int mid = (lo + hi + 1) >>> 1;
             String sub = s.substring(0, mid);
-            if (font.width(sub) + ellW <= maxW) lo = mid;
+            if (WildexUiText.width(font, sub) + ellW <= maxW) lo = mid;
             else hi = mid - 1;
         }
         return s.substring(0, lo) + ell;
     }
 }
+
+
+
+

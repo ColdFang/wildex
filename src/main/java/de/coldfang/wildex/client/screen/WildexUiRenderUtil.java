@@ -19,13 +19,13 @@ public final class WildexUiRenderUtil {
 
     public static void drawScaledText(GuiGraphics graphics, Font font, Component text, int x, int y, float scale, int color) {
         if (scale >= 0.999f) {
-            graphics.drawString(font, text, x, y, color, false);
+            WildexUiText.draw(graphics, font, text, x, y, color, false);
             return;
         }
         float inv = 1.0f / scale;
         graphics.pose().pushPose();
         graphics.pose().scale(scale, scale, 1.0f);
-        graphics.drawString(font, text, Math.round(x * inv), Math.round(y * inv), color, false);
+        WildexUiText.draw(graphics, font, text, Math.round(x * inv), Math.round(y * inv), color, false);
         graphics.pose().popPose();
     }
 
@@ -56,8 +56,8 @@ public final class WildexUiRenderUtil {
         if (wrapped.isEmpty()) return;
 
         int textW = 0;
-        for (FormattedCharSequence s : wrapped) textW = Math.max(textW, font.width(s));
-        int textH = wrapped.size() * font.lineHeight + Math.max(0, (wrapped.size() - 1) * TIP_LINE_GAP);
+        for (FormattedCharSequence s : wrapped) textW = Math.max(textW, WildexUiText.width(font, s));
+        int textH = wrapped.size() * WildexUiText.lineHeight(font) + Math.max(0, (wrapped.size() - 1) * TIP_LINE_GAP);
 
         int boxW = textW + TIP_PAD * 2;
         int boxH = textH + TIP_PAD * 2;
@@ -91,8 +91,8 @@ public final class WildexUiRenderUtil {
         int ty = y0 + TIP_PAD;
 
         for (FormattedCharSequence line : wrapped) {
-            g.drawString(font, line, tx, ty, theme.tooltipText(), false);
-            ty += font.lineHeight + TIP_LINE_GAP;
+            WildexUiText.draw(g, font, line, tx, ty, theme.tooltipText(), false);
+            ty += WildexUiText.lineHeight(font) + TIP_LINE_GAP;
         }
     }
 
@@ -216,3 +216,6 @@ public final class WildexUiRenderUtil {
         }
     }
 }
+
+
+

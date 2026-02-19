@@ -28,7 +28,6 @@ public final class WildexKeybinds {
             InputConstants.KEY_B,
             "key.categories.wildex"
     );
-
     private static boolean pendingOpen = false;
 
     private WildexKeybinds() {
@@ -43,18 +42,15 @@ public final class WildexKeybinds {
     public static void onKeyInput(InputEvent.Key event) {
         if (event == null) return;
 
-        if (!OPEN_WILDEX.consumeClick()) return;
-        pendingOpen = true;
+        if (OPEN_WILDEX.consumeClick()) pendingOpen = true;
     }
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         if (event == null) return;
 
-        if (!pendingOpen) return;
-
         Minecraft mc = Minecraft.getInstance();
-
+        if (!pendingOpen) return;
         pendingOpen = false;
 
         Player player = mc.player;
