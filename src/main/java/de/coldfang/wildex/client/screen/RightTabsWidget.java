@@ -1,7 +1,5 @@
 package de.coldfang.wildex.client.screen;
 
-import de.coldfang.wildex.config.ClientConfig;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -34,8 +32,8 @@ public final class RightTabsWidget extends AbstractWidget {
     @Override
     public void renderWidget(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         WildexUiTheme.Palette theme = WildexUiTheme.current();
-        boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
-        int dividerColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE
+        boolean modern = WildexThemes.isModernLayout();
+        int dividerColor = WildexThemes.isVintageLayout()
                 ? theme.rowSeparator()
                 : theme.frameInner();
         WildexTab[] tabs = WildexTab.values();

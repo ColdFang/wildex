@@ -1,8 +1,5 @@
 package de.coldfang.wildex.client.screen;
 
-import de.coldfang.wildex.config.ClientConfig;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
-
 public final class WildexUiTheme {
 
     private static final Palette VINTAGE = new Palette(
@@ -65,8 +62,15 @@ public final class WildexUiTheme {
     }
 
     public static Palette current() {
-        DesignStyle style = ClientConfig.INSTANCE.designStyle.get();
-        return style == DesignStyle.MODERN ? MODERN : VINTAGE;
+        return WildexThemes.current().palette();
+    }
+
+    static Palette vintagePalette() {
+        return VINTAGE;
+    }
+
+    static Palette modernPalette() {
+        return MODERN;
     }
 
     public record Palette(

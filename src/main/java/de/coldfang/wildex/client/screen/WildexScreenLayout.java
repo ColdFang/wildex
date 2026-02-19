@@ -1,6 +1,5 @@
 package de.coldfang.wildex.client.screen;
 
-import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 
 public final class WildexScreenLayout {
@@ -15,6 +14,9 @@ public final class WildexScreenLayout {
     private static final int PAGE_INSET_ALL_SIDES = 2;
     private static final int MODERN_PREVIEW_DECOUPLED_NUDGE_X = 4;
     private static final int MODERN_PREVIEW_DECOUPLED_NUDGE_Y = 1;
+    private static final int PREVIEW_HINT_PAD_X = 6;
+    private static final int PREVIEW_HINT_PAD_Y = 4;
+    private static final int MODERN_CONTROLS_EXTRA_SHIFT_X = 3;
 
     private static final Metrics MODERN = new Metrics(
             102, 79, 50, 9, 38,
@@ -46,6 +48,9 @@ public final class WildexScreenLayout {
             0, 0, 61, 2, 0, 0
     );
 
+    private final int screenWidth;
+    private final int screenHeight;
+    private final WildexTheme theme;
     private final float scale;
     private final float x;
     private final float y;
@@ -63,8 +68,13 @@ public final class WildexScreenLayout {
 
     private final Area rightPreviewArea;
     private final Area previewResetButtonArea;
+    private final Area sharePanelArea;
+    private final PreviewControlsHintAnchor previewControlsHintAnchor;
 
     private WildexScreenLayout(
+            int screenWidth,
+            int screenHeight,
+            WildexTheme theme,
             float scale,
             float x,
             float y,
@@ -77,8 +87,13 @@ public final class WildexScreenLayout {
             Area leftDiscoveryCounterArea,
             Area leftEntriesCounterArea,
             Area rightPreviewArea,
-            Area previewResetButtonArea
+            Area previewResetButtonArea,
+            Area sharePanelArea,
+            PreviewControlsHintAnchor previewControlsHintAnchor
     ) {
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
+        this.theme = theme;
         this.scale = scale;
         this.x = x;
         this.y = y;
@@ -96,11 +111,14 @@ public final class WildexScreenLayout {
 
         this.rightPreviewArea = rightPreviewArea;
         this.previewResetButtonArea = previewResetButtonArea;
+        this.sharePanelArea = sharePanelArea;
+        this.previewControlsHintAnchor = previewControlsHintAnchor;
     }
 
     public static WildexScreenLayout compute(int screenW, int screenH) {
-        DesignStyle style = ClientConfig.INSTANCE.designStyle.get();
-        Metrics m = metricsFor(style);
+        WildexTheme theme = WildexThemes.current();
+        DesignStyle profile = theme.layoutProfile();
+        Metrics m = metricsFor(profile);
         int safeW = Math.max(1, screenW);
         int safeH = Math.max(1, screenH - HOTBAR_SAFE_HEIGHT);
 
@@ -202,7 +220,7 @@ public final class WildexScreenLayout {
         int resetSize = Math.max(10, Math.round(m.previewResetBtnSize() * scale));
         int resetMargin = Math.max(2, Math.round(m.previewResetBtnMargin() * scale));
         int resetBelowGap = Math.max(1, Math.round(2 * scale));
-        int resetY = (style == DesignStyle.MODERN)
+        int resetY = (profile == DesignStyle.MODERN)
                 ? (preview.y() + preview.h()) + resetBelowGap - 2
                 : (preview.y() + preview.h()) - resetSize - resetMargin;
         Area previewReset = new Area(
@@ -248,7 +266,7 @@ public final class WildexScreenLayout {
         tabsArea = shiftY(tabsArea, rightShiftY);
         infoArea = shiftY(infoArea, rightShiftY);
 
-        if (style == DesignStyle.MODERN) {
+        if (profile == DesignStyle.MODERN) {
             preview = new Area(
                     preview.x() + MODERN_PREVIEW_DECOUPLED_NUDGE_X,
                     preview.y() + MODERN_PREVIEW_DECOUPLED_NUDGE_Y,
@@ -257,12 +275,17 @@ public final class WildexScreenLayout {
             );
         }
 
+        Area sharePanelArea = mergeRightPanelAreas(tabsArea, infoArea);
+        PreviewControlsHintAnchor previewHintAnchor = computePreviewControlsHintAnchor(profile, preview, previewReset);
+
         return new WildexScreenLayout(
+                screenW, screenH, theme,
                 scale, x, y,
                 leftContent, searchArea, actionArea,
                 headerArea, tabsArea, infoArea,
                 discoveredCounterArea, entriesCounterArea,
-                preview, previewReset
+                preview, previewReset,
+                sharePanelArea, previewHintAnchor
         );
     }
 
@@ -285,8 +308,34 @@ public final class WildexScreenLayout {
         return areaFromTex(baseX, baseY, scale, px, py, size, size);
     }
 
-    private static Metrics metricsFor(DesignStyle style) {
-        return style == DesignStyle.VINTAGE ? VINTAGE : MODERN;
+    private static Area mergeRightPanelAreas(Area tabsArea, Area infoArea) {
+        int x = tabsArea.x();
+        int y = tabsArea.y();
+        int w = Math.max(1, Math.max(tabsArea.w(), infoArea.w()));
+        int h = Math.max(1, (infoArea.y() + infoArea.h()) - y);
+        return new Area(x, y, w, h);
+    }
+
+    private static PreviewControlsHintAnchor computePreviewControlsHintAnchor(
+            DesignStyle profile,
+            Area previewArea,
+            Area previewResetArea
+    ) {
+        int x = previewArea.x() + PREVIEW_HINT_PAD_X;
+        if (profile == DesignStyle.MODERN) {
+            x = x - MODERN_PREVIEW_DECOUPLED_NUDGE_X + MODERN_CONTROLS_EXTRA_SHIFT_X;
+        }
+        int bottomY = (previewArea.y() + previewArea.h()) - PREVIEW_HINT_PAD_Y;
+        int rightBound = (previewArea.x() + previewArea.w()) - PREVIEW_HINT_PAD_X;
+        if (previewResetArea != null) {
+            rightBound = Math.min(rightBound, previewResetArea.x() - 2);
+        }
+        boolean alignCenterToReset = profile == DesignStyle.MODERN && previewResetArea != null;
+        return new PreviewControlsHintAnchor(x, bottomY, rightBound, alignCenterToReset);
+    }
+
+    private static Metrics metricsFor(DesignStyle profile) {
+        return profile == DesignStyle.VINTAGE ? VINTAGE : MODERN;
     }
 
     private static int clamp(int v, int min, int max) {
@@ -311,6 +360,18 @@ public final class WildexScreenLayout {
 
     private static int texToScreenY(float baseY, float scale, int texY) {
         return Math.round(baseY + (texY * scale));
+    }
+
+    public int screenWidth() {
+        return screenWidth;
+    }
+
+    public int screenHeight() {
+        return screenHeight;
+    }
+
+    public WildexTheme theme() {
+        return theme;
     }
 
     public float scale() {
@@ -365,7 +426,66 @@ public final class WildexScreenLayout {
         return previewResetButtonArea;
     }
 
+    public Area sharePanelArea() {
+        return sharePanelArea;
+    }
+
+    public PreviewControlsHintAnchor previewControlsHintAnchor() {
+        return previewControlsHintAnchor;
+    }
+
+    public Area styleButtonArea(int buttonW, int buttonH, int margin, int yOffset) {
+        int x = screenWidth - buttonW - margin;
+        int y = margin + yOffset;
+        return new Area(x, y, buttonW, buttonH);
+    }
+
+    public Area shareEntryButtonArea(
+            int styleButtonW,
+            int styleButtonH,
+            int margin,
+            int yOffset,
+            int shareButtonW,
+            int shareButtonH
+    ) {
+        int x = screenWidth - styleButtonW - margin;
+        int y = margin + yOffset + styleButtonH + 2;
+        return new Area(x, y, shareButtonW, shareButtonH);
+    }
+
+    public Area shareClaimButtonArea(
+            int styleButtonW,
+            int styleButtonH,
+            int margin,
+            int yOffset,
+            int shareButtonW,
+            int shareButtonH,
+            int claimButtonW
+    ) {
+        Area share = shareEntryButtonArea(styleButtonW, styleButtonH, margin, yOffset, shareButtonW, shareButtonH);
+        int x = share.x() + share.w() - claimButtonW;
+        int y = share.y() + share.h() + 2;
+        return new Area(x, y, claimButtonW, shareButtonH);
+    }
+
+    public Area versionLabelArea(
+            int styleButtonW,
+            int styleButtonH,
+            int margin,
+            int yOffset,
+            int scaledTextW,
+            int scaledTextH
+    ) {
+        Area style = styleButtonArea(styleButtonW, styleButtonH, margin, yOffset);
+        int x = style.x() + style.w() - scaledTextW;
+        int y = Math.max(0, style.y() - scaledTextH - 1);
+        return new Area(x, y, scaledTextW, scaledTextH);
+    }
+
     public record Area(int x, int y, int w, int h) {
+    }
+
+    public record PreviewControlsHintAnchor(int x, int bottomY, int rightBoundX, boolean alignCenterToResetButton) {
     }
 
     private record Metrics(

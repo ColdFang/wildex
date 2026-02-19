@@ -5,8 +5,6 @@ import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexHeaderData;
-import de.coldfang.wildex.config.ClientConfig;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -85,9 +83,9 @@ public final class WildexRightHeaderRenderer {
             Component emphasizedName = header.name() == null
                     ? Component.empty()
                     : header.name().copy();
-            boolean modern = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN;
+            boolean modern = WildexThemes.isModernLayout();
             int nameColor = modern ? 0xFF000000 : 0xFFFFFFFF;
-            int detailColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.MODERN ? 0xFFE6EEF7 : inkColor;
+            int detailColor = modern ? 0xFFE6EEF7 : inkColor;
             int nameScaledLineH = Math.max(1, Math.round(font.lineHeight * Math.max(1.0f, nameScale)));
             int bandTop = 0;
             int bandBottom = y + nameScaledLineH + 2;
@@ -96,7 +94,7 @@ public final class WildexRightHeaderRenderer {
                 int bx1 = Math.max(1, lw);
                 int by1 = Math.min(lh, bandBottom);
                 if (by1 > bandTop) {
-                    int cornerCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 3 : 0;
+                    int cornerCut = WildexThemes.isVintageLayout() ? 3 : 0;
                     int bandColor = modern ? 0xFF29E8F1 : WildexUiTheme.current().selectionBg();
                     fillTopRoundedBand(g, bx0, bx1, bandTop, by1, bandColor, cornerCut);
                 }
@@ -317,7 +315,7 @@ public final class WildexRightHeaderRenderer {
         int y = yAfterLine - gapTop;
         if (y + 1 >= yMax) return yAfterLine;
         WildexUiTheme.Palette theme = WildexUiTheme.current();
-        int dividerColor = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE
+        int dividerColor = WildexThemes.isVintageLayout()
                 ? theme.rowSeparator()
                 : theme.frameInner();
         g.fill(x, y, right, y + 1, dividerColor);

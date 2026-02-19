@@ -2,8 +2,6 @@ package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.WildexClientConfigView;
-import de.coldfang.wildex.config.ClientConfig;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -181,7 +179,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         graphics.fill(cbX, cbY, cbX + 1, cbY + DEBUG_CB_SIZE, theme.frameOuter());
         graphics.fill(cbX + DEBUG_CB_SIZE - 1, cbY, cbX + DEBUG_CB_SIZE, cbY + DEBUG_CB_SIZE, theme.frameOuter());
 
-        int plus = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? theme.ink() : theme.buttonInk();
+        int plus = WildexThemes.isVintageLayout() ? theme.ink() : theme.buttonInk();
         graphics.fill(cbX + 2, cbY + 4, cbX + DEBUG_CB_SIZE - 2, cbY + 5, plus);
         graphics.fill(cbX + 4, cbY + 2, cbX + 5, cbY + DEBUG_CB_SIZE - 2, plus);
     }

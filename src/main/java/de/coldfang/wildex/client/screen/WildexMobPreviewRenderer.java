@@ -4,7 +4,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.config.ClientConfig;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -142,7 +141,7 @@ public final class WildexMobPreviewRenderer {
         WildexScreenLayout.Area area = layout.rightPreviewArea();
         if (area == null) return;
 
-        boolean vintage = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE;
+        boolean vintage = WildexThemes.isVintageLayout();
         if (vintage) {
             drawFrame(graphics, area);
         }
@@ -276,7 +275,7 @@ public final class WildexMobPreviewRenderer {
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
-        int clipCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 0 : MODERN_PREVIEW_CLIP_CUT;
+        int clipCut = WildexThemes.isVintageLayout() ? 0 : MODERN_PREVIEW_CLIP_CUT;
         if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
         try {
             renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
@@ -448,7 +447,7 @@ public final class WildexMobPreviewRenderer {
         RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
 
-        int clipCut = ClientConfig.INSTANCE.designStyle.get() == DesignStyle.VINTAGE ? 0 : MODERN_PREVIEW_CLIP_CUT;
+        int clipCut = WildexThemes.isVintageLayout() ? 0 : MODERN_PREVIEW_CLIP_CUT;
         renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
             dispatcher.render(
                     dragon,

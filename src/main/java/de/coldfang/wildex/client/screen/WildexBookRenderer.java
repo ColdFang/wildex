@@ -1,7 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import de.coldfang.wildex.config.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
@@ -22,8 +21,7 @@ public final class WildexBookRenderer {
 
         Objects.hash(state, mouseX, mouseY, partialTick);
 
-        ResourceLocation tex =
-                WildexScreenTextures.background(ClientConfig.INSTANCE.designStyle.get());
+        ResourceLocation tex = WildexThemes.current().backgroundTexture();
 
         Minecraft.getInstance()
                 .getTextureManager()

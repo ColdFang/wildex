@@ -1,7 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.Wildex;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.resources.ResourceLocation;
 
 public final class WildexScreenTextures {
@@ -15,10 +14,11 @@ public final class WildexScreenTextures {
     private WildexScreenTextures() {
     }
 
-    public static ResourceLocation background(DesignStyle style) {
-        return switch (style) {
-            case MODERN -> MODERN;
-            case VINTAGE -> VINTAGE;
-        };
+    public static ResourceLocation vintage() {
+        return VINTAGE;
+    }
+
+    public static ResourceLocation modern() {
+        return MODERN;
     }
 }
