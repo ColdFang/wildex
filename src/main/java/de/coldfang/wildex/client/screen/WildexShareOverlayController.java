@@ -207,7 +207,7 @@ public final class WildexShareOverlayController {
             if (open) WildexNetworkClient.requestShareCandidates();
         });
 
-        int iconSize = Math.max(10, Math.round(12 * scaleNorm));
+        int iconSize = shareCurrencyIconSizePx();
         int iconGap = 3;
         int priceW = Math.max(40, (ddW / 2) - iconSize - iconGap);
         this.sharePriceInput = new WildexSearchBox(
@@ -464,7 +464,7 @@ public final class WildexShareOverlayController {
             this.sharePlayersDropdown.setMaxVisibleRows(rowsFit);
         }
 
-        int iconSize = Math.max(10, Math.round(12 * scaleNorm));
+        int iconSize = shareCurrencyIconSizePx();
         int iconGap = 3;
         int priceW = Math.max(40, (ddW / 2) - iconSize - iconGap);
         if (this.sharePriceInput != null) {
@@ -595,7 +595,7 @@ public final class WildexShareOverlayController {
                 int priceLabelY = this.sharePriceInput.getY() - WildexUiText.lineHeight(font) - priceLabelOffset;
                 WildexUiText.draw(graphics, this.font, SHARE_PRICE_LABEL, this.sharePriceInput.getX(), priceLabelY, theme.ink(), false);
                 int iconX = this.sharePriceInput.getX() + this.sharePriceInput.getWidth() + 2;
-                int iconSize = Math.max(10, Math.round(12 * scaleNorm));
+                int iconSize = shareCurrencyIconSizePx();
                 int iconY = this.sharePriceInput.getY() + ((this.sharePriceInput.getHeight() - iconSize) / 2);
                 Item currency = resolveShareCurrencyItem();
                 drawScaledItem(graphics, new ItemStack(currency), iconX, iconY, iconSize);
@@ -742,6 +742,10 @@ public final class WildexShareOverlayController {
         if (s <= 2.00f) return 1.20f;
         if (s <= 3.00f) return 1.35f;
         return 1.50f;
+    }
+
+    private static int shareCurrencyIconSizePx() {
+        return Math.max(10, Math.round(12 * WildexUiScale.get()));
     }
 
     private static void drawScaledItem(GuiGraphics graphics, ItemStack stack, int x, int y, int size) {

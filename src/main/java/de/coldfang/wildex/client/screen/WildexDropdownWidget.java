@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public final class WildexDropdownWidget extends AbstractWidget {
-    private static final int SCROLL_W = 6;
+    private static final int SCROLL_W = 8;
     private static final int SCROLL_MIN_THUMB_H = 10;
 
     private static final int TEXT_PAD_X = 5;

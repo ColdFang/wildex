@@ -16,7 +16,7 @@ final class WildexRightInfoLootRenderer {
     private static final int ITEM_ICON = 16;
     private static final int ITEM_GAP_X = 6;
     private static final int LOOT_ROW_H = 18;
-    private static final int SCROLLBAR_W = 6;
+    private static final int SCROLLBAR_W = 8;
     private static final int SCROLLBAR_PAD = 2;
     private static final int SCROLLBAR_BG = 0xFF000000;
     private static final int SCROLLBAR_THUMB = 0xFFB9B9B9;

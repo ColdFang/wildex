@@ -31,7 +31,7 @@ final class WildexRightInfoStatsRenderer {
     private static final int STATS_MIN_VALUE_COL_W = 48;
     private static final int DIVIDER = 0x22301E14;
 
-    private static final int SCROLLBAR_W = 6;
+    private static final int SCROLLBAR_W = 8;
     private static final int SCROLLBAR_BG = 0xFF000000;
     private static final int SCROLLBAR_THUMB = 0xFFB9B9B9;
     private static final int SCROLLBAR_SHOW_THRESHOLD_PX = 2;

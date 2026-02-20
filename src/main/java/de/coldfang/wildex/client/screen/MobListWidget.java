@@ -8,6 +8,7 @@ import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,7 +20,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     private static final int ITEM_H = 18;
 
-    private static final int SCROLLBAR_W = 6;
+    private static final int SCROLLBAR_W = 16;
     private static final int TEXT_PAD_X = 10;
     private static final int TEXT_NUDGE_Y = 1;
 
@@ -35,6 +36,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     private final Consumer<ResourceLocation> onDebugDiscover;
     private final int itemHeightPx;
     private ResourceLocation selectedId;
+    private boolean draggingScrollbar = false;
+    private int scrollbarDragOffsetY = 0;
 
     public MobListWidget(
             Minecraft mc,
@@ -124,6 +127,12 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     @Override
+    protected boolean scrollbarVisible() {
+        // We render and handle a custom, wider scrollbar ourselves.
+        return false;
+    }
+
+    @Override
     protected void renderListBackground(@NotNull GuiGraphics graphics) {
     }
 
@@ -138,6 +147,119 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     @Override
     protected void enableScissor(@NotNull GuiGraphics graphics) {
         WildexScissor.enablePhysical(graphics, this.getX(), this.getY(), this.getRight(), this.getBottom());
+    }
+
+    @Override
+    protected void updateScrollingState(double mouseX, double mouseY, int button) {
+        // Disable vanilla drag logic (hardcoded 6px scrollbar), custom logic handles this widget.
+    }
+
+    @Override
+    public void renderWidget(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.renderWidget(graphics, mouseX, mouseY, partialTick);
+        renderCustomScrollbar(graphics, mouseX, mouseY);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && hasCustomScrollbar() && isInScrollbar(mouseX, mouseY)) {
+            int my = (int) Math.floor(mouseY);
+            int thumbY = scrollbarThumbY();
+            int thumbH = scrollbarThumbHeight();
+            if (my >= thumbY && my < thumbY + thumbH) {
+                this.draggingScrollbar = true;
+                this.scrollbarDragOffsetY = my - thumbY;
+            } else {
+                setScrollFromThumbTop(my - (thumbH / 2));
+            }
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (button == 0 && this.draggingScrollbar) {
+            int my = (int) Math.floor(mouseY);
+            setScrollFromThumbTop(my - this.scrollbarDragOffsetY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0 && this.draggingScrollbar) {
+            this.draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void renderCustomScrollbar(@NotNull GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!hasCustomScrollbar()) {
+            this.draggingScrollbar = false;
+            return;
+        }
+
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+        int x0 = getScrollbarPosition();
+        int x1 = x0 + SCROLLBAR_W;
+        int y0 = this.getY();
+        int y1 = this.getBottom();
+        graphics.fill(x0, y0, x1, y1, theme.scrollTrack());
+
+        int thumbY = scrollbarThumbY();
+        int thumbH = scrollbarThumbHeight();
+        boolean hovered = isInScrollbar(mouseX, mouseY);
+        int thumbColor = hovered || this.draggingScrollbar ? brighten(theme.scrollThumb(), 20) : theme.scrollThumb();
+        graphics.fill(x0, thumbY, x1, thumbY + thumbH, thumbColor);
+    }
+
+    private boolean hasCustomScrollbar() {
+        return this.getMaxScroll() > 0;
+    }
+
+    private boolean isInScrollbar(double mouseX, double mouseY) {
+        int x0 = getScrollbarPosition();
+        int x1 = x0 + SCROLLBAR_W;
+        int y0 = this.getY();
+        int y1 = this.getBottom();
+        return mouseX >= x0 && mouseX < x1 && mouseY >= y0 && mouseY < y1;
+    }
+
+    private int scrollbarThumbHeight() {
+        int h = this.getHeight();
+        int thumbH = Mth.clamp((int) ((float) (h * h) / (float) this.getMaxPosition()), 12, Math.max(12, h - 8));
+        return Math.max(12, Math.min(h, thumbH));
+    }
+
+    private int scrollbarThumbY() {
+        int maxScroll = this.getMaxScroll();
+        int y0 = this.getY();
+        if (maxScroll <= 0) return y0;
+        int thumbH = scrollbarThumbHeight();
+        int travel = Math.max(1, this.getHeight() - thumbH);
+        float t = (float) this.getScrollAmount() / (float) maxScroll;
+        return y0 + Math.round(travel * t);
+    }
+
+    private void setScrollFromThumbTop(int desiredThumbTop) {
+        int thumbH = scrollbarThumbHeight();
+        int y0 = this.getY();
+        int y1 = this.getBottom();
+        int clampedTop = Mth.clamp(desiredThumbTop, y0, y1 - thumbH);
+        int travel = Math.max(1, (y1 - y0) - thumbH);
+        float t = (clampedTop - y0) / (float) travel;
+        this.setScrollAmount(t * this.getMaxScroll());
+    }
+
+    private static int brighten(int argb, int delta) {
+        int a = (argb >>> 24) & 0xFF;
+        int r = Math.min(255, ((argb >>> 16) & 0xFF) + delta);
+        int g = Math.min(255, ((argb >>> 8) & 0xFF) + delta);
+        int b = Math.min(255, (argb & 0xFF) + delta);
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     private void syncSelectedIdFromSelected() {

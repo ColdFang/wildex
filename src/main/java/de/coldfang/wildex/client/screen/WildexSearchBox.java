@@ -68,25 +68,39 @@ public final class WildexSearchBox extends EditBox {
     }
 
     private static float resolveTextScale() {
-        float s = WildexUiScale.get();
-        if (s <= 1.0f) return 1.0f;
-        if (s >= 2.0f) return 2.0f;
-        return s;
+        return Math.max(1.0f, WildexUiScale.get());
     }
 
     private static void drawFrame(GuiGraphics g, int x0, int y0, int x1, int y1) {
         WildexUiTheme.Palette theme = WildexUiTheme.current();
-        g.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, theme.frameBg());
+        int outer = WildexThemes.isVintageLayout() ? 3 : 1;
+        int inner = 1;
+        int inset = outer + inner;
 
-        g.fill(x0, y0, x1, y0 + 1, theme.frameOuter());
-        g.fill(x0, y1 - 1, x1, y1, theme.frameOuter());
-        g.fill(x0, y0, x0 + 1, y1, theme.frameOuter());
-        g.fill(x1 - 1, y0, x1, y1, theme.frameOuter());
+        g.fill(x0 + inset, y0 + inset, x1 - inset, y1 - inset, theme.frameBg());
 
-        g.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, theme.frameInner());
-        g.fill(x0 + 1, y1 - 2, x1 - 1, y1 - 1, theme.frameInner());
-        g.fill(x0 + 1, y0 + 1, x0 + 2, y1 - 1, theme.frameInner());
-        g.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, theme.frameInner());
+        for (int i = 0; i < outer; i++) {
+            int ox0 = x0 + i;
+            int oy0 = y0 + i;
+            int ox1 = x1 - i;
+            int oy1 = y1 - i;
+            g.fill(ox0, oy0, ox1, oy0 + 1, theme.frameOuter());
+            g.fill(ox0, oy1 - 1, ox1, oy1, theme.frameOuter());
+            g.fill(ox0, oy0, ox0 + 1, oy1, theme.frameOuter());
+            g.fill(ox1 - 1, oy0, ox1, oy1, theme.frameOuter());
+        }
+
+        for (int i = 0; i < inner; i++) {
+            int ii = outer + i;
+            int ix0 = x0 + ii;
+            int iy0 = y0 + ii;
+            int ix1 = x1 - ii;
+            int iy1 = y1 - ii;
+            g.fill(ix0, iy0, ix1, iy0 + 1, theme.frameInner());
+            g.fill(ix0, iy1 - 1, ix1, iy1, theme.frameInner());
+            g.fill(ix0, iy0, ix0 + 1, iy1, theme.frameInner());
+            g.fill(ix1 - 1, iy0, ix1, iy1, theme.frameInner());
+        }
     }
 }
 

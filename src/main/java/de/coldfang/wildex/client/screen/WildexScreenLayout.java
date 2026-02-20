@@ -19,6 +19,7 @@ public final class WildexScreenLayout {
     private static final int PREVIEW_HINT_PAD_X = 6;
     private static final int PREVIEW_HINT_PAD_Y = 4;
     private static final int MODERN_CONTROLS_EXTRA_SHIFT_X = 3;
+    private static final int SHARE_PANEL_BOTTOM_TRIM = 8;
 
     private static final Metrics MODERN = new Metrics(
             102, 79, 50, 9, 38,
@@ -27,7 +28,7 @@ public final class WildexScreenLayout {
             35, 38, 0,
             0,
             true,
-            16, 22, 6, 0, 0,
+            20, 22, 6, 0, 0,
             16, -4, 0,
             144, 0.95f, 79 + 25, 16, -34,
             14, 4, 3, 9, 26,
@@ -42,11 +43,11 @@ public final class WildexScreenLayout {
             30, 2, 5,
             -15,
             false,
-            16, 22, 6, 0, 0,
+            20, 22, 6, 0, 0,
             -15, 0, 0,
-            150, 0.95f, 79 + 25, -2, 2,
+            150, 0.95f, 79 + 25, -2, 7,
             14, 4, 10, 0, 0,
-            10, 24, 0, 0,
+            10, 24, 0, 10,
             0, 0, 61, 2, 0, 0
     );
 
@@ -250,6 +251,9 @@ public final class WildexScreenLayout {
         int tabsH = Math.max(1, Math.round(m.rightTabsHeight() * scale));
         int tabsX = rightContentX + Math.round(m.rightTabsShiftX() * scale);
         int tabsY = (preview.y() + preview.h() + sectionGapY) + Math.round(m.rightTabsShiftY() * scale);
+        int tabsTopExpand = Math.max(1, Math.round(2.0f * scale));
+        tabsY -= tabsTopExpand;
+        tabsH += tabsTopExpand;
 
         int previewRight = preview.x() + preview.w();
         int tabsW = Math.max(1, previewRight - tabsX - Math.max(0, Math.round(m.rightTabsRightCut() * scale)));
@@ -318,7 +322,7 @@ public final class WildexScreenLayout {
         int x = tabsArea.x();
         int y = tabsArea.y();
         int w = Math.max(1, Math.max(tabsArea.w(), infoArea.w()));
-        int h = Math.max(1, (infoArea.y() + infoArea.h()) - y);
+        int h = Math.max(1, (infoArea.y() + infoArea.h()) - y - SHARE_PANEL_BOTTOM_TRIM);
         return new Area(x, y, w, h);
     }
 
@@ -544,6 +548,7 @@ public final class WildexScreenLayout {
     ) {
     }
 }
+
 
 
 

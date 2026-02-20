@@ -506,27 +506,7 @@ public final class WildexMobPreviewRenderer {
     }
 
     private static void drawFrame(GuiGraphics graphics, WildexScreenLayout.Area a) {
-        WildexUiTheme.Palette theme = WildexUiTheme.current();
-        int x0 = a.x();
-        int y0 = a.y();
-        int x1 = a.x() + a.w();
-        int y1 = a.y() + a.h();
-        int c = PREVIEW_CORNER_CUT;
-
-        graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, theme.frameBg());
-
-        graphics.fill(x0 + c, y0, x1 - c, y0 + 1, theme.frameOuter());
-        graphics.fill(x0 + c, y1 - 1, x1 - c, y1, theme.frameOuter());
-        graphics.fill(x0, y0 + c, x0 + 1, y1 - c, theme.frameOuter());
-        graphics.fill(x1 - 1, y0 + c, x1, y1 - c, theme.frameOuter());
-
-        graphics.fill(x0 + c, y0 + 1, x1 - c, y0 + 2, theme.frameInner());
-        graphics.fill(x0 + c, y1 - 2, x1 - c, y1 - 1, theme.frameInner());
-        graphics.fill(x0 + 1, y0 + c, x0 + 2, y1 - c, theme.frameInner());
-        graphics.fill(x1 - 2, y0 + c, x1 - 1, y1 - c, theme.frameInner());
-
-        drawCornerChamfers(graphics, x0, y0, x1, y1, c, theme.frameOuter());
-        drawCornerChamfers(graphics, x0 + 1, y0 + 1, x1 - 1, y1 - 1, Math.max(1, c - 1), theme.frameInner());
+        WildexUiRenderUtil.drawRoundedPanelFrame(graphics, a, WildexUiTheme.current(), PREVIEW_CORNER_CUT, 3, 1);
     }
 
     private static void drawFrameOverlay(GuiGraphics graphics, WildexScreenLayout.Area a) {
@@ -596,28 +576,6 @@ public final class WildexMobPreviewRenderer {
             } finally {
                 graphics.disableScissor();
             }
-        }
-    }
-
-    private static void drawCornerChamfers(
-            GuiGraphics graphics,
-            int x0,
-            int y0,
-            int x1,
-            int y1,
-            int cut,
-            int color
-    ) {
-        if (cut <= 0) return;
-        for (int i = 0; i < cut; i++) {
-            int l = x0 + (cut - 1 - i);
-            int r = x1 - (cut - i);
-            int t = y0 + i;
-            int b = y1 - 1 - i;
-            graphics.fill(l, t, l + 1, t + 1, color);
-            graphics.fill(r, t, r + 1, t + 1, color);
-            graphics.fill(l, b, l + 1, b + 1, color);
-            graphics.fill(r, b, r + 1, b + 1, color);
         }
     }
 

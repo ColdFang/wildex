@@ -97,24 +97,35 @@ public final class WildexUiRenderUtil {
     }
 
     public static void drawPanelFrame(GuiGraphics graphics, WildexScreenLayout.Area a, WildexUiTheme.Palette theme) {
+        drawPanelFrame(graphics, a, theme, 1, 1);
+    }
+
+    public static void drawPanelFrame(
+            GuiGraphics graphics,
+            WildexScreenLayout.Area a,
+            WildexUiTheme.Palette theme,
+            int outerThickness,
+            int innerThickness
+    ) {
         if (a == null) return;
+        int outer = Math.max(1, outerThickness);
+        int inner = Math.max(0, innerThickness);
 
         int x0 = a.x();
         int y0 = a.y();
         int x1 = a.x() + a.w();
         int y1 = a.y() + a.h();
+        int inset = outer + inner;
 
-        graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, theme.frameBg());
+        graphics.fill(x0 + inset, y0 + inset, x1 - inset, y1 - inset, theme.frameBg());
 
-        graphics.fill(x0, y0, x1, y0 + 1, theme.frameOuter());
-        graphics.fill(x0, y1 - 1, x1, y1, theme.frameOuter());
-        graphics.fill(x0, y0, x0 + 1, y1, theme.frameOuter());
-        graphics.fill(x1 - 1, y0, x1, y1, theme.frameOuter());
+        for (int i = 0; i < outer; i++) {
+            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, i, theme.frameOuter());
+        }
 
-        graphics.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, theme.frameInner());
-        graphics.fill(x0 + 1, y1 - 2, x1 - 1, y1 - 1, theme.frameInner());
-        graphics.fill(x0 + 1, y0 + 1, x0 + 2, y1 - 1, theme.frameInner());
-        graphics.fill(x1 - 2, y0 + 1, x1 - 1, y1 - 1, theme.frameInner());
+        for (int i = 0; i < inner; i++) {
+            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, outer + i, theme.frameInner());
+        }
     }
 
     public static void drawRoundedPanelFrame(
@@ -123,27 +134,86 @@ public final class WildexUiRenderUtil {
             WildexUiTheme.Palette theme,
             int cornerCut
     ) {
+        drawRoundedPanelFrame(graphics, a, theme, cornerCut, 1, 1);
+    }
+
+    public static void drawRoundedPanelFrame(
+            GuiGraphics graphics,
+            WildexScreenLayout.Area a,
+            WildexUiTheme.Palette theme,
+            int cornerCut,
+            int outerThickness,
+            int innerThickness
+    ) {
         if (a == null) return;
+        int outer = Math.max(1, outerThickness);
+        int inner = Math.max(0, innerThickness);
         int x0 = a.x();
         int y0 = a.y();
         int x1 = a.x() + a.w();
         int y1 = a.y() + a.h();
         int c = Math.max(1, cornerCut);
+        int inset = outer + inner;
 
-        graphics.fill(x0 + 2, y0 + 2, x1 - 2, y1 - 2, theme.frameBg());
+        graphics.fill(x0 + inset, y0 + inset, x1 - inset, y1 - inset, theme.frameBg());
 
-        graphics.fill(x0 + c, y0, x1 - c, y0 + 1, theme.frameOuter());
-        graphics.fill(x0 + c, y1 - 1, x1 - c, y1, theme.frameOuter());
-        graphics.fill(x0, y0 + c, x0 + 1, y1 - c, theme.frameOuter());
-        graphics.fill(x1 - 1, y0 + c, x1, y1 - c, theme.frameOuter());
+        for (int i = 0; i < outer; i++) {
+            int cut = Math.max(0, c - i);
+            drawRoundedPerimeterLayer(graphics, x0, y0, x1, y1, i, cut, theme.frameOuter());
+        }
 
-        graphics.fill(x0 + c, y0 + 1, x1 - c, y0 + 2, theme.frameInner());
-        graphics.fill(x0 + c, y1 - 2, x1 - c, y1 - 1, theme.frameInner());
-        graphics.fill(x0 + 1, y0 + c, x0 + 2, y1 - c, theme.frameInner());
-        graphics.fill(x1 - 2, y0 + c, x1 - 1, y1 - c, theme.frameInner());
+        for (int i = 0; i < inner; i++) {
+            int off = outer + i;
+            int cut = Math.max(0, c - off);
+            drawRoundedPerimeterLayer(graphics, x0, y0, x1, y1, off, cut, theme.frameInner());
+        }
+    }
 
-        drawFrameCornerChamfers(graphics, x0, y0, x1, y1, c, theme.frameOuter());
-        drawFrameCornerChamfers(graphics, x0 + 1, y0 + 1, x1 - 1, y1 - 1, Math.max(1, c - 1), theme.frameInner());
+    private static void drawRectPerimeterLayer(
+            GuiGraphics graphics,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            int inset,
+            int color
+    ) {
+        int lx0 = x0 + inset;
+        int ly0 = y0 + inset;
+        int lx1 = x1 - inset;
+        int ly1 = y1 - inset;
+        if (lx1 - lx0 <= 0 || ly1 - ly0 <= 0) return;
+
+        graphics.fill(lx0, ly0, lx1, ly0 + 1, color);
+        graphics.fill(lx0, ly1 - 1, lx1, ly1, color);
+        graphics.fill(lx0, ly0, lx0 + 1, ly1, color);
+        graphics.fill(lx1 - 1, ly0, lx1, ly1, color);
+    }
+
+    private static void drawRoundedPerimeterLayer(
+            GuiGraphics graphics,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            int inset,
+            int cornerCut,
+            int color
+    ) {
+        int lx0 = x0 + inset;
+        int ly0 = y0 + inset;
+        int lx1 = x1 - inset;
+        int ly1 = y1 - inset;
+        int cut = Math.max(0, cornerCut);
+        if (lx1 - lx0 <= 0 || ly1 - ly0 <= 0) return;
+
+        graphics.fill(lx0 + cut, ly0, lx1 - cut, ly0 + 1, color);
+        graphics.fill(lx0 + cut, ly1 - 1, lx1 - cut, ly1, color);
+        graphics.fill(lx0, ly0 + cut, lx0 + 1, ly1 - cut, color);
+        graphics.fill(lx1 - 1, ly0 + cut, lx1, ly1 - cut, color);
+        if (cut > 0) {
+            drawFrameCornerChamfers(graphics, lx0, ly0, lx1, ly1, cut, color);
+        }
     }
 
     public static void drawDockedTrophyFrame(

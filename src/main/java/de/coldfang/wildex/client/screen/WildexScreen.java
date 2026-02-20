@@ -178,6 +178,7 @@ public final class WildexScreen extends Screen {
         this.searchBox.setTextColorUneditable(theme.ink());
         this.searchBox.setBordered(false);
         this.searchBox.setTextShadow(false);
+        applySearchBoxTextNudge();
 
         this.addRenderableWidget(this.searchBox);
 
@@ -667,6 +668,9 @@ public final class WildexScreen extends Screen {
 
             int discX = discArea.x();
             int discY = discArea.y() + ((discArea.h() - discTextH) / 2) + Math.max(1, Math.round(2 * WildexUiScale.get()));
+            if (WildexThemes.isVintageLayout()) {
+                discY += Math.max(1, Math.round(4 * this.layout.scale()));
+            }
             WildexUiRenderUtil.drawScaledText(graphics, this.font, discText, discX, discY, discScale, theme.ink());
         }
 
@@ -677,21 +681,34 @@ public final class WildexScreen extends Screen {
 
         boolean showShareNotice = this.shareOverlay != null && this.shareOverlay.shouldShowNotice();
         boolean showSharePanel = this.shareOverlay != null && this.shareOverlay.isPanelVisible();
+        boolean vintageLayout = WildexThemes.isVintageLayout();
         if (showSharePanel) {
-            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.sharePanelArea(), theme);
+            if (vintageLayout) {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.sharePanelArea(), theme, 2, 1);
+            } else {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.sharePanelArea(), theme);
+            }
             renderSharePanel(graphics);
         } else if (showShareNotice) {
-            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
+            if (vintageLayout) {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme, 3, 1);
+            } else {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
+            }
             renderShareSingleplayerNotice(graphics);
         } else {
-            WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
+            if (vintageLayout) {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme, 3, 1);
+            } else {
+                WildexUiRenderUtil.drawPanelFrame(graphics, this.layout.rightTabsArea(), theme);
+            }
         }
 
         WildexMobData data = mobDataResolver.resolve(state.selectedMobId());
 
         rightHeaderRenderer.render(graphics, this.font, this.layout.rightHeaderArea(), state, data.header(), theme.ink());
-        if (WildexThemes.isVintageLayout()) {
-            WildexUiRenderUtil.drawRoundedPanelFrame(graphics, this.layout.rightHeaderArea(), theme, 3);
+        if (vintageLayout) {
+            WildexUiRenderUtil.drawRoundedPanelFrame(graphics, this.layout.rightHeaderArea(), theme, 3, 3, 1);
         }
 
         if (!showSharePanel && !showShareNotice) {
@@ -754,7 +771,7 @@ public final class WildexScreen extends Screen {
         if (this.mobList == null || !this.mobList.visible) return;
         WildexUiTheme.Palette theme = WildexUiTheme.current();
         int x0 = this.mobList.getX();
-        int x1 = x0 + this.mobList.getWidth() - 6; // keep aligned with list content area (excluding scrollbar)
+        int x1 = x0 + this.mobList.getRowWidth(); // keep aligned with list content area (excluding scrollbar)
         int y = this.mobList.getY();
         if (x1 <= x0) return;
         graphics.fill(x0, y, x1, y + 1, theme.frameOuter());
@@ -766,8 +783,18 @@ public final class WildexScreen extends Screen {
         if (this.searchBox != null) {
             this.searchBox.setTextColor(theme.ink());
             this.searchBox.setTextColorUneditable(theme.ink());
+            applySearchBoxTextNudge();
         }
         if (this.shareOverlay != null) this.shareOverlay.applyThemeToInputs(theme);
+    }
+
+    private void applySearchBoxTextNudge() {
+        if (this.searchBox == null) return;
+        if (WildexThemes.isVintageLayout()) {
+            this.searchBox.setTextNudge(5, 4);
+        } else {
+            this.searchBox.setTextNudge(2, 2);
+        }
     }
 
     private void syncShareTopButtonsPosition() {

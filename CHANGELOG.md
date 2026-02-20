@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.1.0 - 2026-02-20
+
+### Added
+- Introduced a dedicated Wildex UI scale control.
+- Added a reusable, centralized UI scaling/rendering path for Wildex screen elements.
+- Refactored trophy rendering into a dedicated component with theme-aware asset selection.
+
+### Changed
+- Reworked Wildex screen scaling so Wildex UI sizing is driven by the internal Wildex scale flow instead of Minecraft GUI scale behavior.
+- Continued screen package cleanup and renderer separation to improve maintainability and make future theme expansion easier.
+- Updated claim button rendering to include the configured payment item icon.
+
+### Fixed
+- Fixed multiple Wildex UI elements that were still indirectly reacting to Minecraft GUI scale.
+- Fixed inconsistent scaling across key UI content (texts, icons, list/overlay elements, buttons, and panel visuals).
+- Fixed mob list scrollbar drag behavior (reduced jump/stick behavior and improved drag consistency).
+- Fixed several share overlay sizing/alignment issues and kept rendering consistent with Wildex UI scaling.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.0.0`.
+
 ## 2.0.0 - 2026-02-19
 
 ### Added

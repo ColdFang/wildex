@@ -28,7 +28,7 @@ final class WildexRightInfoSpawnsRenderer {
     private static final int SPAWN_SUBHEADING_COLOR = 0xB8301E14;
     private static final int SPAWN_SUBHEADING_RULE = 0x33301E14;
 
-    private static final int SCROLLBAR_W = 6;
+    private static final int SCROLLBAR_W = 8;
     private static final int SCROLLBAR_PAD = 2;
     private static final int SCROLLBAR_BG = 0xFF000000;
     private static final int SCROLLBAR_THUMB = 0xFFB9B9B9;

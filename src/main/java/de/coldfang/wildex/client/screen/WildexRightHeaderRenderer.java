@@ -56,16 +56,17 @@ public final class WildexRightHeaderRenderer {
         int lh = toLogical(area.h(), s);
 
         boolean compact = area.h() < COMPACT_THRESHOLD_H;
+        boolean vintage = WildexThemes.isVintageLayout();
 
         int padX = PAD_X;
-        int padY = compact ? 4 : PAD_Y;
+        int padY = compact ? (vintage ? 5 : 4) : PAD_Y;
         float nameScale = 1.0f;
         int nameLineGap = compact ? 5 : 7;
-        int lineGap = compact ? 4 : LINE_GAP;
-        int dividerGapTop = 2;
-        int dividerGapBottom = 1;
-        int lowerLineGap = compact ? 2 : 3;
-        int nameToLowerGap = compact ? 4 : 6;
+        int lineGap = compact ? (vintage ? 5 : 4) : LINE_GAP;
+        int dividerGapTop = vintage ? 3 : 2;
+        int dividerGapBottom = vintage ? 2 : 1;
+        int lowerLineGap = compact ? (vintage ? 4 : 2) : 3;
+        int nameToLowerGap = compact ? (vintage ? 6 : 4) : 6;
 
         WildexScissor.enablePhysical(g, x0, y0, x1, y1);
         try {
