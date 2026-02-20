@@ -2,6 +2,8 @@
 
 ## 2.1.0 - 2026-02-20
 
+You probably won't notice much from this update during normal gameplay besides the new GUI scale slider, but it lays the groundwork for better GUI tweaking and much easier addition of new themes in future updates.
+
 ### Added
 - Introduced a dedicated Wildex UI scale control.
 - Added a reusable, centralized UI scaling/rendering path for Wildex screen elements.
