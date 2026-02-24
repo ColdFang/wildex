@@ -51,10 +51,7 @@ public final class WildexClientConfigView {
         return useServerValue() ? WildexServerConfigCache.shareOfferMaxPrice() : CommonConfig.INSTANCE.shareOfferMaxPrice.get();
     }
 
-    public static float wildexUiScale() {
-        double raw = ClientConfig.INSTANCE.wildexUiScale.get();
-        if (raw < 1.00d) return 1.00f;
-        if (raw > 4.00d) return 4.00f;
-        return (float) raw;
+    public static boolean hideGuiScaleSlider() {
+        return ClientConfig.INSTANCE.hideGuiScaleSlider.get();
     }
 }

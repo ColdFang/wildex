@@ -20,6 +20,8 @@ public final class WildexScreenLayout {
     private static final int PREVIEW_HINT_PAD_Y = 4;
     private static final int MODERN_CONTROLS_EXTRA_SHIFT_X = 3;
     private static final int SHARE_PANEL_BOTTOM_TRIM = 8;
+    private static final int SHARE_ATTACH_GAP_X = 2;
+    private static final int SHARE_ATTACH_GAP_Y = 2;
 
     private static final Metrics MODERN = new Metrics(
             102, 79, 50, 9, 38,
@@ -50,6 +52,9 @@ public final class WildexScreenLayout {
             10, 24, 0, 10,
             0, 0, 61, 2, 0, 0
     );
+    private static final Metrics JUNGLE = VINTAGE;
+    private static final Metrics RUNES = VINTAGE;
+    private static final Metrics STEAMPUNK = VINTAGE;
 
     private final int screenWidth;
     private final int screenHeight;
@@ -170,17 +175,18 @@ public final class WildexScreenLayout {
         int leftContentW = Math.max(1, leftPage.w() - padX - spinePad);
         int leftContentH = Math.max(1, leftPage.h() - (padY * 2));
         Area leftContent = new Area(leftContentX, leftContentY, leftContentW, leftContentH);
+        int leftTopClusterShiftY = Math.round(leftTopClusterShiftPx(profile) * scale);
 
         float uiScale = WildexUiScale.clamp(userUiScale);
         int searchExtraH = Math.max(0, Math.round((uiScale - 1.0f) * 4.0f));
         int searchH = Math.max(12, Math.round(m.searchHeight() * scale) + searchExtraH);
-        Area searchArea = new Area(leftContentX, leftContentY + 2, leftContentW, searchH);
+        Area searchArea = new Area(leftContentX, leftContentY + 2 + leftTopClusterShiftY, leftContentW, searchH);
 
         int actionGap = Math.max(0, Math.round(m.actionRowGap() * scale));
         int actionH = Math.max(1, Math.round(m.actionRowHeight() * scale));
 
         int ax = leftContentX + Math.round(m.actionRowShiftX() * scale);
-        int ay = (leftContentY + searchH + actionGap) + Math.round(m.actionRowShiftY() * scale);
+        int ay = (leftContentY + searchH + actionGap) + Math.round(m.actionRowShiftY() * scale) + leftTopClusterShiftY;
         Area actionArea = new Area(ax, ay, leftContentW, actionH);
 
         int counterTexY = (contentTop + m.contentPadY()) + m.counterOffsetY() + m.counterShiftY();
@@ -226,7 +232,7 @@ public final class WildexScreenLayout {
         int resetMargin = Math.max(2, Math.round(m.previewResetBtnMargin() * scale));
         int resetBelowGap = Math.max(1, Math.round(2 * scale));
         int resetGrow = Math.max(1, Math.round(3 * scale));
-        int resetY = (profile == DesignStyle.MODERN)
+        int resetY = (WildexThemes.usesModernLayout(profile))
                 ? (preview.y() + preview.h()) + resetBelowGap - 2
                 : (preview.y() + preview.h()) - resetSize - resetMargin;
         Area previewReset = new Area(
@@ -275,7 +281,7 @@ public final class WildexScreenLayout {
         tabsArea = shiftY(tabsArea, rightShiftY);
         infoArea = shiftY(infoArea, rightShiftY);
 
-        if (profile == DesignStyle.MODERN) {
+        if (WildexThemes.usesModernLayout(profile)) {
             preview = new Area(
                     preview.x() + MODERN_PREVIEW_DECOUPLED_NUDGE_X,
                     preview.y() + MODERN_PREVIEW_DECOUPLED_NUDGE_Y + MODERN_PREVIEW_EXTRA_SHIFT_Y,
@@ -283,6 +289,13 @@ public final class WildexScreenLayout {
                     preview.h()
             );
             previewReset = shiftY(previewReset, MODERN_RESET_EXTRA_SHIFT_Y);
+        }
+
+        int rightPreviewHeaderExtraShift = Math.round(rightPreviewHeaderShiftPx(profile) * scale);
+        if (rightPreviewHeaderExtraShift != 0) {
+            preview = shiftY(preview, rightPreviewHeaderExtraShift);
+            previewReset = shiftY(previewReset, rightPreviewHeaderExtraShift);
+            headerArea = shiftY(headerArea, rightPreviewHeaderExtraShift);
         }
 
         Area sharePanelArea = mergeRightPanelAreas(tabsArea, infoArea);
@@ -332,7 +345,7 @@ public final class WildexScreenLayout {
             Area previewResetArea
     ) {
         int x = previewArea.x() + PREVIEW_HINT_PAD_X;
-        if (profile == DesignStyle.MODERN) {
+        if (WildexThemes.usesModernLayout(profile)) {
             x = x - MODERN_PREVIEW_DECOUPLED_NUDGE_X + MODERN_CONTROLS_EXTRA_SHIFT_X;
         }
         int bottomY = (previewArea.y() + previewArea.h()) - PREVIEW_HINT_PAD_Y;
@@ -340,12 +353,35 @@ public final class WildexScreenLayout {
         if (previewResetArea != null) {
             rightBound = Math.min(rightBound, previewResetArea.x() - 2);
         }
-        boolean alignCenterToReset = profile == DesignStyle.MODERN && previewResetArea != null;
+        boolean alignCenterToReset = WildexThemes.usesModernLayout(profile) && previewResetArea != null;
         return new PreviewControlsHintAnchor(x, bottomY, rightBound, alignCenterToReset);
     }
 
     private static Metrics metricsFor(DesignStyle profile) {
-        return profile == DesignStyle.VINTAGE ? VINTAGE : MODERN;
+        if (profile == null) return VINTAGE;
+        return switch (profile) {
+            case MODERN -> MODERN;
+            case JUNGLE -> JUNGLE;
+            case RUNES -> RUNES;
+            case STEAMPUNK -> STEAMPUNK;
+            case VINTAGE -> VINTAGE;
+        };
+    }
+
+    private static int leftTopClusterShiftPx(DesignStyle profile) {
+        if (profile == null) return 0;
+        return switch (profile) {
+            case JUNGLE, RUNES, STEAMPUNK -> 5;
+            default -> 0;
+        };
+    }
+
+    private static int rightPreviewHeaderShiftPx(DesignStyle profile) {
+        if (profile == null) return 0;
+        return switch (profile) {
+            case VINTAGE, JUNGLE, RUNES, STEAMPUNK -> 5;
+            default -> 0;
+        };
     }
 
     private static int clamp(int v, int min, int max) {
@@ -374,10 +410,6 @@ public final class WildexScreenLayout {
 
     public int screenWidth() {
         return screenWidth;
-    }
-
-    public int screenHeight() {
-        return screenHeight;
     }
 
     public WildexTheme theme() {
@@ -451,20 +483,22 @@ public final class WildexScreenLayout {
     }
 
     public Area shareEntryButtonArea(
-            int styleButtonW,
             int styleButtonH,
             int margin,
             int yOffset,
             int shareButtonW,
             int shareButtonH
     ) {
-        int x = screenWidth - styleButtonW - margin;
-        int y = margin + yOffset + styleButtonH + 2;
+        int textureTop = Math.round(this.y);
+        int textureRight = Math.round(this.x + (TEX_W * this.scale));
+        int attachGapX = Math.round(SHARE_ATTACH_GAP_X * this.scale);
+        int attachGapY = Math.round(SHARE_ATTACH_GAP_Y * this.scale);
+        int x = textureRight - attachGapX;
+        int y = textureTop + attachGapY + margin + yOffset + styleButtonH + 2;
         return new Area(x, y, shareButtonW, shareButtonH);
     }
 
     public Area shareClaimButtonArea(
-            int styleButtonW,
             int styleButtonH,
             int margin,
             int yOffset,
@@ -472,24 +506,10 @@ public final class WildexScreenLayout {
             int shareButtonH,
             int claimButtonW
     ) {
-        Area share = shareEntryButtonArea(styleButtonW, styleButtonH, margin, yOffset, shareButtonW, shareButtonH);
+        Area share = shareEntryButtonArea(styleButtonH, margin, yOffset, shareButtonW, shareButtonH);
         int x = share.x() + share.w() - claimButtonW;
         int y = share.y() + share.h() + 2;
         return new Area(x, y, claimButtonW, shareButtonH);
-    }
-
-    public Area versionLabelArea(
-            int styleButtonW,
-            int styleButtonH,
-            int margin,
-            int yOffset,
-            int scaledTextW,
-            int scaledTextH
-    ) {
-        Area style = styleButtonArea(styleButtonW, styleButtonH, margin, yOffset);
-        int x = style.x() + style.w() - scaledTextW;
-        int y = Math.max(0, style.y() - scaledTextH - 1);
-        return new Area(x, y, scaledTextW, scaledTextH);
     }
 
     public record Area(int x, int y, int w, int h) {

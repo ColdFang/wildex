@@ -19,7 +19,25 @@ public final class WildexThemes {
             WildexUiTheme.modernPalette()
     );
 
-    private static final List<WildexTheme> ORDERED = List.of(VINTAGE, MODERN);
+    private static final WildexTheme JUNGLE = new WildexTheme(
+            WildexScreenTextures.jungle(),
+            DesignStyle.JUNGLE,
+            WildexUiTheme.vintagePalette()
+    );
+
+    private static final WildexTheme RUNES = new WildexTheme(
+            WildexScreenTextures.runes(),
+            DesignStyle.RUNES,
+            WildexUiTheme.vintagePalette()
+    );
+
+    private static final WildexTheme STEAMPUNK = new WildexTheme(
+            WildexScreenTextures.steampunk(),
+            DesignStyle.STEAMPUNK,
+            WildexUiTheme.vintagePalette()
+    );
+
+    private static final List<WildexTheme> ORDERED = List.of(VINTAGE, MODERN, JUNGLE, RUNES, STEAMPUNK);
 
     private WildexThemes() {
     }
@@ -29,12 +47,22 @@ public final class WildexThemes {
     }
 
     public static WildexTheme fromDesignStyle(DesignStyle style) {
-        if (style == DesignStyle.MODERN) return MODERN;
-        return VINTAGE;
+        if (style == null) return VINTAGE;
+        return switch (style) {
+            case MODERN -> MODERN;
+            case JUNGLE -> JUNGLE;
+            case RUNES -> RUNES;
+            case STEAMPUNK -> STEAMPUNK;
+            case VINTAGE -> VINTAGE;
+        };
+    }
+
+    public static boolean usesModernLayout(DesignStyle style) {
+        return style == DesignStyle.MODERN;
     }
 
     public static boolean isModernLayout() {
-        return current().layoutProfile() == DesignStyle.MODERN;
+        return usesModernLayout(current().layoutProfile());
     }
 
     public static boolean isVintageLayout() {
@@ -42,7 +70,13 @@ public final class WildexThemes {
     }
 
     public static DesignStyle nextStyle(DesignStyle current) {
-        int idx = current == DesignStyle.MODERN ? 1 : 0;
+        int idx = 0;
+        for (int i = 0; i < ORDERED.size(); i++) {
+            if (ORDERED.get(i).layoutProfile() == current) {
+                idx = i;
+                break;
+            }
+        }
         int nextIdx = (idx + 1) % ORDERED.size();
         return ORDERED.get(nextIdx).layoutProfile();
     }

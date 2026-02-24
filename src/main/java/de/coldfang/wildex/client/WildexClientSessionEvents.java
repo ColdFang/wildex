@@ -4,6 +4,7 @@ import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
+import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -20,6 +21,7 @@ public final class WildexClientSessionEvents {
         WildexKillCache.clear();
         WildexDiscoveryCache.clear();
         WildexLootCache.clear();
+        WildexMiscCache.clear();
         WildexSpawnCache.clear();
         WildexPlayerUiStateCache.clear();
         WildexDiscoveryEffectClient.clear();
@@ -38,6 +40,7 @@ public final class WildexClientSessionEvents {
         WildexKillCache.clear();
         WildexDiscoveryCache.clear();
         WildexLootCache.clear();
+        WildexMiscCache.clear();
         WildexSpawnCache.clear();
         WildexPlayerUiStateCache.clear();
         WildexDiscoveryEffectClient.clear();

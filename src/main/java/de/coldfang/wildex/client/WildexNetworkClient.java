@@ -4,9 +4,11 @@ import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
+import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexServerConfigCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
+import de.coldfang.wildex.network.C2SRequestMobBreedingPayload;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
 import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
@@ -26,6 +28,7 @@ import de.coldfang.wildex.network.S2CDiscoveredMobPayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobsPayload;
 import de.coldfang.wildex.network.S2CMobKillsPayload;
 import de.coldfang.wildex.network.S2CMobLootPayload;
+import de.coldfang.wildex.network.S2CMobBreedingPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
 import de.coldfang.wildex.network.S2CPlayerUiStatePayload;
 import de.coldfang.wildex.network.S2CShareCandidatesPayload;
@@ -128,6 +131,14 @@ public final class WildexNetworkClient {
         );
 
         r.playToClient(
+                S2CMobBreedingPayload.TYPE,
+                S2CMobBreedingPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() ->
+                        WildexMiscCache.set(payload.mobId(), payload.ownable(), payload.breedingItemIds())
+                )
+        );
+
+        r.playToClient(
                 S2CMobSpawnsPayload.TYPE,
                 S2CMobSpawnsPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() ->
@@ -222,6 +233,16 @@ public final class WildexNetworkClient {
         if (mc.getConnection() == null) return;
 
         PacketDistributor.sendToServer(new C2SRequestMobLootPayload(rl));
+    }
+
+    public static void requestBreedingForSelected(String mobId) {
+        ResourceLocation rl = ResourceLocation.tryParse(mobId == null ? "" : mobId);
+        if (rl == null) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SRequestMobBreedingPayload(rl));
     }
 
     public static void requestSpawnsForSelected(String mobId) {

@@ -2,7 +2,7 @@ package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.WildexNetworkClient;
-import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -36,6 +36,11 @@ public final class WildexShareOverlayController {
 
     private static final Component SHARE_TOOLTIP = Component.translatable("tooltip.wildex.share_entry");
     private static final Component SHARE_CLAIM_PAYOUTS_TOOLTIP = Component.translatable("tooltip.wildex.share_claim_payouts");
+    private static final int CLAIM_PEEK_PADDING_PX = 4;
+    private static final int SHARE_PEEK_SYMBOL_NUDGE_X = -1;
+    private static final int CLAIM_PEEK_ITEM_NUDGE_X = 1;
+    private static final int DOCK_VISIBLE_SHIFT_LEFT_PX = 8;
+    private static final long DOCK_COLLAPSE_DELAY_NS = 500_000_000L;
 
     private final WildexScreen host;
     private final Font font;
@@ -60,6 +65,23 @@ public final class WildexShareOverlayController {
     private List<String> lastSharePlayerOptions = List.of();
     private final Map<String, UUID> shareCandidateByName = new HashMap<>();
     private boolean suppressShareAcceptOffersUpdate = false;
+    private int shareExpandedX = 0;
+    private int shareCollapsedX = 0;
+    private int shareCurrentX = 0;
+    private float shareCurrentXf = 0.0f;
+    private int shareClipLeftX = 0;
+    private boolean shareDockReady = false;
+    private int claimExpandedX = 0;
+    private int claimCollapsedX = 0;
+    private int claimCurrentX = 0;
+    private float claimCurrentXf = 0.0f;
+    private int claimClipLeftX = 0;
+    private boolean claimDockReady = false;
+    private long dockAnimLastNanos = 0L;
+    private boolean shareWasHovered = false;
+    private boolean claimWasHovered = false;
+    private long shareCollapseAllowedAtNs = 0L;
+    private long claimCollapseAllowedAtNs = 0L;
 
     public WildexShareOverlayController(
             WildexScreen host,
@@ -106,21 +128,18 @@ public final class WildexShareOverlayController {
         int styleH = scaledStyleButtonH();
         int styleMargin = scaledStyleButtonMargin();
         int styleYOffset = scaledStyleButtonYOffset();
-        int shareButtonH = styleH;
-        int shareButtonW = styleW;
-        int claimButtonW = shareButtonW;
         WildexScreenLayout.Area shareTopArea = layout.shareEntryButtonArea(
-                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH
+                styleH, styleMargin, styleYOffset, styleW, styleH
         );
         WildexScreenLayout.Area claimTopArea = layout.shareClaimButtonArea(
-                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH, claimButtonW
+                styleH, styleMargin, styleYOffset, styleW, styleH, styleW
         );
 
         this.shareEntryButton = new WildexStyleButton(
                 shareTopArea.x(),
                 shareTopArea.y(),
-                shareButtonW,
-                shareButtonH,
+                styleW,
+                styleH,
                 shareButtonLabel,
                 () -> {
                     if (singleplayerShareBlockedSupplier.getAsBoolean()) {
@@ -139,20 +158,30 @@ public final class WildexShareOverlayController {
                     updateWidgetsVisibility();
                     if (this.shareEntryButton != null) this.shareEntryButton.setFocused(false);
                     this.host.setFocused(null);
-                }
+                },
+                null,
+                WildexShareOverlayController::shareButtonBgTexture,
+                () -> "\u2191"
         );
         this.host.addShareWidget(this.shareEntryButton);
+        this.shareEntryButton.setFrameThickness(1, 1);
+        this.shareEntryButton.setTrailingOffsetX(SHARE_PEEK_SYMBOL_NUDGE_X);
 
         this.shareClaimPayoutsButton = new WildexStyleButton(
                 claimTopArea.x(),
                 claimTopArea.y(),
-                claimButtonW,
-                shareButtonH,
+                styleW,
+                styleH,
                 SHARE_CLAIM_PAYOUTS_LABEL,
                 WildexNetworkClient::claimSharePayouts,
-                () -> new ItemStack(resolveShareCurrencyItem())
+                () -> new ItemStack(resolveShareCurrencyItem()),
+                WildexShareOverlayController::shareButtonBgTexture
         );
         this.host.addShareWidget(this.shareClaimPayoutsButton);
+        this.shareClaimPayoutsButton.setFrameThickness(1, 1);
+        this.shareClaimPayoutsButton.setTrailingOffsetX(CLAIM_PEEK_ITEM_NUDGE_X);
+        configureShareDock(layout, true);
+        configureClaimDock(layout, true);
 
         WildexScreenLayout.Area panel = layout.sharePanelArea();
         float fitScale = Math.max(0.65f, Math.min(1.0f, panel.h() / 170.0f));
@@ -266,7 +295,6 @@ public final class WildexShareOverlayController {
                             try {
                                 price = Integer.parseInt(raw);
                             } catch (NumberFormatException ignored) {
-                                price = 0;
                             }
                         }
                     }
@@ -356,7 +384,7 @@ public final class WildexShareOverlayController {
         updateWidgetsVisibility();
 
         Minecraft minecraft = Minecraft.getInstance();
-        if (this.sharePanelOpen && minecraft != null && minecraft.level != null) {
+        if (this.sharePanelOpen && minecraft.level != null) {
             if ((minecraft.level.getGameTime() % 20L) == 0L) {
                 WildexNetworkClient.requestShareCandidates();
             }
@@ -365,11 +393,12 @@ public final class WildexShareOverlayController {
             shareSingleplayerNoticeTicks--;
         }
 
-        if (minecraft != null && minecraft.level != null) {
+        if (minecraft.level != null) {
             if ((minecraft.level.getGameTime() % 40L) == 0L) {
                 WildexNetworkClient.requestSharePayoutStatus();
             }
         }
+
     }
 
     public void applyThemeToInputs(WildexUiTheme.Palette theme) {
@@ -388,24 +417,22 @@ public final class WildexShareOverlayController {
         int styleH = scaledStyleButtonH();
         int styleMargin = scaledStyleButtonMargin();
         int styleYOffset = scaledStyleButtonYOffset();
-        int shareButtonH = styleH;
-        int shareButtonW = styleW;
-        int claimButtonW = shareButtonW;
         WildexScreenLayout.Area shareTopArea = layout.shareEntryButtonArea(
-                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH
+                styleH, styleMargin, styleYOffset, styleW, styleH
         );
         WildexScreenLayout.Area claimTopArea = layout.shareClaimButtonArea(
-                styleW, styleH, styleMargin, styleYOffset, shareButtonW, shareButtonH, claimButtonW
+                styleH, styleMargin, styleYOffset, styleW, styleH, styleW
         );
 
-        this.shareEntryButton.setX(shareTopArea.x());
         this.shareEntryButton.setY(shareTopArea.y());
-        this.shareEntryButton.setWidth(shareButtonW);
-        this.shareEntryButton.setHeight(shareButtonH);
-        this.shareClaimPayoutsButton.setX(claimTopArea.x());
+        this.shareEntryButton.setWidth(styleW);
+        this.shareEntryButton.setHeight(styleH);
+        configureShareDock(layout, false);
         this.shareClaimPayoutsButton.setY(claimTopArea.y());
-        this.shareClaimPayoutsButton.setWidth(claimButtonW);
-        this.shareClaimPayoutsButton.setHeight(shareButtonH);
+        this.shareClaimPayoutsButton.setWidth(styleW);
+        this.shareClaimPayoutsButton.setHeight(styleH);
+        configureClaimDock(layout, false);
+        animateDockButtons();
     }
 
     public void relayout(WildexScreenLayout layout) {
@@ -497,6 +524,8 @@ public final class WildexShareOverlayController {
             this.shareCloseOverlayButton.setWidth(closeSize);
             this.shareCloseOverlayButton.setHeight(closeSize);
         }
+        configureShareDock(layout, false);
+        configureClaimDock(layout, false);
     }
 
     public boolean isPanelOpen() {
@@ -670,8 +699,7 @@ public final class WildexShareOverlayController {
         if (this.shareClaimPayoutsButton != null) {
             boolean hasPayouts = WildexNetworkClient.pendingSharePayoutTotal() > 0;
             Minecraft mc = Minecraft.getInstance();
-            boolean singleplayerDebug = mc != null
-                    && mc.hasSingleplayerServer()
+            boolean singleplayerDebug = mc.hasSingleplayerServer()
                     && mc.getCurrentServer() == null
                     && WildexClientConfigView.debugMode();
             this.shareClaimPayoutsButton.visible = enabled && (hasPayouts || singleplayerDebug);
@@ -744,6 +772,20 @@ public final class WildexShareOverlayController {
         return 1.50f;
     }
 
+    private static ResourceLocation shareButtonBgTexture() {
+        DesignStyle style = WildexThemes.current().layoutProfile();
+        if (style == null) {
+            return ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_red.png");
+        }
+        return switch (style) {
+            case MODERN -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_modern.png");
+            case JUNGLE -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_jungle.png");
+            case RUNES -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_runes.png");
+            case STEAMPUNK -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_steampunk.png");
+            case VINTAGE -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_red.png");
+        };
+    }
+
     private static int shareCurrencyIconSizePx() {
         return Math.max(10, Math.round(12 * WildexUiScale.get()));
     }
@@ -775,6 +817,137 @@ public final class WildexShareOverlayController {
 
     private int scaledStyleButtonYOffset() {
         return Math.round(this.styleButtonYOffset * WildexUiScale.get());
+    }
+
+    private void configureClaimDock(WildexScreenLayout layout, boolean resetToCollapsed) {
+        if (layout == null || this.shareClaimPayoutsButton == null) return;
+
+        int textureRight = Math.round(layout.x() + (WildexScreenLayout.TEX_W * layout.scale()));
+        int buttonW = this.shareClaimPayoutsButton.getWidth();
+        int peek = Math.max(8, shareCurrencyIconSizePx() + CLAIM_PEEK_PADDING_PX);
+        int dockShift = WildexThemes.isModernLayout()
+                ? Math.max(1, Math.round(DOCK_VISIBLE_SHIFT_LEFT_PX * layout.scale()))
+                : 0;
+        int expanded = textureRight - Math.max(1, Math.round(2 * layout.scale()));
+        int collapsed = textureRight - buttonW + peek;
+        expanded -= dockShift;
+        collapsed -= dockShift;
+        if (collapsed > expanded) collapsed = expanded;
+
+        this.claimExpandedX = expanded;
+        this.claimCollapsedX = collapsed;
+        this.claimClipLeftX = textureRight - dockShift;
+
+        if (resetToCollapsed || !this.claimDockReady) {
+            this.claimCurrentX = this.claimCollapsedX;
+            this.claimWasHovered = false;
+            this.claimCollapseAllowedAtNs = 0L;
+        } else {
+            if (this.claimCurrentX < this.claimCollapsedX) this.claimCurrentX = this.claimCollapsedX;
+            if (this.claimCurrentX > this.claimExpandedX) this.claimCurrentX = this.claimExpandedX;
+        }
+        if (resetToCollapsed || !this.claimDockReady) {
+            this.claimCurrentXf = this.claimCurrentX;
+        } else {
+            if (this.claimCurrentXf < this.claimCollapsedX) this.claimCurrentXf = this.claimCollapsedX;
+            if (this.claimCurrentXf > this.claimExpandedX) this.claimCurrentXf = this.claimExpandedX;
+        }
+
+        this.shareClaimPayoutsButton.setX(this.claimCurrentX);
+        this.shareClaimPayoutsButton.setClipLeftX(this.claimClipLeftX);
+        this.claimDockReady = true;
+    }
+
+    private void configureShareDock(WildexScreenLayout layout, boolean resetToCollapsed) {
+        if (layout == null || this.shareEntryButton == null) return;
+
+        int textureRight = Math.round(layout.x() + (WildexScreenLayout.TEX_W * layout.scale()));
+        int buttonW = this.shareEntryButton.getWidth();
+        int peek = Math.max(8, shareCurrencyIconSizePx() + CLAIM_PEEK_PADDING_PX);
+        int dockShift = WildexThemes.isModernLayout()
+                ? Math.max(1, Math.round(DOCK_VISIBLE_SHIFT_LEFT_PX * layout.scale()))
+                : 0;
+        int expanded = textureRight - Math.max(1, Math.round(2 * layout.scale()));
+        int collapsed = textureRight - buttonW + peek;
+        expanded -= dockShift;
+        collapsed -= dockShift;
+        if (collapsed > expanded) collapsed = expanded;
+
+        this.shareExpandedX = expanded;
+        this.shareCollapsedX = collapsed;
+        this.shareClipLeftX = textureRight - dockShift;
+
+        if (resetToCollapsed || !this.shareDockReady) {
+            this.shareCurrentX = this.shareCollapsedX;
+            this.shareWasHovered = false;
+            this.shareCollapseAllowedAtNs = 0L;
+        } else {
+            if (this.shareCurrentX < this.shareCollapsedX) this.shareCurrentX = this.shareCollapsedX;
+            if (this.shareCurrentX > this.shareExpandedX) this.shareCurrentX = this.shareExpandedX;
+        }
+        if (resetToCollapsed || !this.shareDockReady) {
+            this.shareCurrentXf = this.shareCurrentX;
+        } else {
+            if (this.shareCurrentXf < this.shareCollapsedX) this.shareCurrentXf = this.shareCollapsedX;
+            if (this.shareCurrentXf > this.shareExpandedX) this.shareCurrentXf = this.shareExpandedX;
+        }
+
+        this.shareEntryButton.setX(this.shareCurrentX);
+        this.shareEntryButton.setClipLeftX(this.shareClipLeftX);
+        this.shareDockReady = true;
+    }
+
+    private void animateDockButtons() {
+        long now = System.nanoTime();
+        if (this.dockAnimLastNanos == 0L) {
+            this.dockAnimLastNanos = now;
+        }
+        float dt = (now - this.dockAnimLastNanos) / 1_000_000_000.0f;
+        this.dockAnimLastNanos = now;
+        if (dt <= 0.0f) return;
+        if (dt > 0.050f) dt = 0.050f;
+
+        // Frame-rate independent smoothing. Higher value = snappier.
+        float speed = 16.0f;
+        float alpha = 1.0f - (float) Math.exp(-speed * dt);
+
+        if (this.shareClaimPayoutsButton != null && this.claimDockReady) {
+            boolean hover = this.shareClaimPayoutsButton.visible
+                    && this.shareClaimPayoutsButton.active
+                    && this.shareClaimPayoutsButton.isHovered();
+            if (hover) {
+                this.claimCollapseAllowedAtNs = 0L;
+            } else if (this.claimWasHovered) {
+                this.claimCollapseAllowedAtNs = now + DOCK_COLLAPSE_DELAY_NS;
+            }
+            this.claimWasHovered = hover;
+            boolean holdExpanded = !hover && now < this.claimCollapseAllowedAtNs;
+            int targetX = (hover || holdExpanded) ? this.claimExpandedX : this.claimCollapsedX;
+            this.claimCurrentXf += (targetX - this.claimCurrentXf) * alpha;
+            if (Math.abs(targetX - this.claimCurrentXf) < 0.05f) this.claimCurrentXf = targetX;
+            this.claimCurrentX = Math.round(this.claimCurrentXf);
+            this.shareClaimPayoutsButton.setX(this.claimCurrentX);
+            this.shareClaimPayoutsButton.setClipLeftX(this.claimClipLeftX);
+        }
+
+        if (this.shareEntryButton != null && this.shareDockReady) {
+            boolean hover = this.shareEntryButton.visible
+                    && this.shareEntryButton.active
+                    && this.shareEntryButton.isHovered();
+            if (hover) {
+                this.shareCollapseAllowedAtNs = 0L;
+            } else if (this.shareWasHovered) {
+                this.shareCollapseAllowedAtNs = now + DOCK_COLLAPSE_DELAY_NS;
+            }
+            this.shareWasHovered = hover;
+            boolean holdExpanded = !hover && now < this.shareCollapseAllowedAtNs;
+            int targetX = (hover || holdExpanded) ? this.shareExpandedX : this.shareCollapsedX;
+            this.shareCurrentXf += (targetX - this.shareCurrentXf) * alpha;
+            if (Math.abs(targetX - this.shareCurrentXf) < 0.05f) this.shareCurrentXf = targetX;
+            this.shareCurrentX = Math.round(this.shareCurrentXf);
+            this.shareEntryButton.setX(this.shareCurrentX);
+            this.shareEntryButton.setClipLeftX(this.shareClipLeftX);
+        }
     }
 }
 

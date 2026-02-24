@@ -4,6 +4,7 @@ import de.coldfang.wildex.client.data.extractor.HeaderExtractor;
 import de.coldfang.wildex.client.data.extractor.StatsExtractor;
 import de.coldfang.wildex.client.data.model.WildexHeaderData;
 import de.coldfang.wildex.client.data.model.WildexMobData;
+import de.coldfang.wildex.client.data.model.WildexMiscData;
 import de.coldfang.wildex.client.data.model.WildexStatsData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -16,7 +17,7 @@ import java.util.Map;
 
 public final class WildexMobDataResolver {
 
-    private final Map<String, WildexMobData> cache = new HashMap<>();
+    private final Map<String, BaseData> cache = new HashMap<>();
     private final StatsExtractor statsExtractor = new StatsExtractor();
     private final HeaderExtractor headerExtractor = new HeaderExtractor();
 
@@ -24,24 +25,21 @@ public final class WildexMobDataResolver {
         String key = mobId == null ? "" : mobId;
         if (key.isBlank()) return WildexMobData.empty();
 
-        WildexMobData cached = cache.get(key);
-        if (cached != null) return cached;
-
         EntityType<?> type = resolveType(key);
-        if (type == null) {
-            WildexMobData data = WildexMobData.empty();
-            cache.put(key, data);
-            return data;
+        if (type == null) return WildexMobData.empty();
+
+        BaseData base = cache.get(key);
+        if (base == null) {
+            WildexStatsData stats = statsExtractor.extract(type);
+            Level level = Minecraft.getInstance().level;
+            WildexHeaderData header = headerExtractor.extract(type, level);
+            base = new BaseData(stats, header);
+            cache.put(key, base);
         }
 
-        WildexStatsData stats = statsExtractor.extract(type);
-
-        Level level = Minecraft.getInstance().level;
-        WildexHeaderData header = headerExtractor.extract(type, level);
-
-        WildexMobData data = new WildexMobData(stats, header);
-        cache.put(key, data);
-        return data;
+        ResourceLocation rl = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        WildexMiscData misc = WildexMiscCache.getOrRequest(rl);
+        return new WildexMobData(base.stats(), base.header(), misc);
     }
 
     public void clearCache() {
@@ -52,5 +50,8 @@ public final class WildexMobDataResolver {
         ResourceLocation rl = ResourceLocation.tryParse(mobId);
         if (rl == null) return null;
         return BuiltInRegistries.ENTITY_TYPE.getOptional(rl).orElse(null);
+    }
+
+    private record BaseData(WildexStatsData stats, WildexHeaderData header) {
     }
 }

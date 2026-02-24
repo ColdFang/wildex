@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.2.0 - 2026-02-24
+
+This update focuses on a major UI polish pass, new visual themes, and introduces breeding information in the Info/Misc tab.
+
+### Added
+- Added three new Wildex themes: `Jungle`, `Runes`, and `Steampunk`.
+- Added theme-specific Wildex book item visuals (the held/inventory book now matches the selected theme).
+- Added a new expandable top-right menu (`Menu`) with:
+  - `Theme` button
+  - `GUI Scale` toggle button
+- Added a collapsible trophy panel with `+ / -` toggle control.
+- Added breeding data to the Info/Misc tab, including:
+  - `Ownable Entity`
+  - `Breeding Items`
+- Added server-authoritative breeding data requests and runtime caching for multiplayer-safe results.
+
+### Changed
+- Implemented breeding extraction using server-side interaction checks for better real gameplay accuracy.
+- Updated the Misc info section layout
+- Updated share/claim side buttons with smoother dock behavior and hover-aware peek/expand motion.
+- Updated menu/button visual styling with stronger frame rendering for better readability.
+- Improved theme support across screen textures, trophy backgrounds, and item model variants.
+
+### Fixed
+- Fixed Misc tab scrollbar visibility when content overflows
+- Fixed Misc tab scrollbar mouse dragging support
+- Fixed trophy tooltip behavior while collapsed (no tooltip when folded in)
+- Reduced jittery feel of share/claim collapse by adding a short delayed retract
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe upgrade path from `2.1.0`.
+
 ## 2.1.0 - 2026-02-20
 
 You probably won't notice much from this update during normal gameplay besides the new GUI scale slider, but it lays the groundwork for better GUI tweaking and much easier addition of new themes in future updates.

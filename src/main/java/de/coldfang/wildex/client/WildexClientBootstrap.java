@@ -11,6 +11,7 @@ public final class WildexClientBootstrap {
 
     public static void register(IEventBus modEventBus) {
         modEventBus.register(WildexNetworkClient.class);
+        WildexClientItemProperties.register(modEventBus);
         NeoForge.EVENT_BUS.register(WildexSpyglassPulseEvents.class);
         NeoForge.EVENT_BUS.register(WildexClientSessionEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionClientEvents.class);

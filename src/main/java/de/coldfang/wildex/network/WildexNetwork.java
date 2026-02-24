@@ -2,6 +2,7 @@ package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.server.WildexDiscoveryService;
+import de.coldfang.wildex.server.breeding.WildexBreedingExtractor;
 import de.coldfang.wildex.server.WildexShareOfferService;
 import de.coldfang.wildex.server.loot.WildexLootExtractor;
 import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
@@ -47,11 +48,13 @@ public final class WildexNetwork {
     private static final long REQUEST_COOLDOWN_MS = 300L;
     private static final long LOOT_CACHE_TTL_MS = 30_000L;
     private static final long SPAWN_CACHE_TTL_MS = 30_000L;
+    private static final long BREEDING_CACHE_TTL_MS = 300_000L;
     private static final int MAX_RUNTIME_CACHE_ENTRIES = 512;
 
     private static final Map<RequestKey, Long> NEXT_ALLOWED_REQUEST_MS = new HashMap<>();
     private static final Map<ResourceLocation, TimedLoot> LOOT_CACHE = new HashMap<>();
     private static final Map<ResourceLocation, TimedSpawns> SPAWN_CACHE = new HashMap<>();
+    private static final Map<ResourceLocation, TimedBreeding> BREEDING_CACHE = new HashMap<>();
 
     private WildexNetwork() {
     }
@@ -70,6 +73,8 @@ public final class WildexNetwork {
             r.playToClient(S2CMobKillsPayload.TYPE, S2CMobKillsPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CMobLootPayload.TYPE, S2CMobLootPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobBreedingPayload.TYPE, S2CMobBreedingPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CMobSpawnsPayload.TYPE, S2CMobSpawnsPayload.STREAM_CODEC, (payload, ctx) -> {
             });
@@ -132,7 +137,7 @@ public final class WildexNetwork {
                 C2SDebugDiscoverMobPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
                     if (!(ctx.player() instanceof ServerPlayer sp)) return;
-                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+                    if (!(sp.level() instanceof ServerLevel)) return;
 
                     if (!CommonConfig.INSTANCE.hiddenMode.get()) return;
                     if (!CommonConfig.INSTANCE.debugMode.get()) return;
@@ -192,7 +197,7 @@ public final class WildexNetwork {
 
                     ResourceLocation mobId = payload.mobId();
                     long nowMs = System.currentTimeMillis();
-                    if (!allowRequest(sp, mobId, RequestKind.LOOT, nowMs)) return;
+                    if (isRequestBlocked(sp, mobId, RequestKind.LOOT, nowMs)) return;
 
                     List<S2CMobLootPayload.LootLine> cachedLines = getCachedLoot(mobId, nowMs);
                     if (cachedLines != null) {
@@ -227,6 +232,43 @@ public final class WildexNetwork {
         );
 
         r.playToServer(
+                C2SRequestMobBreedingPayload.TYPE,
+                C2SRequestMobBreedingPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    ResourceLocation mobId = payload.mobId();
+                    long nowMs = System.currentTimeMillis();
+                    if (isRequestBlocked(sp, mobId, RequestKind.BREEDING, nowMs)) return;
+
+                    TimedBreeding cached = getCachedBreeding(mobId, nowMs);
+                    if (cached != null) {
+                        PacketDistributor.sendToPlayer(
+                                sp,
+                                new S2CMobBreedingPayload(mobId, cached.ownable(), cached.breedingItemIds())
+                        );
+                        return;
+                    }
+
+                    EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
+                    if (type == null) {
+                        PacketDistributor.sendToPlayer(sp, new S2CMobBreedingPayload(mobId, false, List.of()));
+                        return;
+                    }
+
+                    WildexBreedingExtractor.Result result = WildexBreedingExtractor.extract(serverLevel, type);
+                    List<ResourceLocation> breedingItems = List.copyOf(result.breedingItemIds());
+                    putCachedBreeding(mobId, result.ownable(), breedingItems, nowMs);
+
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CMobBreedingPayload(mobId, result.ownable(), breedingItems)
+                    );
+                })
+        );
+
+        r.playToServer(
                 C2SRequestMobSpawnsPayload.TYPE,
                 C2SRequestMobSpawnsPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
@@ -234,7 +276,7 @@ public final class WildexNetwork {
 
                     ResourceLocation mobId = payload.mobId();
                     long nowMs = System.currentTimeMillis();
-                    if (!allowRequest(sp, mobId, RequestKind.SPAWNS, nowMs)) return;
+                    if (isRequestBlocked(sp, mobId, RequestKind.SPAWNS, nowMs)) return;
 
                     TimedSpawns cached = getCachedSpawns(mobId, nowMs);
                     if (cached != null) {
@@ -321,7 +363,7 @@ public final class WildexNetwork {
                 C2SRequestShareCandidatesPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
                     if (!(ctx.player() instanceof ServerPlayer sp)) return;
-                    if (!(sp.level() instanceof ServerLevel level)) return;
+                    if (!(sp.level() instanceof ServerLevel)) return;
 
                     List<WildexShareOfferService.Candidate> candidates = WildexShareOfferService.listAcceptingCandidates(sp);
                     List<S2CShareCandidatesPayload.Candidate> out = new ArrayList<>(candidates.size());
@@ -406,11 +448,11 @@ public final class WildexNetwork {
         return rl.toString();
     }
 
-    private static boolean allowRequest(ServerPlayer player, ResourceLocation mobId, RequestKind kind, long nowMs) {
-        if (player == null || mobId == null) return false;
+    private static boolean isRequestBlocked(ServerPlayer player, ResourceLocation mobId, RequestKind kind, long nowMs) {
+        if (player == null || mobId == null) return true;
         RequestKey key = new RequestKey(player.getUUID(), mobId, kind);
         Long allowedAt = NEXT_ALLOWED_REQUEST_MS.get(key);
-        if (allowedAt != null && nowMs < allowedAt) return false;
+        if (allowedAt != null && nowMs < allowedAt) return true;
 
         NEXT_ALLOWED_REQUEST_MS.put(key, nowMs + REQUEST_COOLDOWN_MS);
         if (NEXT_ALLOWED_REQUEST_MS.size() > (MAX_RUNTIME_CACHE_ENTRIES * 8)) {
@@ -419,7 +461,7 @@ public final class WildexNetwork {
                 NEXT_ALLOWED_REQUEST_MS.clear();
             }
         }
-        return true;
+        return false;
     }
 
     private static List<S2CMobLootPayload.LootLine> getCachedLoot(ResourceLocation mobId, long nowMs) {
@@ -471,12 +513,40 @@ public final class WildexNetwork {
         }
     }
 
+    private static TimedBreeding getCachedBreeding(ResourceLocation mobId, long nowMs) {
+        if (mobId == null) return null;
+        TimedBreeding cached = BREEDING_CACHE.get(mobId);
+        if (cached == null) return null;
+        if ((nowMs - cached.createdAtMs()) > BREEDING_CACHE_TTL_MS) {
+            BREEDING_CACHE.remove(mobId);
+            return null;
+        }
+        return cached;
+    }
+
+    private static void putCachedBreeding(
+            ResourceLocation mobId,
+            boolean ownable,
+            List<ResourceLocation> breedingItemIds,
+            long nowMs
+    ) {
+        if (mobId == null || breedingItemIds == null) return;
+        BREEDING_CACHE.put(mobId, new TimedBreeding(nowMs, ownable, breedingItemIds));
+        if (BREEDING_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+            BREEDING_CACHE.entrySet().removeIf(e -> (nowMs - e.getValue().createdAtMs()) > BREEDING_CACHE_TTL_MS);
+            if (BREEDING_CACHE.size() > MAX_RUNTIME_CACHE_ENTRIES) {
+                BREEDING_CACHE.clear();
+            }
+        }
+    }
+
     private record RequestKey(UUID playerId, ResourceLocation mobId, RequestKind kind) {
     }
 
     private enum RequestKind {
         LOOT,
-        SPAWNS
+        SPAWNS,
+        BREEDING
     }
 
     private record TimedLoot(long createdAtMs, List<S2CMobLootPayload.LootLine> lines) {
@@ -486,6 +556,13 @@ public final class WildexNetwork {
             long createdAtMs,
             List<S2CMobSpawnsPayload.DimSection> naturalSections,
             List<S2CMobSpawnsPayload.StructureSection> structureSections
+    ) {
+    }
+
+    private record TimedBreeding(
+            long createdAtMs,
+            boolean ownable,
+            List<ResourceLocation> breedingItemIds
     ) {
     }
 }

@@ -16,6 +16,7 @@ public final class ClientConfig {
     public final ModConfigSpec.EnumValue<DesignStyle> designStyle;
     public final ModConfigSpec.BooleanValue showDiscoveryToasts;
     public final ModConfigSpec.BooleanValue showDiscoveredSpyglassOverlay;
+    public final ModConfigSpec.BooleanValue hideGuiScaleSlider;
     public final ModConfigSpec.DoubleValue wildexUiScale;
 
     private ClientConfig(ModConfigSpec.Builder builder) {
@@ -33,6 +34,10 @@ public final class ClientConfig {
                 .comment("Show a small overlay when aiming at an already discovered mob with a spyglass.")
                 .define("showDiscoveredSpyglassOverlay", true);
 
+        hideGuiScaleSlider = builder
+                .comment("Hide the GUI scale slider in the Wildex screen.")
+                .define("hideGuiScaleSlider", true);
+
         wildexUiScale = builder
                 .comment("Wildex UI scale factor. 2.0 = 100% display size.")
                 .defineInRange("wildexUiScale", 2.0d, 1.00d, 4.00d);
@@ -42,6 +47,9 @@ public final class ClientConfig {
 
     public enum DesignStyle {
         VINTAGE,
-        MODERN
+        MODERN,
+        JUNGLE,
+        RUNES,
+        STEAMPUNK
     }
 }

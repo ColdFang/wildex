@@ -1,6 +1,32 @@
 {
   "parent": "item/generated",
   "textures": {
-    "layer0": "wildex:item/wildex_book"
-  }
+    "layer0": "wildex:item/wildex_vintage_bookitem"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "wildex:book_theme": 1.0
+      },
+      "model": "wildex:item/wildex_book_modern"
+    },
+    {
+      "predicate": {
+        "wildex:book_theme": 2.0
+      },
+      "model": "wildex:item/wildex_book_jungle"
+    },
+    {
+      "predicate": {
+        "wildex:book_theme": 3.0
+      },
+      "model": "wildex:item/wildex_book_runes"
+    },
+    {
+      "predicate": {
+        "wildex:book_theme": 4.0
+      },
+      "model": "wildex:item/wildex_book_steampunk"
+    }
+  ]
 }

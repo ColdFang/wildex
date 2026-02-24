@@ -34,7 +34,7 @@ public final class WildexRightInfoRenderer {
     static final Component SHIFT_HINT_LINE_1 = Component.translatable("gui.wildex.hint.shift_details");
     static final Component SHIFT_HINT_LINE_2 = Component.translatable("gui.wildex.hint.shift_hover");
 
-    static record TooltipRequest(List<Component> lines) {
+    record TooltipRequest(List<Component> lines) {
     }
 
     private final WildexRightInfoStatsRenderer statsRenderer = new WildexRightInfoStatsRenderer();
@@ -52,6 +52,10 @@ public final class WildexRightInfoRenderer {
 
     public void resetLootScroll() {
         lootRenderer.resetScroll();
+    }
+
+    public void resetMiscScroll() {
+        miscRenderer.resetScroll();
     }
 
     public void scrollSpawn(double scrollY) {
@@ -100,6 +104,22 @@ public final class WildexRightInfoRenderer {
 
     public boolean handleLootMouseReleased(int button) {
         return lootRenderer.handleMouseReleased(button);
+    }
+
+    public boolean scrollMisc(int mouseX, int mouseY, double scrollY) {
+        return miscRenderer.scroll(mouseX, mouseY, scrollY);
+    }
+
+    public boolean handleMiscMouseClicked(int mouseX, int mouseY, int button) {
+        return miscRenderer.handleMouseClicked(mouseX, mouseY, button);
+    }
+
+    public boolean handleMiscMouseDragged(int mouseY, int button) {
+        return miscRenderer.handleMouseDragged(mouseY, button);
+    }
+
+    public boolean handleMiscMouseReleased(int button) {
+        return miscRenderer.handleMouseReleased(button);
     }
 
     public void render(
@@ -166,7 +186,7 @@ public final class WildexRightInfoRenderer {
                 case SPAWNS -> tooltip = spawnsRenderer.render(
                         graphics, font, local, mobRl, state, inkColor, x0, y0, s, mouseX, mouseY
                 );
-                case MISC -> miscRenderer.render(graphics, font, local, state, inkColor, x0, y0, s);
+                case MISC -> miscRenderer.render(graphics, font, local, state, data.misc(), inkColor, x0, y0, s);
             }
 
             graphics.pose().popPose();
