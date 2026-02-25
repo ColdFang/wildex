@@ -8,15 +8,18 @@ import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexServerConfigCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
+import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.network.C2SRequestMobBreedingPayload;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
 import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
+import de.coldfang.wildex.network.C2SMarkMobEntryViewedPayload;
 import de.coldfang.wildex.network.C2SRequestPlayerUiStatePayload;
 import de.coldfang.wildex.network.C2SRequestServerConfigPayload;
 import de.coldfang.wildex.network.C2SRequestShareCandidatesPayload;
 import de.coldfang.wildex.network.C2SRequestSharePayoutStatusPayload;
 import de.coldfang.wildex.network.C2SRequestDiscoveredMobsPayload;
+import de.coldfang.wildex.network.C2SRequestViewedMobEntriesPayload;
 import de.coldfang.wildex.network.C2SClaimSharePayoutsPayload;
 import de.coldfang.wildex.network.C2SRequestMobKillsPayload;
 import de.coldfang.wildex.network.C2SRequestMobLootPayload;
@@ -29,12 +32,14 @@ import de.coldfang.wildex.network.S2CDiscoveredMobsPayload;
 import de.coldfang.wildex.network.S2CMobKillsPayload;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobBreedingPayload;
+import de.coldfang.wildex.network.S2CMobEntryViewedPayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
 import de.coldfang.wildex.network.S2CPlayerUiStatePayload;
 import de.coldfang.wildex.network.S2CShareCandidatesPayload;
 import de.coldfang.wildex.network.S2CSharePayoutStatusPayload;
 import de.coldfang.wildex.network.S2CServerConfigPayload;
 import de.coldfang.wildex.network.S2CSpyglassDiscoveryEffectPayload;
+import de.coldfang.wildex.network.S2CViewedMobEntriesPayload;
 import de.coldfang.wildex.network.S2CWildexCompletePayload;
 import de.coldfang.wildex.network.S2CWildexCompleteStatusPayload;
 import de.coldfang.wildex.network.WildexNetwork;
@@ -76,6 +81,18 @@ public final class WildexNetworkClient {
                 S2CDiscoveredMobsPayload.TYPE,
                 S2CDiscoveredMobsPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> WildexDiscoveryCache.setAll(payload.mobIds()))
+        );
+
+        r.playToClient(
+                S2CViewedMobEntriesPayload.TYPE,
+                S2CViewedMobEntriesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> WildexViewedMobEntriesCache.setAll(payload.mobIds()))
+        );
+
+        r.playToClient(
+                S2CMobEntryViewedPayload.TYPE,
+                S2CMobEntryViewedPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> WildexViewedMobEntriesCache.add(payload.mobId()))
         );
 
         r.playToClient(
@@ -267,6 +284,21 @@ public final class WildexNetworkClient {
         if (mc.getConnection() == null) return;
 
         PacketDistributor.sendToServer(new C2SRequestPlayerUiStatePayload());
+    }
+
+    public static void requestViewedMobEntries() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SRequestViewedMobEntriesPayload());
+    }
+
+    public static void markMobEntryViewed(ResourceLocation mobId) {
+        if (mobId == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SMarkMobEntryViewedPayload(mobId));
     }
 
     public static void savePlayerUiState(String tabId, String mobId) {

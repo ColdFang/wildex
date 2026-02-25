@@ -1,8 +1,10 @@
 package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.client.WildexClientConfigView;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -32,9 +34,17 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     private static final int DEBUG_CB_SIZE = 9;
     private static final int DEBUG_CB_PAD = 6;
+    private static final ResourceLocation EXPERIENCE_ORB_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/experience_orb.png");
+    private static final Component NEW_BADGE_LABEL = Component.translatable("gui.wildex.list.new");
+    private static final int NEW_BADGE_ORB_SIZE = 10;
+    private static final int NEW_BADGE_PAD_LEFT = 4;
+    private static final int NEW_BADGE_PAD_RIGHT = 6;
+    private static final int NEW_BADGE_GAP = 3;
+
     private final Consumer<ResourceLocation> onSelect;
+    private final Consumer<ResourceLocation> onEntryClicked;
     private final Consumer<ResourceLocation> onDebugDiscover;
-    private final int itemHeightPx;
     private ResourceLocation selectedId;
     private boolean draggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
@@ -47,11 +57,14 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int h,
             int itemHeightPx,
             Consumer<ResourceLocation> onSelect,
+            Consumer<ResourceLocation> onEntryClicked,
             Consumer<ResourceLocation> onDebugDiscover
     ) {
         super(mc, w, h, y, Math.max(14, itemHeightPx));
-        this.itemHeightPx = Math.max(14, itemHeightPx);
-        this.onSelect = onSelect == null ? id -> { } : onSelect;
+        this.onSelect = onSelect == null ? id -> {
+        } : onSelect;
+        this.onEntryClicked = onEntryClicked == null ? id -> {
+        } : onEntryClicked;
         this.onDebugDiscover = onDebugDiscover == null ? id -> { } : onDebugDiscover;
         this.setX(x);
         this.setRenderHeader(false, 0);
@@ -212,7 +225,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         int thumbY = scrollbarThumbY();
         int thumbH = scrollbarThumbHeight();
         boolean hovered = isInScrollbar(mouseX, mouseY);
-        int thumbColor = hovered || this.draggingScrollbar ? brighten(theme.scrollThumb(), 20) : theme.scrollThumb();
+        int thumbColor = hovered || this.draggingScrollbar ? brighten(theme.scrollThumb()) : theme.scrollThumb();
         graphics.fill(x0, thumbY, x1, thumbY + thumbH, thumbColor);
     }
 
@@ -254,7 +267,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         this.setScrollAmount(t * this.getMaxScroll());
     }
 
-    private static int brighten(int argb, int delta) {
+    private static int brighten(int argb) {
+        final int delta = 20;
         int a = (argb >>> 24) & 0xFF;
         int r = Math.min(255, ((argb >>> 16) & 0xFF) + delta);
         int g = Math.min(255, ((argb >>> 8) & 0xFF) + delta);
@@ -313,6 +327,47 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         int plus = WildexThemes.isVintageLayout() ? theme.ink() : theme.buttonInk();
         graphics.fill(cbX + 2, cbY + 4, cbX + DEBUG_CB_SIZE - 2, cbY + 5, plus);
         graphics.fill(cbX + 4, cbY + 2, cbX + 5, cbY + DEBUG_CB_SIZE - 2, plus);
+    }
+
+    private static int newBadgeWidth(Font font) {
+        int labelW = WildexUiText.width(font, NEW_BADGE_LABEL);
+        return NEW_BADGE_PAD_LEFT + NEW_BADGE_ORB_SIZE + NEW_BADGE_GAP + labelW + NEW_BADGE_PAD_RIGHT;
+    }
+
+    private static void renderNewBadge(GuiGraphics graphics, Font font, int rightX, int y, int rowHeight, boolean selected) {
+        int badgeW = newBadgeWidth(font);
+        int badgeX = rightX - badgeW;
+
+        int orbX = badgeX + NEW_BADGE_PAD_LEFT;
+        int orbY = y + ((rowHeight - NEW_BADGE_ORB_SIZE) / 2);
+        long nowMs = System.currentTimeMillis();
+        int frame = (int) ((nowMs / 120L) & 15L);
+        int u = (frame & 3) * 16;
+        int v = (frame >> 2) * 16;
+        float phase = (nowMs / 50.0f) * 0.5f;
+        float red = (float) ((Math.sin(phase) + 1.0) * 0.5);
+        float blue = (float) ((Math.sin(phase + (Math.PI * 4.0 / 3.0)) + 1.0) * 0.1);
+        graphics.setColor(red, 1.0f, blue, 1.0f);
+        graphics.blit(
+                EXPERIENCE_ORB_TEXTURE,
+                orbX,
+                orbY,
+                NEW_BADGE_ORB_SIZE,
+                NEW_BADGE_ORB_SIZE,
+                (float) u,
+                (float) v,
+                16,
+                16,
+                64,
+                64
+        );
+        graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+        WildexUiTheme.Palette theme = WildexUiTheme.current();
+        int textColor = selected ? theme.inkOnDark() : theme.ink();
+        int textX = orbX + NEW_BADGE_ORB_SIZE + NEW_BADGE_GAP;
+        int textY = y + ((rowHeight - WildexUiText.lineHeight(font)) / 2) + TEXT_NUDGE_Y;
+        WildexUiText.draw(graphics, font, NEW_BADGE_LABEL, textX, textY, textColor, false);
     }
 
     public final class Entry extends ObjectSelectionList.Entry<Entry> {
@@ -384,8 +439,14 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             boolean discovered = isDiscovered(hiddenMode);
 
             boolean showDebug = showDebugDiscover(discovered);
+            boolean showNew = hiddenMode && discovered && !WildexViewedMobEntriesCache.isViewed(this.id);
 
-            int textRightCut = showDebug ? (DEBUG_CB_SIZE + DEBUG_CB_PAD * 2) : 2;
+            int textRightCut = 2;
+            if (showDebug) {
+                textRightCut = DEBUG_CB_SIZE + DEBUG_CB_PAD * 2;
+            } else if (showNew) {
+                textRightCut = newBadgeWidth(MobListWidget.this.minecraft.font);
+            }
 
             WildexUiTheme.Palette theme = WildexUiTheme.current();
             int color = selected ? theme.inkOnDark() : theme.ink();
@@ -405,7 +466,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             WildexScissor.enablePhysical(graphics, textX, rowY0, clipX1, rowY1);
             try {
-                if (!selected || textW <= availLogicalW) {
+                boolean shouldMarquee = textW > availLogicalW && (selected || showNew);
+                if (!shouldMarquee) {
                     if (textScale >= 0.999f) {
                         WildexUiText.draw(graphics, MobListWidget.this.minecraft.font, s, textX, textY, color, false);
                     } else {
@@ -453,6 +515,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 int cbX = x1 - DEBUG_CB_PAD - DEBUG_CB_SIZE;
                 int cbY = y + ((rowHeight - DEBUG_CB_SIZE) / 2);
                 renderDebugCheckbox(graphics, cbX, cbY);
+            } else if (showNew) {
+                renderNewBadge(graphics, MobListWidget.this.minecraft.font, x1, y, rowHeight, selected);
             }
         }
 
@@ -483,6 +547,9 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             }
 
             MobListWidget.this.setSelected(this);
+            if (discovered) {
+                MobListWidget.this.onEntryClicked.accept(this.id);
+            }
             return true;
         }
     }

@@ -38,6 +38,8 @@ public final class CommonConfig {
     public final ModConfigSpec.BooleanValue hiddenMode;
     public final ModConfigSpec.BooleanValue requireBookForKeybind;
     public final ModConfigSpec.BooleanValue giveBookOnFirstJoin;
+    public final ModConfigSpec.BooleanValue newEntryRewardsXp;
+    public final ModConfigSpec.IntValue newEntryXpAmount;
 
     public final ModConfigSpec.BooleanValue debugMode;
     public final ModConfigSpec.BooleanValue kubejsBridgeEnabled;
@@ -69,20 +71,29 @@ public final class CommonConfig {
                 .comment("Ticks required to discover a mob while continuously aiming with a Spyglass.")
                 .defineInRange("spyglassDiscoveryChargeTicks", 28, 1, 200);
 
+        newEntryRewardsXp = builder
+                .comment("Grant XP for newly discovered Wildex entries when they are marked as viewed.")
+                .define("newEntryRewardsXp", true);
+
+        newEntryXpAmount = builder
+                .comment("XP points granted per newly discovered Wildex entry.")
+                .defineInRange("newEntryXpAmount", 5, 0, Integer.MAX_VALUE);
+
         builder.pop();
 
         builder.push("wildexList");
 
         excludedModIds = builder
-                .comment(
-                        "Entries to exclude from Wildex.\n"
-                                + "- Use a namespace to exclude an entire mod (e.g. \"alexsmobs\").\n"
-                                + "- Use a full entity id to exclude a specific mob (e.g. \"alexsmobs:grizzly_bear\").\n"
-                                + "Applies to UI + discovery + completion."
-                )
-                .defineList(
+                .comment("""
+                        Entries to exclude from Wildex.
+                        - Use a namespace to exclude an entire mod (e.g. "alexsmobs").
+                        - Use a full entity id to exclude a specific mob (e.g. "alexsmobs:grizzly_bear").
+                        Applies to UI + discovery + completion.
+                        """)
+                .defineListAllowEmpty(
                         "excludedModIds",
                         List.of(),
+                        () -> "minecraft:zombie",
                         o -> {
                             if (!(o instanceof String s)) return false;
                             String v = s.trim();
@@ -132,11 +143,11 @@ public final class CommonConfig {
         builder.push("integrationDebug");
 
         kubejsBridgeEnabled = builder
-                .comment(
-                        "Enable Wildex KubeJS bridge emits (discovery/completed).\n"
-                                + "Keep this enabled for normal use.\n"
-                                + "Disable only for troubleshooting or if a modpack/addon has compatibility issues with KubeJS event handling."
-                )
+                .comment("""
+                        Enable Wildex KubeJS bridge emits (discovery/completed).
+                        Keep this enabled for normal use.
+                        Disable only for troubleshooting or if a modpack/addon has compatibility issues with KubeJS event handling.
+                        """)
                 .define("kubejsBridgeEnabled", true);
 
         exposureDiscoveryEnabled = builder
@@ -175,13 +186,13 @@ public final class CommonConfig {
 
         migrationsRunning = true;
         try {
-            if (!isMigrationDone(props, MIGRATION_KEY_CONFIG_LAYOUT_V200)) {
+            if (isMigrationPending(props, MIGRATION_KEY_CONFIG_LAYOUT_V200)) {
                 migrateConfigLayoutV200(modConfig);
                 props.setProperty(MIGRATION_KEY_CONFIG_LAYOUT_V200, "true");
                 changedAny = true;
             }
 
-            if (!isMigrationDone(props, MIGRATION_KEY_EXCLUDED_IDS_V130)) {
+            if (isMigrationPending(props, MIGRATION_KEY_EXCLUDED_IDS_V130)) {
                 migrateExcludedMobIdsV130();
                 props.setProperty(MIGRATION_KEY_EXCLUDED_IDS_V130, "true");
                 changedAny = true;
@@ -201,7 +212,7 @@ public final class CommonConfig {
         }
     }
 
-    private static boolean migrateExcludedMobIdsV130() {
+    private static void migrateExcludedMobIdsV130() {
         List<? extends String> current = INSTANCE.excludedModIds.get();
         ArrayList<String> merged = new ArrayList<>();
         java.util.HashSet<String> seen = new java.util.HashSet<>();
@@ -219,48 +230,42 @@ public final class CommonConfig {
         }
 
         List<String> normalized = List.copyOf(merged);
-        if (normalized.equals(current)) return false;
+        if (normalized.equals(current)) return;
         INSTANCE.excludedModIds.set(normalized);
-        return true;
     }
 
-    private static boolean migrateConfigLayoutV200(ModConfig modConfig) {
+    private static void migrateConfigLayoutV200(ModConfig modConfig) {
         Object loaded = modConfig == null ? null : modConfig.getLoadedConfig();
-        if (loaded == null) return false;
+        if (loaded == null) return;
 
-        boolean changed = false;
-
-        changed |= migrateBooleanPath(loaded, "debugMode", INSTANCE.debugMode);
-        changed |= migrateBooleanPath(loaded, "kubejsBridgeEnabled", INSTANCE.kubejsBridgeEnabled);
-        changed |= migrateBooleanPath(loaded, "exposureDiscoveryEnabled", INSTANCE.exposureDiscoveryEnabled);
-        changed |= migrateExcludedIdsPath(loaded);
-        changed |= migrateBooleanPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOffersEnabled", INSTANCE.shareOffersEnabled);
-        changed |= migrateBooleanPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOffersPaymentEnabled", INSTANCE.shareOffersPaymentEnabled);
-        changed |= migrateStringPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOfferCurrencyItem", INSTANCE.shareOfferCurrencyItem);
-        changed |= migrateIntPathBetweenSections(loaded, "integrationDebug", "multiplayer", "shareOfferMaxPrice", INSTANCE.shareOfferMaxPrice);
-
-        return changed;
+        migrateBooleanPath(loaded, "debugMode", INSTANCE.debugMode);
+        migrateBooleanPath(loaded, "kubejsBridgeEnabled", INSTANCE.kubejsBridgeEnabled);
+        migrateBooleanPath(loaded, "exposureDiscoveryEnabled", INSTANCE.exposureDiscoveryEnabled);
+        migrateExcludedIdsPath(loaded);
+        migrateBooleanPathIntegrationDebugToMultiplayer(loaded, "shareOffersEnabled", INSTANCE.shareOffersEnabled);
+        migrateBooleanPathIntegrationDebugToMultiplayer(loaded, "shareOffersPaymentEnabled", INSTANCE.shareOffersPaymentEnabled);
+        migrateShareOfferCurrencyItemPath(loaded);
+        migrateShareOfferMaxPricePath(loaded);
     }
 
-    private static boolean migrateBooleanPath(Object loaded, String key, ModConfigSpec.BooleanValue target) {
-        if (target == null) return false;
+    private static void migrateBooleanPath(Object loaded, String key, ModConfigSpec.BooleanValue target) {
+        if (target == null) return;
         Object existingNew = getPathValue(loaded, "integrationDebug", key);
-        if (existingNew != null) return false;
+        if (existingNew != null) return;
 
         Object old = getPathValue(loaded, "general", key);
-        if (!(old instanceof Boolean oldBool)) return false;
+        if (!(old instanceof Boolean oldBool)) return;
 
-        if (target.get().equals(oldBool)) return false;
+        if (target.get().equals(oldBool)) return;
         target.set(oldBool);
-        return true;
     }
 
-    private static boolean migrateExcludedIdsPath(Object loaded) {
+    private static void migrateExcludedIdsPath(Object loaded) {
         Object existingNew = getPathValue(loaded, "wildexList", "excludedModIds");
-        if (existingNew != null) return false;
+        if (existingNew != null) return;
 
         Object old = getPathValue(loaded, "general", "excludedModIds");
-        if (!(old instanceof List<?> oldList)) return false;
+        if (!(old instanceof List<?> oldList)) return;
 
         ArrayList<String> normalized = new ArrayList<>();
         java.util.HashSet<String> seen = new java.util.HashSet<>();
@@ -272,70 +277,50 @@ public final class CommonConfig {
         }
 
         List<String> next = List.copyOf(normalized);
-        if (next.equals(INSTANCE.excludedModIds.get())) return false;
+        if (next.equals(INSTANCE.excludedModIds.get())) return;
         INSTANCE.excludedModIds.set(next);
-        return true;
     }
 
-    private static boolean migrateBooleanPathBetweenSections(
+    private static void migrateBooleanPathIntegrationDebugToMultiplayer(
             Object loaded,
-            String sourceSection,
-            String targetSection,
             String key,
             ModConfigSpec.BooleanValue target
     ) {
-        if (target == null) return false;
-        Object existingNew = getPathValue(loaded, targetSection, key);
-        if (existingNew != null) return false;
+        if (target == null) return;
+        Object existingNew = getPathValue(loaded, "multiplayer", key);
+        if (existingNew != null) return;
 
-        Object old = getPathValue(loaded, sourceSection, key);
-        if (!(old instanceof Boolean oldBool)) return false;
+        Object old = getPathValue(loaded, "integrationDebug", key);
+        if (!(old instanceof Boolean oldBool)) return;
 
-        if (target.get().equals(oldBool)) return false;
+        if (target.get().equals(oldBool)) return;
         target.set(oldBool);
-        return true;
     }
 
-    private static boolean migrateStringPathBetweenSections(
-            Object loaded,
-            String sourceSection,
-            String targetSection,
-            String key,
-            ModConfigSpec.ConfigValue<String> target
-    ) {
-        if (target == null) return false;
-        Object existingNew = getPathValue(loaded, targetSection, key);
-        if (existingNew != null) return false;
+    private static void migrateShareOfferCurrencyItemPath(Object loaded) {
+        Object existingNew = getPathValue(loaded, "multiplayer", "shareOfferCurrencyItem");
+        if (existingNew != null) return;
 
-        Object old = getPathValue(loaded, sourceSection, key);
-        if (!(old instanceof String s)) return false;
+        Object old = getPathValue(loaded, "integrationDebug", "shareOfferCurrencyItem");
+        if (!(old instanceof String s)) return;
         String normalized = s.trim();
-        if (normalized.isEmpty()) return false;
-        if (normalized.equals(target.get())) return false;
+        if (normalized.isEmpty()) return;
+        if (normalized.equals(INSTANCE.shareOfferCurrencyItem.get())) return;
 
-        target.set(normalized);
-        return true;
+        INSTANCE.shareOfferCurrencyItem.set(normalized);
     }
 
-    private static boolean migrateIntPathBetweenSections(
-            Object loaded,
-            String sourceSection,
-            String targetSection,
-            String key,
-            ModConfigSpec.IntValue target
-    ) {
-        if (target == null) return false;
-        Object existingNew = getPathValue(loaded, targetSection, key);
-        if (existingNew != null) return false;
+    private static void migrateShareOfferMaxPricePath(Object loaded) {
+        Object existingNew = getPathValue(loaded, "multiplayer", "shareOfferMaxPrice");
+        if (existingNew != null) return;
 
-        Object old = getPathValue(loaded, sourceSection, key);
-        if (!(old instanceof Number n)) return false;
+        Object old = getPathValue(loaded, "integrationDebug", "shareOfferMaxPrice");
+        if (!(old instanceof Number n)) return;
 
         int raw = n.intValue();
         int migrated = Math.max(0, raw);
-        if (target.get() == migrated) return false;
-        target.set(migrated);
-        return true;
+        if (INSTANCE.shareOfferMaxPrice.get() == migrated) return;
+        INSTANCE.shareOfferMaxPrice.set(migrated);
     }
 
     private static Object getPathValue(Object config, String... path) {
@@ -357,8 +342,8 @@ public final class CommonConfig {
         return dir.resolve(MIGRATIONS_FILE);
     }
 
-    private static boolean isMigrationDone(Properties props, String key) {
-        return "true".equalsIgnoreCase(props.getProperty(key, "false"));
+    private static boolean isMigrationPending(Properties props, String key) {
+        return !"true".equalsIgnoreCase(props.getProperty(key, "false"));
     }
 
     private static Properties loadMigrationProperties(Path file) {

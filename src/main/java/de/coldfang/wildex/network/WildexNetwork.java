@@ -11,11 +11,14 @@ import de.coldfang.wildex.world.WildexWorldPlayerCooldownData;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import de.coldfang.wildex.world.WildexWorldPlayerKillData;
 import de.coldfang.wildex.world.WildexWorldPlayerUiStateData;
+import de.coldfang.wildex.world.WildexWorldPlayerViewedEntriesData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
@@ -77,6 +80,10 @@ public final class WildexNetwork {
             r.playToClient(S2CMobBreedingPayload.TYPE, S2CMobBreedingPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CMobSpawnsPayload.TYPE, S2CMobSpawnsPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CViewedMobEntriesPayload.TYPE, S2CViewedMobEntriesPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobEntryViewedPayload.TYPE, S2CMobEntryViewedPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CSpyglassDiscoveryEffectPayload.TYPE, S2CSpyglassDiscoveryEffectPayload.STREAM_CODEC, (payload, ctx) -> {
             });
@@ -185,6 +192,49 @@ public final class WildexNetwork {
                             .collect(Collectors.toSet());
 
                     PacketDistributor.sendToPlayer(sp, new S2CDiscoveredMobsPayload(filtered));
+                })
+        );
+
+        r.playToServer(
+                C2SRequestViewedMobEntriesPayload.TYPE,
+                C2SRequestViewedMobEntriesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    Set<ResourceLocation> viewed = WildexWorldPlayerViewedEntriesData
+                            .get(serverLevel)
+                            .getViewed(sp.getUUID());
+
+                    PacketDistributor.sendToPlayer(sp, new S2CViewedMobEntriesPayload(viewed));
+                })
+        );
+
+        r.playToServer(
+                C2SMarkMobEntryViewedPayload.TYPE,
+                C2SMarkMobEntryViewedPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    ResourceLocation mobId = payload.mobId();
+                    if (!WildexMobFilters.isTrackable(mobId)) return;
+
+                    WildexWorldPlayerDiscoveryData discoveryData = WildexWorldPlayerDiscoveryData.get(serverLevel);
+                    if (!discoveryData.isDiscovered(sp.getUUID(), mobId)) return;
+
+                    WildexWorldPlayerViewedEntriesData viewedData = WildexWorldPlayerViewedEntriesData.get(serverLevel);
+                    boolean added = viewedData.markViewed(sp.getUUID(), mobId);
+                    if (added && CommonConfig.INSTANCE.newEntryRewardsXp.get()) {
+                        int xp = Math.max(0, CommonConfig.INSTANCE.newEntryXpAmount.get());
+                        if (xp > 0) {
+                            sp.giveExperiencePoints(xp);
+                            float pitch = 0.95f + (sp.getRandom().nextFloat() * 0.1f);
+                            sp.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.10f, pitch);
+                        }
+                    }
+
+                    PacketDistributor.sendToPlayer(sp, new S2CMobEntryViewedPayload(mobId));
                 })
         );
 

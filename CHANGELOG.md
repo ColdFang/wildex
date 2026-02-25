@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.3.0 - 2026-02-25
+
+### Added
+- Added a `New` marker in the mob list for newly discovered entries that have not been opened yet.
+- Added automatic marquee fallback for long mob names when the new-entry badge would otherwise overlap the row text.
+- Added persistent per-player viewed-entry state (saved server-side).
+- Added client/server sync for viewed-entry state so behavior is multiplayer-safe and server-authoritative.
+- Added optional XP rewards for first-time viewed new entries:
+  - `newEntryRewardsXp` (default: `true`)
+  - `newEntryXpAmount` (default: `5`)
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.2.0`.
+
 ## 2.2.0 - 2026-02-24
 
 This update focuses on a major UI polish pass, new visual themes, and introduces breeding information in the Info/Misc tab.

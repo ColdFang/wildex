@@ -6,6 +6,7 @@ import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
+import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
@@ -258,7 +259,10 @@ public final class WildexScreen extends Screen {
             ClientConfig.SPEC.save();
             mobDataResolver.clearCache();
             // Recreate the screen so all layout metrics/widgets are rebuilt from the selected theme.
-            this.minecraft.setScreen(new WildexScreen(this.topMenuExpanded));
+            Minecraft mcRef = this.minecraft;
+            if (mcRef != null) {
+                mcRef.setScreen(new WildexScreen(this.topMenuExpanded));
+            }
         },
                 null,
                 this::topButtonBackgroundTexture
@@ -324,6 +328,7 @@ public final class WildexScreen extends Screen {
                 listH,
                 this.currentMobListItemHeight,
                 this::onMobSelected,
+                this::onMobEntryClicked,
                 this::onDebugDiscoverMob
         );
         this.addRenderableWidget(this.mobList);
@@ -381,6 +386,9 @@ public final class WildexScreen extends Screen {
         }
         WildexNetworkClient.requestServerConfig();
         WildexNetworkClient.requestPlayerUiState();
+        if (WildexClientConfigView.hiddenMode()) {
+            WildexNetworkClient.requestViewedMobEntries();
+        }
         requestAllForSelected(this.state.selectedMobId());
     }
 
@@ -429,6 +437,7 @@ public final class WildexScreen extends Screen {
         updateShareWidgetsVisibility();
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestDiscoveredMobs();
+            WildexNetworkClient.requestViewedMobEntries();
         }
     }
 
@@ -546,6 +555,17 @@ public final class WildexScreen extends Screen {
         rightInfoRenderer.resetMiscScroll();
         saveUiStateToServer();
         requestAllForSelected(next);
+    }
+
+    private void onMobEntryClicked(ResourceLocation mobId) {
+        if (mobId == null) return;
+        if (!WildexClientConfigView.hiddenMode()) return;
+        if (!WildexDiscoveryCache.isDiscovered(mobId)) return;
+
+        boolean added = WildexViewedMobEntriesCache.add(mobId);
+        if (!added) return;
+
+        WildexNetworkClient.markMobEntryViewed(mobId);
     }
 
     private void onDebugDiscoverMob(ResourceLocation mobId) {
@@ -1075,6 +1095,7 @@ public final class WildexScreen extends Screen {
                 listH,
                 this.currentMobListItemHeight,
                 this::onMobSelected,
+                this::onMobEntryClicked,
                 this::onDebugDiscoverMob
         );
         this.addRenderableWidget(this.mobList);

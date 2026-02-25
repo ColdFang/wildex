@@ -7,6 +7,7 @@ import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
+import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -28,9 +29,11 @@ public final class WildexClientSessionEvents {
         WildexCompletionCache.clear();
         WildexSpyglassKnownMobOverlayClient.clear();
         WildexNetworkClient.clearShareState();
+        WildexViewedMobEntriesCache.clear();
 
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestDiscoveredMobs();
+            WildexNetworkClient.requestViewedMobEntries();
         }
         WildexNetworkClient.requestServerConfig();
     }
@@ -47,6 +50,7 @@ public final class WildexClientSessionEvents {
         WildexCompletionCache.clear();
         WildexSpyglassKnownMobOverlayClient.clear();
         WildexNetworkClient.clearShareState();
+        WildexViewedMobEntriesCache.clear();
     }
 
     @SubscribeEvent
