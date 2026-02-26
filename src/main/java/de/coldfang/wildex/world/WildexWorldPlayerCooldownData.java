@@ -42,7 +42,6 @@ public final class WildexWorldPlayerCooldownData extends SavedData {
     private WildexWorldPlayerCooldownData() {
     }
 
-    @SuppressWarnings("resource")
     private void migrateLegacyDimensionData(MinecraftServer server, ServerLevel rootLevel) {
         if (migratedToOverworldStorage) return;
 

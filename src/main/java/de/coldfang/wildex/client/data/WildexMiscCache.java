@@ -21,13 +21,19 @@ public final class WildexMiscCache {
         REQUESTED.clear();
     }
 
-    public static void set(ResourceLocation mobId, boolean ownable, java.util.List<ResourceLocation> breedingItemIds) {
+    public static void set(
+            ResourceLocation mobId,
+            boolean ownable,
+            java.util.List<ResourceLocation> breedingItemIds,
+            java.util.List<ResourceLocation> tamingItemIds
+    ) {
         if (mobId == null) return;
         CACHE.put(
                 mobId,
                 new WildexMiscData(
                         ownable,
-                        breedingItemIds == null ? java.util.List.of() : java.util.List.copyOf(breedingItemIds)
+                        breedingItemIds == null ? java.util.List.of() : java.util.List.copyOf(breedingItemIds),
+                        tamingItemIds == null ? java.util.List.of() : java.util.List.copyOf(tamingItemIds)
                 )
         );
     }

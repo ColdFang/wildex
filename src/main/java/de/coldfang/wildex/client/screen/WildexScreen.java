@@ -37,6 +37,8 @@ public final class WildexScreen extends Screen {
 
 
     private static final Component RESET_PREVIEW_TOOLTIP = Component.translatable("tooltip.wildex.reset_preview");
+    private static final Component PREVIEW_BABY_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_baby");
+    private static final Component PREVIEW_ADULT_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_adult");
     private static final Component DISCOVERED_ONLY_TOOLTIP = Component.translatable("tooltip.wildex.discovered_only");
     private static final Component PREVIEW_CONTROLS_LABEL = Component.translatable("gui.wildex.preview_controls_hint");
     private static final List<Component> PREVIEW_CONTROLS_TOOLTIP = List.of(
@@ -67,6 +69,9 @@ public final class WildexScreen extends Screen {
     private static final float TOP_MENU_CLOSE_SPEED = 16.0f;
     private static final int MODERN_MENU_SLIDER_BG = 0xFF14777D;
     private static final int MODERN_RIGHT_EDGE_OCCLUDER_TEX_W = 32;
+    private static final int PREVIEW_TOGGLE_BUTTON_GAP = 2;
+    private static final String PREVIEW_BABY_LABEL = "B";
+    private static final String PREVIEW_ADULT_LABEL = "A";
 
     private static final float PREVIEW_HINT_SCALE = 0.62f;
 
@@ -85,6 +90,7 @@ public final class WildexScreen extends Screen {
     private WildexSearchBox searchBox;
     private MobListWidget mobList;
     private MobPreviewResetButton previewResetButton;
+    private MobPreviewResetButton previewBabyToggleButton;
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
     private WildexStyleButton menuButton;
     private WildexStyleButton guiScaleToggleButton;
@@ -157,6 +163,22 @@ public final class WildexScreen extends Screen {
         return new WildexScreenLayout.Area(x, 0, w, h);
     }
 
+    private static WildexScreenLayout.Area previewBabyToggleArea(WildexScreenLayout.Area previewResetArea) {
+        if (previewResetArea == null) return null;
+        int x = previewResetArea.x() - previewResetArea.w() - PREVIEW_TOGGLE_BUTTON_GAP;
+        return new WildexScreenLayout.Area(x, previewResetArea.y(), previewResetArea.w(), previewResetArea.h());
+    }
+
+    private WildexScreenLayout.Area previewBabyToggleAreaFromWidget() {
+        if (this.previewBabyToggleButton == null) return null;
+        return new WildexScreenLayout.Area(
+                this.previewBabyToggleButton.getX(),
+                this.previewBabyToggleButton.getY(),
+                this.previewBabyToggleButton.getWidth(),
+                this.previewBabyToggleButton.getHeight()
+        );
+    }
+
     public WildexScreen() {
         this(rememberedTopMenuExpanded);
     }
@@ -222,8 +244,8 @@ public final class WildexScreen extends Screen {
                 1.45f,
                 this::menuButtonBackgroundColor,
                 true,
-                0xFFF7EBCF,
-                0xFFFFF7E2
+                menuButtonOuterFrameColor(),
+                menuButtonInnerFrameColor()
         ));
         this.menuButton.setFrameThickness(2, 2);
         this.menuButton.setFillInset(5);
@@ -269,9 +291,7 @@ public final class WildexScreen extends Screen {
         ));
         this.styleButton.setFrameThickness(1, 1);
         updateTopMenuButtonsVisibility();
-        if (WildexClientConfigView.hiddenMode()) {
-            WildexNetworkClient.requestDiscoveredMobs();
-        }
+        WildexNetworkClient.requestDiscoveredMobs();
 
         WildexScreenLayout.Area search = layout.leftSearchArea();
 
@@ -360,6 +380,19 @@ public final class WildexScreen extends Screen {
                 mobPreviewRenderer::resetPreview
         );
         this.addRenderableWidget(this.previewResetButton);
+        WildexScreenLayout.Area babyToggleArea = previewBabyToggleArea(resetArea);
+        this.previewBabyToggleButton = new MobPreviewResetButton(
+                babyToggleArea == null ? 0 : babyToggleArea.x(),
+                babyToggleArea == null ? 0 : babyToggleArea.y(),
+                babyToggleArea == null ? resetArea.w() : babyToggleArea.w(),
+                babyToggleArea == null ? resetArea.h() : babyToggleArea.h(),
+                PREVIEW_BABY_LABEL,
+                () -> {
+                    if (!mobPreviewRenderer.toggleBabyPreview(this.state.selectedMobId())) return;
+                    updatePreviewBabyToggleButtonState();
+                }
+        );
+        this.addRenderableWidget(this.previewBabyToggleButton);
         this.shareOverlay = new WildexShareOverlayController(
                 this,
                 this.font,
@@ -435,8 +468,8 @@ public final class WildexScreen extends Screen {
             this.shareOverlay.refreshVisibility();
         }
         updateShareWidgetsVisibility();
+        WildexNetworkClient.requestDiscoveredMobs();
         if (WildexClientConfigView.hiddenMode()) {
-            WildexNetworkClient.requestDiscoveredMobs();
             WildexNetworkClient.requestViewedMobEntries();
         }
     }
@@ -532,15 +565,16 @@ public final class WildexScreen extends Screen {
         String next = id == null ? "" : id.toString();
 
         if (!next.equals(this.state.selectedMobId())) {
-        closeShareOverlayIfOpen();
-        this.state.setSelectedMobId(next);
-        rightInfoRenderer.resetSpawnScroll();
-        rightInfoRenderer.resetStatsScroll();
-        rightInfoRenderer.resetLootScroll();
-        rightInfoRenderer.resetMiscScroll();
-        saveUiStateToServer();
-        requestAllForSelected(next);
-    }
+            closeShareOverlayIfOpen();
+            this.state.setSelectedMobId(next);
+            this.mobPreviewRenderer.setBabyPreviewEnabled(false);
+            rightInfoRenderer.resetSpawnScroll();
+            rightInfoRenderer.resetStatsScroll();
+            rightInfoRenderer.resetLootScroll();
+            rightInfoRenderer.resetMiscScroll();
+            saveUiStateToServer();
+            requestAllForSelected(next);
+        }
     }
 
     private void onMobSelected(ResourceLocation id) {
@@ -550,11 +584,13 @@ public final class WildexScreen extends Screen {
 
         String next = id == null ? "" : id.toString();
         state.setSelectedMobId(next);
+        this.mobPreviewRenderer.setBabyPreviewEnabled(false);
         rightInfoRenderer.resetSpawnScroll();
         rightInfoRenderer.resetStatsScroll();
         rightInfoRenderer.resetMiscScroll();
         saveUiStateToServer();
         requestAllForSelected(next);
+        onMobEntryClicked(id);
     }
 
     private void onMobEntryClicked(ResourceLocation mobId) {
@@ -705,19 +741,19 @@ public final class WildexScreen extends Screen {
 
         if (this.layout != null && this.state.selectedTab() == WildexTab.SPAWNS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            if (rightInfoRenderer.handleSpawnMouseDragged(mx, my, button)) {
+            if (rightInfoRenderer.handleSpawnMouseDragged(my, button)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.STATS) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            if (rightInfoRenderer.handleStatsMouseDragged(mx, my, button)) {
+            if (rightInfoRenderer.handleStatsMouseDragged(my, button)) {
                 return true;
             }
         }
         if (this.layout != null && this.state.selectedTab() == WildexTab.LOOT) {
             if (this.shareOverlay != null && this.shareOverlay.isPanelOpen()) return false;
-            if (rightInfoRenderer.handleLootMouseDragged(mx, my, button)) {
+            if (rightInfoRenderer.handleLootMouseDragged(my, button)) {
                 return true;
             }
         }
@@ -841,10 +877,14 @@ public final class WildexScreen extends Screen {
             WildexUiRenderUtil.drawScaledText(graphics, this.font, discText, discX, discY, discScale, theme.ink());
         }
 
+        updatePreviewBabyToggleButtonState();
         mobPreviewRenderer.render(graphics, this.layout, state, physicalMouseX, physicalMouseY, partialTick);
         WildexScreenLayout.Area previewArea = this.layout.rightPreviewArea();
         WildexScreenLayout.Area previewResetArea = this.layout.previewResetButtonArea();
-        HintBounds previewHint = drawPreviewControlsHint(graphics, this.layout, previewArea, previewResetArea);
+        WildexScreenLayout.Area previewBabyArea = (this.previewBabyToggleButton != null && this.previewBabyToggleButton.visible)
+                ? previewBabyToggleAreaFromWidget()
+                : null;
+        HintBounds previewHint = drawPreviewControlsHint(graphics, this.layout, previewArea, previewResetArea, previewBabyArea);
 
         boolean showShareNotice = this.shareOverlay != null && this.shareOverlay.shouldShowNotice();
         boolean showSharePanel = this.shareOverlay != null && this.shareOverlay.isPanelVisible();
@@ -900,6 +940,10 @@ public final class WildexScreen extends Screen {
 
         if (this.previewResetButton != null && this.previewResetButton.isHovered()) {
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(RESET_PREVIEW_TOOLTIP), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.previewBabyToggleButton != null && this.previewBabyToggleButton.visible && this.previewBabyToggleButton.isHovered()) {
+            Component toggleTip = this.mobPreviewRenderer.isBabyPreviewEnabled() ? PREVIEW_ADULT_TOOLTIP : PREVIEW_BABY_TOOLTIP;
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(toggleTip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
 
         if (this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isHovered()) {
@@ -989,7 +1033,8 @@ public final class WildexScreen extends Screen {
             GuiGraphics graphics,
             WildexScreenLayout screenLayout,
             WildexScreenLayout.Area previewArea,
-            WildexScreenLayout.Area previewResetArea
+            WildexScreenLayout.Area previewResetArea,
+            WildexScreenLayout.Area previewBabyArea
     ) {
         if (previewArea == null || screenLayout == null) return null;
 
@@ -1005,6 +1050,9 @@ public final class WildexScreen extends Screen {
         float inv = 1.0f / PREVIEW_HINT_SCALE;
 
         int rightBound = anchor.rightBoundX();
+        if (previewBabyArea != null) {
+            rightBound = Math.min(rightBound, previewBabyArea.x() - 2);
+        }
         int availableW = Math.max(0, rightBound - hintBaseX);
         if (availableW <= 2) return null;
 
@@ -1195,6 +1243,16 @@ public final class WildexScreen extends Screen {
             this.previewResetButton.setWidth(a.w());
             this.previewResetButton.setHeight(a.h());
         }
+        if (this.previewBabyToggleButton != null) {
+            WildexScreenLayout.Area reset = this.layout.previewResetButtonArea();
+            WildexScreenLayout.Area a = previewBabyToggleArea(reset);
+            if (a != null) {
+                this.previewBabyToggleButton.setX(a.x());
+                this.previewBabyToggleButton.setY(a.y());
+                this.previewBabyToggleButton.setWidth(a.w());
+                this.previewBabyToggleButton.setHeight(a.h());
+            }
+        }
 
         if (this.shareOverlay != null) {
             this.shareOverlay.relayout(this.layout);
@@ -1342,6 +1400,14 @@ public final class WildexScreen extends Screen {
         return WildexThemes.isModernLayout() ? MODERN_MENU_SLIDER_BG : null;
     }
 
+    private Integer menuButtonOuterFrameColor() {
+        return WildexThemes.isModernLayout() ? 0xFF1F9AA1 : 0xFF6F4E31;
+    }
+
+    private Integer menuButtonInnerFrameColor() {
+        return WildexThemes.isModernLayout() ? 0xFF93E7EC : 0xFFC9A47A;
+    }
+
     private static void drawThickFrame(GuiGraphics g, int x0, int y0, int x1, int y1) {
         int outerThickness = 3;
         int innerThickness = 3;
@@ -1442,9 +1508,28 @@ public final class WildexScreen extends Screen {
         }
 
         this.lastTab = this.state.selectedTab();
+        this.mobPreviewRenderer.setBabyPreviewEnabled(false);
         this.rightInfoRenderer.resetSpawnScroll();
         this.rightInfoRenderer.resetStatsScroll();
         requestAllForSelected(this.state.selectedMobId());
+    }
+
+    private void updatePreviewBabyToggleButtonState() {
+        if (this.previewBabyToggleButton == null) return;
+
+        ResourceLocation selectedMob = ResourceLocation.tryParse(this.state.selectedMobId());
+        boolean discovered = selectedMob != null && WildexDiscoveryCache.isDiscovered(selectedMob);
+        boolean canToggle = discovered && this.mobPreviewRenderer.canToggleBabyPreview(this.state.selectedMobId());
+
+        this.previewBabyToggleButton.visible = canToggle;
+        this.previewBabyToggleButton.active = canToggle;
+        if (!canToggle) {
+            this.mobPreviewRenderer.setBabyPreviewEnabled(false);
+            this.previewBabyToggleButton.setLabel(PREVIEW_BABY_LABEL);
+            return;
+        }
+
+        this.previewBabyToggleButton.setLabel(this.mobPreviewRenderer.isBabyPreviewEnabled() ? PREVIEW_ADULT_LABEL : PREVIEW_BABY_LABEL);
     }
 
     private void saveUiStateToServer() {

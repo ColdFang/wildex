@@ -1,7 +1,6 @@
 package de.coldfang.wildex.server;
 
 import de.coldfang.wildex.network.S2CWildexCompleteStatusPayload;
-import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -21,7 +20,7 @@ public final class WildexCompletionSyncOnJoinEvents {
 
         WildexScoreboardBridge.syncPlayer(sp);
 
-        boolean complete = WildexWorldPlayerDiscoveryData.get(level).isComplete(sp.getUUID());
+        boolean complete = WildexCompletionHelper.isCurrentlyComplete(level, sp.getUUID());
         PacketDistributor.sendToPlayer(sp, new S2CWildexCompleteStatusPayload(complete));
     }
 }

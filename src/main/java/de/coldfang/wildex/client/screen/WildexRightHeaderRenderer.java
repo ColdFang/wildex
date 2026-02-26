@@ -16,8 +16,6 @@ public final class WildexRightHeaderRenderer {
     private static final int PAD_X = 6;
     private static final int PAD_Y = 6;
 
-    private static final int LINE_GAP = 6;
-
     private static final int COMPACT_THRESHOLD_H = 72;
     private static final float MIN_SCALE = 0.62f;
 
@@ -62,7 +60,6 @@ public final class WildexRightHeaderRenderer {
         int padY = compact ? (vintage ? 5 : 4) : PAD_Y;
         float nameScale = 1.0f;
         int nameLineGap = compact ? 5 : 7;
-        int lineGap = compact ? (vintage ? 5 : 4) : LINE_GAP;
         int dividerGapTop = vintage ? 3 : 2;
         int dividerGapBottom = vintage ? 2 : 1;
         int lowerLineGap = compact ? (vintage ? 4 : 2) : 3;
@@ -87,7 +84,7 @@ public final class WildexRightHeaderRenderer {
             boolean modern = WildexThemes.isModernLayout();
             int nameColor = modern ? 0xFF000000 : 0xFFFFFFFF;
             int detailColor = modern ? 0xFFE6EEF7 : inkColor;
-            int nameScaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * Math.max(1.0f, nameScale)));
+            int nameScaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * nameScale));
             int bandTop = 0;
             int bandBottom = y + nameScaledLineH + 2;
             if (bandBottom > bandTop) {
@@ -306,10 +303,6 @@ public final class WildexRightHeaderRenderer {
             int phase
     ) {
         drawLineMarqueeValue(g, font, baseX, baseY, scale, x, y, maxW, value, inkColor, phase);
-    }
-
-    private static int lineStep(Font font, int lineGap) {
-        return Math.max(10, WildexUiText.lineHeight(font) + lineGap);
     }
 
     private static int drawDivider(GuiGraphics g, int x, int right, int yAfterLine, int yMax, int gapTop, int gapBottom) {

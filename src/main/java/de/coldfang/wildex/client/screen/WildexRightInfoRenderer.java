@@ -66,8 +66,8 @@ public final class WildexRightInfoRenderer {
         return spawnsRenderer.handleMouseClicked(mouseX, mouseY, button, state);
     }
 
-    public boolean handleSpawnMouseDragged(int mouseX, int mouseY, int button) {
-        return spawnsRenderer.handleMouseDragged(mouseX, mouseY, button);
+    public boolean handleSpawnMouseDragged(int mouseY, int button) {
+        return spawnsRenderer.handleMouseDragged(mouseY, button);
     }
 
     public boolean handleSpawnMouseReleased(int button) {
@@ -82,8 +82,8 @@ public final class WildexRightInfoRenderer {
         return statsRenderer.handleMouseClicked(mouseX, mouseY, button);
     }
 
-    public boolean handleStatsMouseDragged(int mouseX, int mouseY, int button) {
-        return statsRenderer.handleMouseDragged(mouseX, mouseY, button);
+    public boolean handleStatsMouseDragged(int mouseY, int button) {
+        return statsRenderer.handleMouseDragged(mouseY, button);
     }
 
     public boolean handleStatsMouseReleased(int button) {
@@ -98,8 +98,8 @@ public final class WildexRightInfoRenderer {
         return lootRenderer.handleMouseClicked(mouseX, mouseY, button);
     }
 
-    public boolean handleLootMouseDragged(int mouseX, int mouseY, int button) {
-        return lootRenderer.handleMouseDragged(mouseX, mouseY, button);
+    public boolean handleLootMouseDragged(int mouseY, int button) {
+        return lootRenderer.handleMouseDragged(mouseY, button);
     }
 
     public boolean handleLootMouseReleased(int button) {
@@ -182,7 +182,18 @@ public final class WildexRightInfoRenderer {
                         graphics, font, local, state.selectedMobId(), data.stats(), inkColor,
                         mouseX, mouseY, x0, y0, s, shiftDown
                 );
-                case LOOT -> lootRenderer.render(graphics, font, local, mobRl, inkColor, x0, y0, s);
+                case LOOT -> tooltip = lootRenderer.render(
+                        graphics,
+                        font,
+                        local,
+                        mobRl,
+                        inkColor,
+                        x0,
+                        y0,
+                        s,
+                        mouseX,
+                        mouseY
+                );
                 case SPAWNS -> tooltip = spawnsRenderer.render(
                         graphics, font, local, mobRl, state, inkColor, x0, y0, s, mouseX, mouseY
                 );
@@ -286,6 +297,10 @@ public final class WildexRightInfoRenderer {
         int x1 = x + boxW;
         int y1 = y + boxH;
 
+        g.pose().pushPose();
+        // Keep tooltip above item icons rendered with depth.
+        g.pose().translate(0.0f, 0.0f, 400.0f);
+
         g.fill(x0, y0, x1, y1, TIP_BG);
 
         g.fill(x0, y0, x1, y0 + 1, TIP_BORDER);
@@ -300,6 +315,7 @@ public final class WildexRightInfoRenderer {
             WildexUiText.draw(g, font, line, tx, ty, TIP_TEXT, false);
             ty += WildexUiText.lineHeight(font) + TIP_LINE_GAP;
         }
+        g.pose().popPose();
     }
 }
 

@@ -1,0 +1,34 @@
+package de.coldfang.wildex.network;
+
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.OnDatapackSyncEvent;
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+public final class WildexRuntimeCacheEvents {
+
+    private WildexRuntimeCacheEvents() {
+    }
+
+    @SubscribeEvent
+    public static void onServerAboutToStart(ServerAboutToStartEvent event) {
+        WildexNetwork.clearRuntimeCaches();
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        WildexNetwork.clearRuntimeCaches();
+    }
+
+    @SubscribeEvent
+    public static void onDatapackSync(OnDatapackSyncEvent event) {
+        if (event.getPlayer() != null) return;
+        WildexNetwork.clearRuntimeCaches();
+    }
+
+    @SubscribeEvent
+    public static void onServerTickPost(ServerTickEvent.Post event) {
+        WildexNetwork.processBreedingQueue(event.getServer());
+    }
+}

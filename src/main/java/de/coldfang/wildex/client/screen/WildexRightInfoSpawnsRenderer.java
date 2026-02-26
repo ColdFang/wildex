@@ -98,7 +98,7 @@ final class WildexRightInfoSpawnsRenderer {
         return true;
     }
 
-    boolean handleMouseDragged(int mouseX, int mouseY, int button) {
+    boolean handleMouseDragged(int mouseY, int button) {
         if (button != 0 || !spawnDraggingScrollbar) return false;
         setScrollFromThumbTop(mouseY - spawnDragOffsetY);
         return true;
@@ -141,8 +141,7 @@ final class WildexRightInfoSpawnsRenderer {
         int biomeW = WildexUiText.width(font, biomeLabel) + (SPAWN_FILTER_PAD_X * 2);
         int structureW = WildexUiText.width(font, structureLabel) + (SPAWN_FILTER_PAD_X * 2);
 
-        int filterX = area.x() + 2;
-        int biomeX0 = filterX;
+        int biomeX0 = area.x() + 2;
         int biomeX1 = biomeX0 + biomeW;
         int structureX0 = biomeX1 + SPAWN_FILTER_GAP;
         int structureX1 = structureX0 + structureW;
@@ -303,15 +302,12 @@ final class WildexRightInfoSpawnsRenderer {
             boolean active
     ) {
         boolean modern = WildexThemes.isModernLayout();
-        int onBg = SPAWN_FILTER_ON_BG;
-        int onFg = SPAWN_FILTER_TEXT_ON;
-        int onBorder = SPAWN_FILTER_BORDER_ON;
         int offBg = modern ? 0x3342C7F5 : SPAWN_FILTER_OFF_BG;
         int offFg = modern ? 0xFFEAF7FF : SPAWN_FILTER_TEXT_OFF;
         int offBorder = modern ? 0xCC4FCBF3 : SPAWN_FILTER_BORDER_OFF;
-        int bg = active ? offBg : onBg;
-        int fg = active ? offFg : onFg;
-        int border = active ? offBorder : onBorder;
+        int bg = active ? offBg : SPAWN_FILTER_ON_BG;
+        int fg = active ? offFg : SPAWN_FILTER_TEXT_ON;
+        int border = active ? offBorder : SPAWN_FILTER_BORDER_ON;
         int offCross = modern ? 0xFFFF6A7A : SPAWN_FILTER_OFF_CROSS;
         int y1 = y0 + h;
 

@@ -5,9 +5,10 @@ import net.minecraft.resources.ResourceLocation;
 
 public record WildexMiscData(
         boolean ownable,
-        List<ResourceLocation> breedingItemIds
+        List<ResourceLocation> breedingItemIds,
+        List<ResourceLocation> tamingItemIds
 ) {
     public static WildexMiscData empty() {
-        return new WildexMiscData(false, List.of());
+        return new WildexMiscData(false, List.of(), List.of());
     }
 }

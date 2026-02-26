@@ -40,7 +40,6 @@ public final class WildexWorldPlayerKillData extends SavedData {
     private WildexWorldPlayerKillData() {
     }
 
-    @SuppressWarnings("resource")
     private void migrateLegacyDimensionData(MinecraftServer server, ServerLevel rootLevel) {
         if (migratedToOverworldStorage) return;
 
@@ -90,7 +89,8 @@ public final class WildexWorldPlayerKillData extends SavedData {
         if (player == null || mobId == null) return 0;
 
         Map<ResourceLocation, Integer> map = kills.computeIfAbsent(player, k -> new HashMap<>());
-        int next = map.getOrDefault(mobId, 0) + 1;
+        int existing = Math.max(0, map.getOrDefault(mobId, 0));
+        int next = existing >= Integer.MAX_VALUE ? Integer.MAX_VALUE : existing + 1;
         map.put(mobId, next);
 
         setDirty();

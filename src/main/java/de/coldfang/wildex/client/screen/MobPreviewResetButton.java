@@ -11,7 +11,7 @@ import java.util.Objects;
 public final class MobPreviewResetButton extends Button {
 
     private static final float LABEL_SCALE = 0.75f;
-    private final String label;
+    private String label;
 
     public MobPreviewResetButton(int x, int y, int w, int h, Runnable onPress) {
         this(x, y, w, h, "R", onPress);
@@ -27,6 +27,10 @@ public final class MobPreviewResetButton extends Button {
                 b -> Objects.requireNonNull(onPress, "onPress").run(),
                 DEFAULT_NARRATION
         );
+        this.label = (label == null || label.isBlank()) ? "R" : label;
+    }
+
+    public void setLabel(String label) {
         this.label = (label == null || label.isBlank()) ? "R" : label;
     }
 

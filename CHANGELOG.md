@@ -1,5 +1,61 @@
 # Changelog
 
+## 2.3.0 - 2026-02-26
+
+### Added
+- Added a `New` marker in the mob list for newly discovered entries that have not been opened yet.
+- Added persistent per-player viewed-entry state (saved server-side).
+- Added client/server sync for viewed-entry state so behavior is multiplayer-safe and server-authoritative.
+- Added optional XP rewards for first-time viewed new entries:
+  - `newEntryRewardsXp` (default: `true`)
+  - `newEntryXpAmount` (default: `5`)
+- Added taming data support in Info/Misc:
+  - new `Taming Items` section
+  - synchronized client/server payload + cache model for taming item IDs
+  - new localized hint when an ownable mob has no detected taming item
+- Added collapsible `+ / -` toggles for `Breeding Items` and `Taming Items` sections in Info/Misc.
+- Added runtime cache lifecycle hooks (server start/stop + datapack reload) and per-tick breeding queue processing.
+- Added an undiscovered preview rune-overlay effect (theme-tinted mystery glyph particles).
+- Added a new mob preview variant toggle button (`B`/`A`) next to the preview reset button:
+  - switches between adult and baby preview variants
+  - visible only for discovered entries with supported baby-state switching
+  - uses robust fallback checks for modded entities (Ageable + safe method probing)
+- Added localized tooltips for preview variant toggle actions (show baby/show adult).
+- Added a new common config option `keepCompletionAfterNewMobs` (default: `false`) to control completion behavior when new mobs are added by modpack changes.
+
+### Changed
+- Reworked runtime request caches (loot/spawns/breeding) to bounded LRU maps and centralized clear handling.
+- Breeding requests are now queued and deduplicated per mob, then processed incrementally to reduce repeated extractor work.
+- Breeding extraction now also computes taming items for tamable entities using interaction probes with retry confirmation.
+- Loot extraction now uses state-aware sampling profiles (player-kill, on-fire, size variants, captain, sheep color, frog kill) and exposes condition profile metadata to the client.
+- Loot extraction now samples entity-specific loot table keys and vanilla-like equipment drops for better parity with in-game behavior (including cases like sheep wool tables and pillager equipment/banner drops).
+- Info/Misc visual styling was refined with theme-aware divider colors and improved empty-state text handling/wrapping.
+- Discovery list sync is now requested independently of hidden mode so discovered-gated UI features remain correct in both modes.
+- Mob preview variant selection now resets to adult when changing selected mobs.
+- Progress/completion state now derives from filtered discovered counts (trackable mobs), preventing completion flag drift after config/filter changes.
+- Completion status and Spyglass Pulse unlock now follow a unified server-side completion check that respects `keepCompletionAfterNewMobs`.
+
+### Fixed
+- Fixed viewed-entry clearing on selection changes triggered outside direct row clicks (new marker now clears reliably).
+- Fixed stale runtime cache data across server lifecycle/datapack sync boundaries.
+- Fixed potential overlap between undiscovered preview effects and the preview controls hint area.
+- Fixed possible kill-counter integer overflow by clamping per-mob kill values to `Integer.MAX_VALUE`.
+- Fixed hidden-mode information leak paths by validating discovery server-side for kills/loot/spawn info requests.
+- Fixed potential spyglass charge residue on logout by clearing charge state immediately when a player leaves.
+- Fixed KubeJS bridge callback accumulation across server/datapack reload cycles by clearing listeners on lifecycle hooks.
+- Fixed loot condition tooltip clarity:
+  - condition lines now start directly (no leading dash) and are capitalized
+  - AND/OR logic is rendered explicitly between condition expressions
+  - removed redundant explanatory hint text when only logical operators are sufficient
+- Fixed loot tooltip layering so condition tooltips always render above list item icons.
+- Fixed misleading conditional tagging by tightening condition-profile inference/verification against observed sampling results.
+- Fixed scissor-stack underflow crash on very small window sizes by guaranteeing valid scissor pushes in the shared scissor helper.
+- Fixed stale completion unlock states after mob pool growth by re-evaluating completion against current totals when `keepCompletionAfterNewMobs = false`.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.2.0`.
 
 ## 2.2.0 - 2026-02-24
 

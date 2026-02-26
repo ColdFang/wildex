@@ -50,7 +50,6 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
     private WildexWorldPlayerDiscoveryData() {
     }
 
-    @SuppressWarnings("resource")
     private void migrateLegacyDimensionData(MinecraftServer server, ServerLevel rootLevel) {
         if (migratedToOverworldStorage) return;
 
@@ -111,6 +110,19 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
 
         if (out.isEmpty()) return Set.of();
         return Set.copyOf(out);
+    }
+
+    public int getFilteredDiscoveredCount(UUID player) {
+        if (player == null) return 0;
+
+        Set<ResourceLocation> set = discovered.get(player);
+        if (set == null || set.isEmpty()) return 0;
+
+        int count = 0;
+        for (ResourceLocation rl : set) {
+            if (WildexMobFilters.isTrackable(rl)) count++;
+        }
+        return Math.max(0, count);
     }
 
     public boolean isComplete(UUID player) {

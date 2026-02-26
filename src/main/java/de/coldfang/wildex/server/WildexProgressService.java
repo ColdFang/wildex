@@ -18,9 +18,9 @@ public final class WildexProgressService {
 
         WildexWorldPlayerDiscoveryData data = WildexWorldPlayerDiscoveryData.get(level);
 
-        int discovered = Math.max(0, data.getDiscovered(player.getUUID()).size());
+        int discovered = data.getFilteredDiscoveredCount(player.getUUID());
         int total = getTotalCount(level);
-        boolean complete = data.isComplete(player.getUUID());
+        boolean complete = WildexCompletionHelper.isCurrentlyComplete(level, player.getUUID());
 
         int percentScaled = computeScaledPercent(discovered, total);
 

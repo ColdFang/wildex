@@ -151,7 +151,7 @@ public final class WildexNetworkClient {
                 S2CMobBreedingPayload.TYPE,
                 S2CMobBreedingPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() ->
-                        WildexMiscCache.set(payload.mobId(), payload.ownable(), payload.breedingItemIds())
+                        WildexMiscCache.set(payload.mobId(), payload.ownable(), payload.breedingItemIds(), payload.tamingItemIds())
                 )
         );
 

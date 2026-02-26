@@ -19,6 +19,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -109,6 +110,13 @@ public final class WildexSpyglassDiscoveryEvents {
         spawnDiscoveryParticlesForPlayer(level, sp, target);
 
         PacketDistributor.sendToPlayer(sp, new S2CSpyglassDiscoveryEffectPayload(entityId, mobId));
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event == null) return;
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
+        CHARGE.remove(sp.getUUID());
     }
 
     private static void spawnChargeParticlesForPlayer(ServerLevel level, ServerPlayer sp, Entity target) {

@@ -4,8 +4,10 @@ import com.mojang.logging.LogUtils;
 import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.integration.exposure.WildexExposureIntegrationBootstrap;
+import de.coldfang.wildex.integration.kubejs.WildexKubeJsLifecycleEvents;
 import de.coldfang.wildex.network.WildexKillSyncEvents;
 import de.coldfang.wildex.network.WildexNetwork;
+import de.coldfang.wildex.network.WildexRuntimeCacheEvents;
 import de.coldfang.wildex.network.WildexSpyglassDiscoveryEvents;
 import de.coldfang.wildex.registry.WildexCreativeTabEvents;
 import de.coldfang.wildex.registry.ModItems;
@@ -48,6 +50,8 @@ public class Wildex {
 
         NeoForge.EVENT_BUS.register(WildexKillSyncEvents.class);
         NeoForge.EVENT_BUS.register(WildexSpyglassDiscoveryEvents.class);
+        NeoForge.EVENT_BUS.register(WildexRuntimeCacheEvents.class);
+        NeoForge.EVENT_BUS.register(WildexKubeJsLifecycleEvents.class);
         NeoForge.EVENT_BUS.register(WildexGiveBookOnFirstJoinEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionSyncOnJoinEvents.class);
         NeoForge.EVENT_BUS.register(WildexShareOfferCommands.class);

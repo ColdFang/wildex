@@ -31,8 +31,8 @@ public final class WildexClientSessionEvents {
         WildexNetworkClient.clearShareState();
         WildexViewedMobEntriesCache.clear();
 
+        WildexNetworkClient.requestDiscoveredMobs();
         if (WildexClientConfigView.hiddenMode()) {
-            WildexNetworkClient.requestDiscoveredMobs();
             WildexNetworkClient.requestViewedMobEntries();
         }
         WildexNetworkClient.requestServerConfig();

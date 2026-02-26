@@ -39,8 +39,8 @@ public final class WildexCompletionHelper {
 
         WildexWorldPlayerDiscoveryData data = WildexWorldPlayerDiscoveryData.get(level);
         UUID playerId = sp.getUUID();
-
-        if (data.isComplete(playerId)) return false;
+        boolean keepCompletion = keepCompletionAfterNewMobs();
+        if (keepCompletion && data.isComplete(playerId)) return false;
 
         int total = getTotalMobCount(level);
         if (total <= 0) return false;
@@ -48,13 +48,35 @@ public final class WildexCompletionHelper {
         int discovered = getFilteredDiscoveredCount(data.getDiscovered(playerId));
         if (discovered < total) return false;
 
-        return data.markComplete(playerId);
+        if (!data.isComplete(playerId)) {
+            data.markComplete(playerId);
+            return true;
+        }
+        return !keepCompletion;
     }
 
     public static void notifyCompleted(ServerPlayer sp) {
         if (sp == null) return;
         WildexProgressHooks.onCompleted(sp);
         PacketDistributor.sendToPlayer(sp, new S2CWildexCompletePayload());
+    }
+
+    public static boolean isCurrentlyComplete(ServerLevel level, UUID playerId) {
+        if (level == null || playerId == null) return false;
+
+        WildexWorldPlayerDiscoveryData data = WildexWorldPlayerDiscoveryData.get(level);
+        boolean keepCompletion = keepCompletionAfterNewMobs();
+        if (keepCompletion && data.isComplete(playerId)) return true;
+
+        int total = getTotalMobCount(level);
+        if (total <= 0) return false;
+
+        int discovered = data.getFilteredDiscoveredCount(playerId);
+        return discovered >= total;
+    }
+
+    private static boolean keepCompletionAfterNewMobs() {
+        return CommonConfig.INSTANCE.keepCompletionAfterNewMobs.get();
     }
 
     private static int getFilteredDiscoveredCount(Set<ResourceLocation> discovered) {

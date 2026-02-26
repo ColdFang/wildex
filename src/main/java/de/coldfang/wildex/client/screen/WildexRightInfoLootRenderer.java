@@ -5,10 +5,14 @@ import de.coldfang.wildex.network.S2CMobLootPayload;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 final class WildexRightInfoLootRenderer {
@@ -21,6 +25,8 @@ final class WildexRightInfoLootRenderer {
     private static final int SCROLLBAR_BG = 0xFF000000;
     private static final int SCROLLBAR_THUMB = 0xFFB9B9B9;
     private static final int SCROLLBAR_SHOW_THRESHOLD_PX = 2;
+    private static final String CONDITIONAL_MARKER = "[!]";
+    private static final ResourceLocation WHITE_BANNER_ID = ResourceLocation.fromNamespaceAndPath("minecraft", "white_banner");
 
     private static int lootScrollPx = 0;
     private static int lootViewportH = 1;
@@ -74,7 +80,7 @@ final class WildexRightInfoLootRenderer {
         return true;
     }
 
-    boolean handleMouseDragged(int mouseX, int mouseY, int button) {
+    boolean handleMouseDragged(int mouseY, int button) {
         if (button != 0 || !lootDraggingScrollbar) return false;
         setScrollFromThumbTop(mouseY - lootDragOffsetY);
         return true;
@@ -87,7 +93,7 @@ final class WildexRightInfoLootRenderer {
         return wasDragging;
     }
 
-    void render(
+    WildexRightInfoRenderer.TooltipRequest render(
             GuiGraphics g,
             Font font,
             WildexScreenLayout.Area area,
@@ -95,8 +101,12 @@ final class WildexRightInfoLootRenderer {
             int inkColor,
             int screenOriginX,
             int screenOriginY,
-            float scale
+            float scale,
+            int mouseX,
+            int mouseY
     ) {
+        WildexRightInfoRenderer.TooltipRequest tooltip = null;
+
         int itemIcon = scaledLootIconPx();
         int itemGapX = scaledLootIconGapPx();
         int lootRowH = scaledLootRowHeightPx(itemIcon);
@@ -107,7 +117,6 @@ final class WildexRightInfoLootRenderer {
         int maxY = area.y() + area.h() - WildexRightInfoRenderer.PAD_Y;
 
         int viewportX = area.x();
-        int viewportY = yTop;
         int viewportW = area.w();
         int viewportH = Math.max(1, maxY - yTop);
 
@@ -116,7 +125,7 @@ final class WildexRightInfoLootRenderer {
             WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
             lootHasScrollbar = false;
             lootDraggingScrollbar = false;
-            return;
+            return null;
         }
 
         int totalRows = Math.min(64, lines.size());
@@ -132,9 +141,9 @@ final class WildexRightInfoLootRenderer {
         }
 
         int sx0 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, viewportX);
-        int sy0 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, viewportY);
+        int sy0 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, yTop);
         int sx1 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, viewportX + viewportW);
-        int sy1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, viewportY + viewportH);
+        int sy1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, yTop + viewportH);
         lootViewportScreenX0 = sx0;
         lootViewportScreenY0 = sy0;
         lootViewportScreenX1 = sx1;
@@ -153,14 +162,31 @@ final class WildexRightInfoLootRenderer {
                 Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
                 if (item == null) continue;
 
+                int rowTop = y;
+                int rowBottom = y + lootRowH;
                 if (y + itemIcon >= yTop && y < maxY) {
                     ItemStack stack = new ItemStack(item);
                     drawScaledItem(g, stack, x, y, itemIcon);
-                    String name = stack.getHoverName().getString();
+                    String name = resolveDisplayName(l, stack);
                     String count = formatCount(l.minCount(), l.maxCount());
-                    String line = count.isEmpty() ? name : (name + " " + count);
+
+                    boolean conditional = !extractConditionProfiles(l).isEmpty();
+                    String marker = conditional ? (" " + CONDITIONAL_MARKER) : "";
+                    String line = count.isEmpty() ? (name + marker) : (name + " " + count + marker);
+
                     int textY = y + Math.max(0, (itemIcon - WildexUiText.lineHeight(font)) / 2);
                     WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, line, textX, textY, textW, inkColor, screenOriginX, screenOriginY, scale);
+
+                    if (conditional && mouseX >= 0 && mouseY >= 0 && tooltip == null) {
+                        int rowScreenX0 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, x);
+                        int rowScreenX1 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, rightLimitX);
+                        int rowScreenY0 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, rowTop);
+                        int rowScreenY1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, rowBottom);
+
+                        if (mouseX >= rowScreenX0 && mouseX < rowScreenX1 && mouseY >= rowScreenY0 && mouseY < rowScreenY1) {
+                            tooltip = tooltipForConditionProfiles(extractConditionProfiles(l));
+                        }
+                    }
                 }
 
                 y += lootRowH;
@@ -169,9 +195,8 @@ final class WildexRightInfoLootRenderer {
 
             if (showLootScrollbar) {
                 int barX0 = rightLimitX - SCROLLBAR_W;
-                int barY0 = yTop;
                 int barY1 = yTop + viewportH;
-                g.fill(barX0, barY0, rightLimitX, barY1, SCROLLBAR_BG);
+                g.fill(barX0, yTop, rightLimitX, barY1, SCROLLBAR_BG);
 
                 int thumbH = Math.max(8, (int) Math.floor(viewportH * (viewportH / (float) contentH)));
                 if (thumbH > viewportH) thumbH = viewportH;
@@ -184,7 +209,7 @@ final class WildexRightInfoLootRenderer {
                 g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
 
                 lootHasScrollbar = true;
-                cacheScrollbarRect(screenOriginX, screenOriginY, scale, barX0, barY0, rightLimitX, barY1, thumbY0, thumbY1);
+                cacheScrollbarRect(screenOriginX, screenOriginY, scale, barX0, yTop, rightLimitX, barY1, thumbY0, thumbY1);
             } else {
                 lootHasScrollbar = false;
                 lootDraggingScrollbar = false;
@@ -192,6 +217,8 @@ final class WildexRightInfoLootRenderer {
         } finally {
             g.disableScissor();
         }
+
+        return tooltip;
     }
 
     private static void cacheScrollbarRect(
@@ -231,9 +258,109 @@ final class WildexRightInfoLootRenderer {
     private static String formatCount(int min, int max) {
         int a = Math.max(0, min);
         int b = Math.max(0, max);
-        if (a <= 0 && b <= 0) return "";
+        if (a == 0 && b == 0) return "";
         if (a == b) return "x" + a;
         return "x" + a + "-" + b;
+    }
+
+    private static WildexRightInfoRenderer.TooltipRequest tooltipForConditionProfiles(List<Integer> profiles) {
+        if (profiles == null || profiles.isEmpty()) return null;
+
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.translatable("tooltip.wildex.loot.condition.title"));
+
+        for (int i = 0; i < profiles.size(); i++) {
+            String expression = formatProfileMask(profiles.get(i));
+            lines.add(Component.literal(capitalizeFirst(expression)));
+            if (i < profiles.size() - 1) {
+                lines.add(Component.translatable("tooltip.wildex.loot.condition.logic.or"));
+            }
+        }
+
+        return lines.isEmpty() ? null : new WildexRightInfoRenderer.TooltipRequest(lines);
+    }
+
+    private static List<Integer> extractConditionProfiles(S2CMobLootPayload.LootLine line) {
+        if (line == null) return List.of();
+        LinkedHashSet<Integer> unique = new LinkedHashSet<>();
+
+        List<Integer> rawProfiles = line.conditionProfiles();
+        if (rawProfiles != null) {
+            for (int mask : rawProfiles) {
+                if (mask != S2CMobLootPayload.COND_NONE) {
+                    unique.add(mask);
+                }
+            }
+        }
+        if (unique.isEmpty() && line.conditionMask() != S2CMobLootPayload.COND_NONE) {
+            unique.add(line.conditionMask());
+        }
+        if (unique.isEmpty()) return List.of();
+
+        List<Integer> out = new ArrayList<>(unique);
+        out.sort(Comparator
+                .comparingInt(Integer::bitCount)
+                .thenComparingInt(Integer::intValue));
+        return List.copyOf(out);
+    }
+
+    private static String formatProfileMask(int mask) {
+        List<String> labels = conditionLabels(mask);
+        if (labels.isEmpty()) {
+            return WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.unknown");
+        }
+        if (labels.size() == 1) return labels.getFirst();
+        String andJoin = " " + WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.logic.and_join") + " ";
+        return String.join(andJoin, labels);
+    }
+
+    private static String capitalizeFirst(String value) {
+        if (value == null || value.isEmpty()) return "";
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private static String resolveDisplayName(S2CMobLootPayload.LootLine line, ItemStack stack) {
+        if (line != null && WHITE_BANNER_ID.equals(line.itemId()) && hasCaptainCondition(line)) {
+            return Component.translatable("block.minecraft.ominous_banner").getString();
+        }
+        return stack.getHoverName().getString();
+    }
+
+    private static boolean hasCaptainCondition(S2CMobLootPayload.LootLine line) {
+        if (line == null) return false;
+        if ((line.conditionMask() & S2CMobLootPayload.COND_CAPTAIN) != 0) return true;
+
+        List<Integer> profiles = line.conditionProfiles();
+        if (profiles == null || profiles.isEmpty()) return false;
+        for (int mask : profiles) {
+            if ((mask & S2CMobLootPayload.COND_CAPTAIN) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> conditionLabels(int mask) {
+        List<String> out = new ArrayList<>(6);
+        if ((mask & S2CMobLootPayload.COND_PLAYER_KILL) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.player_kill"));
+        }
+        if ((mask & S2CMobLootPayload.COND_ON_FIRE) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.on_fire"));
+        }
+        if ((mask & S2CMobLootPayload.COND_SLIME_SIZE) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.size_variant"));
+        }
+        if ((mask & S2CMobLootPayload.COND_CAPTAIN) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.captain"));
+        }
+        if ((mask & S2CMobLootPayload.COND_FROG_KILL) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.frog_kill"));
+        }
+        if ((mask & S2CMobLootPayload.COND_SHEEP_COLOR) != 0) {
+            out.add(WildexRightInfoTabUtil.tr("tooltip.wildex.loot.condition.label.sheep_color"));
+        }
+        return out;
     }
 
     private static int scaledLootIconPx() {

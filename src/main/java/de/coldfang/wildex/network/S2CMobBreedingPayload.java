@@ -12,7 +12,8 @@ import java.util.List;
 public record S2CMobBreedingPayload(
         ResourceLocation mobId,
         boolean ownable,
-        List<ResourceLocation> breedingItemIds
+        List<ResourceLocation> breedingItemIds,
+        List<ResourceLocation> tamingItemIds
 ) implements CustomPacketPayload {
 
     public static final Type<S2CMobBreedingPayload> TYPE =
@@ -23,23 +24,34 @@ public record S2CMobBreedingPayload(
                     (buf, p) -> {
                         buf.writeResourceLocation(p.mobId());
                         buf.writeBoolean(p.ownable());
-                        List<ResourceLocation> ids = p.breedingItemIds() == null ? List.of() : p.breedingItemIds();
-                        buf.writeVarInt(ids.size());
-                        for (ResourceLocation id : ids) {
-                            buf.writeResourceLocation(id);
-                        }
+                        writeIds(buf, p.breedingItemIds());
+                        writeIds(buf, p.tamingItemIds());
                     },
                     buf -> {
                         ResourceLocation mobId = buf.readResourceLocation();
                         boolean ownable = buf.readBoolean();
-                        int n = Math.max(0, buf.readVarInt());
-                        List<ResourceLocation> out = new ArrayList<>(Math.min(n, 256));
-                        for (int i = 0; i < n; i++) {
-                            out.add(buf.readResourceLocation());
-                        }
-                        return new S2CMobBreedingPayload(mobId, ownable, List.copyOf(out));
+                        List<ResourceLocation> breeding = readIds(buf);
+                        List<ResourceLocation> taming = readIds(buf);
+                        return new S2CMobBreedingPayload(mobId, ownable, breeding, taming);
                     }
             );
+
+    private static void writeIds(RegistryFriendlyByteBuf buf, List<ResourceLocation> ids) {
+        List<ResourceLocation> safe = ids == null ? List.of() : ids;
+        buf.writeVarInt(safe.size());
+        for (ResourceLocation id : safe) {
+            buf.writeResourceLocation(id);
+        }
+    }
+
+    private static List<ResourceLocation> readIds(RegistryFriendlyByteBuf buf) {
+        int n = Math.max(0, buf.readVarInt());
+        List<ResourceLocation> out = new ArrayList<>(Math.min(n, 256));
+        for (int i = 0; i < n; i++) {
+            out.add(buf.readResourceLocation());
+        }
+        return List.copyOf(out);
+    }
 
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {

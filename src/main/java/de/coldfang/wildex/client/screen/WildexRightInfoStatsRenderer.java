@@ -102,7 +102,7 @@ final class WildexRightInfoStatsRenderer {
         return true;
     }
 
-    boolean handleMouseDragged(int mouseX, int mouseY, int button) {
+    boolean handleMouseDragged(int mouseY, int button) {
         if (button != 0 || !statsDraggingScrollbar) return false;
         setScrollFromThumbTop(mouseY - statsDragOffsetY);
         return true;
@@ -143,10 +143,7 @@ final class WildexRightInfoStatsRenderer {
 
         int dividerShiftDown = 5;
         int dividerY = Math.min((y + h) - 2, (y + h) - hintBlockH - 2 + dividerShiftDown);
-        int viewportX = x;
-        int viewportY = y;
-        int viewportW = w;
-        int viewportH = Math.max(24, dividerY - viewportY - 1);
+        int viewportH = Math.max(24, dividerY - y - 1);
 
         int line = Math.max(10, WildexUiText.lineHeight(font) + 2);
         int estimatedContentH = Math.max(viewportH, WildexRightInfoRenderer.PAD_Y + (line * 9) + 2);
@@ -160,10 +157,10 @@ final class WildexRightInfoStatsRenderer {
             statsScrollPx = maxScroll;
         }
 
-        int sx0 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, viewportX);
-        int sy0 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, viewportY);
-        int sx1 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, viewportX + viewportW);
-        int sy1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, viewportY + viewportH);
+        int sx0 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, x);
+        int sy0 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, y);
+        int sx1 = WildexRightInfoTabUtil.toScreenX(screenOriginX, scale, x + w);
+        int sy1 = WildexRightInfoTabUtil.toScreenY(screenOriginY, scale, y + viewportH);
         statsViewportScreenX0 = sx0;
         statsViewportScreenY0 = sy0;
         statsViewportScreenX1 = sx1;
@@ -172,7 +169,7 @@ final class WildexRightInfoStatsRenderer {
         WildexScissor.enablePhysical(g, sx0, sy0, sx1, sy1);
         WildexRightInfoRenderer.TooltipRequest tooltip;
         try {
-            WildexScreenLayout.Area statsArea = new WildexScreenLayout.Area(viewportX, viewportY - statsScrollPx, viewportW, statsContentH);
+            WildexScreenLayout.Area statsArea = new WildexScreenLayout.Area(x, y - statsScrollPx, w, statsContentH);
             tooltip = shiftDown
                     ? renderStats(g, font, statsArea, selectedMobId, s, inkColor, mouseX, mouseY, screenOriginX, screenOriginY, scale)
                     : renderStats(g, font, statsArea, selectedMobId, s, inkColor, -1, -1, screenOriginX, screenOriginY, scale);
@@ -180,7 +177,7 @@ final class WildexRightInfoStatsRenderer {
             g.disableScissor();
         }
 
-        int lineY = viewportY + viewportH + 1;
+        int lineY = y + viewportH + 1;
         if (lineY < y + h - 1) {
             g.fill(x + WildexRightInfoRenderer.PAD_X, lineY, rightLimitX, lineY + 1, DIVIDER);
         }
@@ -190,21 +187,20 @@ final class WildexRightInfoStatsRenderer {
 
         if (showStatsScrollbar) {
             int barX0 = rightLimitX - SCROLLBAR_W;
-            int barY0 = viewportY;
-            int barY1 = viewportY + viewportH;
-            g.fill(barX0, barY0, rightLimitX, barY1, SCROLLBAR_BG);
+            int barY1 = y + viewportH;
+            g.fill(barX0, y, rightLimitX, barY1, SCROLLBAR_BG);
 
             int thumbH = Math.max(12, Math.round((statsViewportH / (float) statsContentH) * statsViewportH));
             if (thumbH > statsViewportH) thumbH = statsViewportH;
             int denom = Math.max(1, statsContentH - statsViewportH);
             float t = statsScrollPx / (float) denom;
             int travel = statsViewportH - thumbH;
-            int thumbY0 = viewportY + Math.round(travel * t);
+            int thumbY0 = y + Math.round(travel * t);
             int thumbY1 = thumbY0 + thumbH;
             g.fill(barX0, thumbY0, rightLimitX, thumbY1, SCROLLBAR_THUMB);
 
             statsHasScrollbar = true;
-            cacheScrollbarRect(screenOriginX, screenOriginY, scale, barX0, barY0, rightLimitX, barY1, thumbY0, thumbY1);
+            cacheScrollbarRect(screenOriginX, screenOriginY, scale, barX0, y, rightLimitX, barY1, thumbY0, thumbY1);
         } else {
             statsHasScrollbar = false;
             statsDraggingScrollbar = false;
@@ -256,7 +252,7 @@ final class WildexRightInfoStatsRenderer {
 
         int maxY = (area.y() + WildexRightInfoRenderer.PAD_Y) + innerH;
 
-        int contentW = Math.max(1, innerW);
+        int contentW = innerW;
         int colGap = Math.max(4, Math.round(COL_GAP * WildexUiScale.get()));
         int maxLabelBySpace = Math.max(24, contentW - colGap - STATS_MIN_VALUE_COL_W);
         int labelColWBase = Math.round(contentW * STATS_LABEL_COL_RATIO);
@@ -285,31 +281,63 @@ final class WildexRightInfoStatsRenderer {
         }
 
         int y0 = y;
-        y = drawHeartsLine(g, font, x, y, labelColW, valueX, valueW, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.health"), s.maxHealth(), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+        y = drawHeartsLine(
+                g,
+                font,
+                x,
+                y,
+                labelColW,
+                valueX,
+                valueW,
+                maxY,
+                WildexRightInfoTabUtil.tr("gui.wildex.stats.health"),
+                s.maxHealth().orElse(Double.NaN),
+                inkColor,
+                line,
+                screenOriginX,
+                screenOriginY,
+                scale
+        );
+        if (isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("tooltip.wildex.stats.health");
         }
 
         y0 = y;
-        y = drawArmorLine(g, font, x, y, labelColW, valueX, valueW, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.armor"), s.armor(), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawArmorLine(
+                g,
+                font,
+                x,
+                y,
+                labelColW,
+                valueX,
+                valueW,
+                maxY,
+                WildexRightInfoTabUtil.tr("gui.wildex.stats.armor"),
+                s.armor().orElse(Double.NaN),
+                inkColor,
+                line,
+                screenOriginX,
+                screenOriginY,
+                scale
+        );
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("tooltip.wildex.stats.armor.1", "tooltip.wildex.stats.armor.2");
         }
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.move_speed"), fmtOpt(s.movementSpeed()), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.move_speed"), fmtOpt(s.movementSpeed().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.move_speed");
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage()), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.attack_damage");
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.follow_range"), fmtOptWithUnit(s.followRange(), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.follow_range"), fmtOptWithUnit(s.followRange().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.follow_range");
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.knockback_res"), fmtOpt(s.knockbackResistance()), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.knockback_res"), fmtOpt(s.knockbackResistance().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("tooltip.wildex.stats.knockback_res.1", "tooltip.wildex.stats.knockback_res.2");
         }
@@ -317,15 +345,15 @@ final class WildexRightInfoStatsRenderer {
         Dims dims = resolveDims(selectedMobId);
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_width"), fmtOptWithUnit(dims.hitboxWidth(), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_width"), fmtOptWithUnit(dims.hitboxWidth().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_width");
 
         y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_height"), fmtOptWithUnit(dims.hitboxHeight(), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_height"), fmtOptWithUnit(dims.hitboxHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_height");
 
         y0 = y;
-        drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.eye_height"), fmtOptWithUnit(dims.eyeHeight(), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+        drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.eye_height"), fmtOptWithUnit(dims.eyeHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
         if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
             tooltip = tooltipLines("tooltip.wildex.stats.eye_height.1", "tooltip.wildex.stats.eye_height.2");
         }
@@ -427,7 +455,7 @@ final class WildexRightInfoStatsRenderer {
             int valueW,
             int maxY,
             String label,
-            OptionalDouble maxHealth,
+            double maxHealth,
             int inkColor,
             int lineHeight,
             int screenOriginX,
@@ -440,12 +468,12 @@ final class WildexRightInfoStatsRenderer {
 
         WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
-        if (maxHealth.isEmpty()) {
+        if (Double.isNaN(maxHealth)) {
             WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
-        int hp = Math.max(0, (int) Math.round(maxHealth.getAsDouble()));
+        int hp = Math.max(0, (int) Math.round(maxHealth));
         double heartsTotal = hp / 2.0;
 
         int shownHp = Math.min(hp, MAX_HEART_HP);
@@ -464,7 +492,7 @@ final class WildexRightInfoStatsRenderer {
         if (needsCompact) {
             String mult = "x" + String.format(Locale.ROOT, "%.1f", heartsTotal);
 
-            if (fitIcons <= 0) {
+            if (fitIcons == 0) {
                 WildexUiText.draw(g, font, WildexRightInfoTabUtil.clipToWidth(font, mult, Math.max(1, valueW)), valueX, y, inkColor, false);
                 return y + lineHeight;
             }
@@ -503,7 +531,7 @@ final class WildexRightInfoStatsRenderer {
             int valueW,
             int maxY,
             String label,
-            OptionalDouble armor,
+            double armor,
             int inkColor,
             int lineHeight,
             int screenOriginX,
@@ -516,13 +544,13 @@ final class WildexRightInfoStatsRenderer {
 
         WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, label, x, y, labelW, inkColor, screenOriginX, screenOriginY, scale);
 
-        if (armor.isEmpty()) {
+        if (Double.isNaN(armor)) {
             WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
 
-        int a = Math.max(0, (int) Math.round(armor.getAsDouble()));
-        if (a <= 0) {
+        int a = Math.max(0, (int) Math.round(armor));
+        if (a == 0) {
             WildexUiText.draw(g, font, "-", valueX, y, inkColor, false);
             return y + lineHeight;
         }
@@ -537,7 +565,7 @@ final class WildexRightInfoStatsRenderer {
         int maxIconsFit = Math.max(0, valueW / per);
         int maxIconsToShow = Math.min(10, maxIconsFit);
 
-        if (maxIconsToShow <= 0) {
+        if (maxIconsToShow == 0) {
             WildexUiText.draw(g, font, Integer.toString(a), valueX, y, inkColor, false);
             return y + lineHeight;
         }
@@ -639,12 +667,12 @@ final class WildexRightInfoStatsRenderer {
         statsScrollPx = Math.round(maxScroll * t);
     }
 
-    private static String fmtOpt(OptionalDouble v) {
-        return v.isPresent() ? fmt(v.getAsDouble()) : "-";
+    private static String fmtOpt(double v) {
+        return Double.isNaN(v) ? "-" : fmt(v);
     }
 
-    private static String fmtOptWithUnit(OptionalDouble v, String unit) {
-        return v.isPresent() ? (fmt(v.getAsDouble()) + " " + unit) : "-";
+    private static String fmtOptWithUnit(double v, String unit) {
+        return Double.isNaN(v) ? "-" : (fmt(v) + " " + unit);
     }
 
     private static String fmt(double v) {

@@ -40,6 +40,7 @@ public final class CommonConfig {
     public final ModConfigSpec.BooleanValue giveBookOnFirstJoin;
     public final ModConfigSpec.BooleanValue newEntryRewardsXp;
     public final ModConfigSpec.IntValue newEntryXpAmount;
+    public final ModConfigSpec.BooleanValue keepCompletionAfterNewMobs;
 
     public final ModConfigSpec.BooleanValue debugMode;
     public final ModConfigSpec.BooleanValue kubejsBridgeEnabled;
@@ -78,6 +79,13 @@ public final class CommonConfig {
         newEntryXpAmount = builder
                 .comment("XP points granted per newly discovered Wildex entry.")
                 .defineInRange("newEntryXpAmount", 5, 0, Integer.MAX_VALUE);
+
+        keepCompletionAfterNewMobs = builder
+                .comment(
+                        "If true, a player that already completed Wildex stays complete even when new mobs are added later.\n"
+                                + "If false, completion is re-evaluated against the current total mob count."
+                )
+                .define("keepCompletionAfterNewMobs", false);
 
         builder.pop();
 
