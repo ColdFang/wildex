@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.4.0 - Unreleased
+## 2.4.0 - 2026-02-28
 You’ll immediately notice that mob variants now appear in Wildex instead of only showing a single base entry.
 This also means Wildex now supports far more modded mobs and variant systems across many additional mods.
 ### Added
