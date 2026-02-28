@@ -13,6 +13,11 @@ public final class WildexUiRenderUtil {
     private static final int TIP_PAD = 4;
     private static final int TIP_LINE_GAP = 2;
     private static final int TIP_MAX_W = 170;
+    private static final int MENU_TOGGLE_OUTER_VINTAGE = 0xFF6F4E31;
+    private static final int MENU_TOGGLE_INNER_VINTAGE = 0xFFC9A47A;
+    private static final int MENU_TOGGLE_OUTER_MODERN = 0xFF1F9AA1;
+    private static final int MENU_TOGGLE_INNER_MODERN = 0xFF93E7EC;
+    private static final int MENU_TOGGLE_ACCENT = 0xAAFFFFFF;
 
     private WildexUiRenderUtil() {
     }
@@ -27,6 +32,60 @@ public final class WildexUiRenderUtil {
         graphics.pose().scale(scale, scale, 1.0f);
         WildexUiText.draw(graphics, font, text, Math.round(x * inv), Math.round(y * inv), color, false);
         graphics.pose().popPose();
+    }
+
+    public static void drawMenuStyleToggleButton(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int size,
+            boolean collapsed,
+            int fillColor,
+            int symbolColor
+    ) {
+        if (graphics == null || size <= 1) return;
+
+        int x0 = x;
+        int y0 = y;
+        int x1 = x + size;
+        int y1 = y + size;
+        int outer = WildexThemes.isModernLayout() ? MENU_TOGGLE_OUTER_MODERN : MENU_TOGGLE_OUTER_VINTAGE;
+        int inner = WildexThemes.isModernLayout() ? MENU_TOGGLE_INNER_MODERN : MENU_TOGGLE_INNER_VINTAGE;
+        int outerThickness = size >= 14 ? 2 : 1;
+        int innerThickness = size >= 14 ? 2 : 1;
+        int inset = outerThickness + innerThickness;
+
+        if ((x1 - inset) > (x0 + inset) && (y1 - inset) > (y0 + inset)) {
+            graphics.fill(x0 + inset, y0 + inset, x1 - inset, y1 - inset, fillColor);
+        } else {
+            graphics.fill(x0, y0, x1, y1, fillColor);
+        }
+
+        for (int i = 0; i < outerThickness; i++) {
+            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, i, outer);
+        }
+        for (int i = 0; i < innerThickness; i++) {
+            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, outerThickness + i, inner);
+        }
+
+        if (size >= 12) {
+            graphics.fill(x0 + 1, y0 + 1, x0 + 2, y0 + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x1 - 2, y0 + 1, x1 - 1, y0 + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x0 + 1, y1 - 2, x0 + 2, y1 - 1, MENU_TOGGLE_ACCENT);
+            graphics.fill(x1 - 2, y1 - 2, x1 - 1, y1 - 1, MENU_TOGGLE_ACCENT);
+        }
+
+        int cx = x0 + (size / 2);
+        int cy = y0 + (size / 2);
+        int thick = size >= 20 ? 2 : 1;
+        int arm = Math.max(1, (size - 12) / 2);
+        int yTop = cy - (thick / 2);
+        int xLeft = cx - (thick / 2);
+
+        graphics.fill(cx - arm, yTop, cx + arm + 1, yTop + thick, symbolColor);
+        if (collapsed) {
+            graphics.fill(xLeft, cy - arm, xLeft + thick, cy + arm + 1, symbolColor);
+        }
     }
 
     public static void renderTooltip(

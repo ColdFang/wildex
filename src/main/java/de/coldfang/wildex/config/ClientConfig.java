@@ -16,6 +16,8 @@ public final class ClientConfig {
     public final ModConfigSpec.EnumValue<DesignStyle> designStyle;
     public final ModConfigSpec.BooleanValue showDiscoveryToasts;
     public final ModConfigSpec.BooleanValue showDiscoveredSpyglassOverlay;
+    public final ModConfigSpec.BooleanValue showMobVariants;
+    public final ModConfigSpec.BooleanValue backgroundMobVariantProbe;
     public final ModConfigSpec.BooleanValue hideGuiScaleSlider;
     public final ModConfigSpec.DoubleValue wildexUiScale;
 
@@ -33,6 +35,14 @@ public final class ClientConfig {
         showDiscoveredSpyglassOverlay = builder
                 .comment("Show a small overlay when aiming at an already discovered mob with a spyglass.")
                 .define("showDiscoveredSpyglassOverlay", true);
+
+        showMobVariants = builder
+                .comment("Show and probe mob variant subentries in the list (can impact performance on heavily modded packs).")
+                .define("showMobVariants", true);
+
+        backgroundMobVariantProbe = builder
+                .comment("Run mob variant probing in a low-priority background queue. Disable to probe immediately on expand.")
+                .define("backgroundMobVariantProbe", true);
 
         hideGuiScaleSlider = builder
                 .comment("Hide the GUI scale slider in the Wildex screen.")

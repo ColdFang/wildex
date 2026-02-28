@@ -2,6 +2,7 @@ package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexMiscCache;
@@ -107,7 +108,7 @@ public final class WildexNetworkClient {
 
                     Minecraft mc = Minecraft.getInstance();
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
-                    Component name = (type != null) ? type.getDescription() : Component.literal(mobId.toString());
+                    Component name = WildexEntityDisplayNameResolver.resolveOrFallback(type, mobId);
                     Component title = Component.translatable("toast.wildex.discovery", name);
                     mc.getToasts().addToast(new WildexDiscoveryToast(mobId, title));
                 })

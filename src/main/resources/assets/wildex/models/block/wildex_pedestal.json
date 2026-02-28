@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "minecraft:block/polished_deepslate",
+    "bottom": "minecraft:block/chiseled_stone_bricks",
+    "side": "minecraft:block/deepslate_bricks"
+  }
+}
+

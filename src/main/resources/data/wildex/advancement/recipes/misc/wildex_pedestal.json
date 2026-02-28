@@ -1,0 +1,22 @@
+{
+  "criteria": {
+    "has_wildex_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "wildex:wildex_book"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "recipes": [
+      "wildex:wildex_pedestal"
+    ]
+  }
+}
+

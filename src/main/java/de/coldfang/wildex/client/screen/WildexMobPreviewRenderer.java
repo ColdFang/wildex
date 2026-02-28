@@ -3,11 +3,13 @@ package de.coldfang.wildex.client.screen;
 import com.mojang.blaze3d.systems.RenderSystem;
 import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexEntityVariantProbe;
 import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -74,6 +76,10 @@ public final class WildexMobPreviewRenderer {
     private float manualYawDeg = 0.0f;
     private float manualPitchDeg = 0.0f;
     private boolean babyPreviewEnabled = false;
+    private String selectedVariantOptionId = "";
+    private float previewAnimTimeTicks = 0.0f;
+    private float previewAnimPartialTick = 0.0f;
+    private long previewAnimLastNanos = 0L;
 
     public boolean isMouseOverPreview(WildexScreenLayout layout, int mouseX, int mouseY) {
         if (layout == null) return false;
@@ -134,7 +140,7 @@ public final class WildexMobPreviewRenderer {
 
         // Orbit-style controls: horizontal drag rotates around the model, vertical drag tilts.
         manualYawDeg = wrapDegrees(manualYawDeg - (dx * DRAG_DEG_PER_PX));
-        manualPitchDeg = clampPitch(manualPitchDeg - (dy * DRAG_DEG_PER_PX));
+        manualPitchDeg = clampPitch(manualPitchDeg + (dy * DRAG_DEG_PER_PX));
         return true;
     }
 
@@ -148,6 +154,13 @@ public final class WildexMobPreviewRenderer {
 
     public void setBabyPreviewEnabled(boolean enabled) {
         this.babyPreviewEnabled = enabled;
+    }
+
+    public void setVariantOptionId(String optionId) {
+        String next = optionId == null ? "" : optionId;
+        if (Objects.equals(this.selectedVariantOptionId, next)) return;
+        this.selectedVariantOptionId = next;
+        clearCachedEntity();
     }
 
     public boolean isBabyPreviewEnabled() {
@@ -224,6 +237,8 @@ public final class WildexMobPreviewRenderer {
             return;
         }
 
+        advancePreviewAnimClock();
+
         applyConfiguredBabyState(mob);
 
         if (isEnderDragon(id)) {
@@ -269,7 +284,7 @@ public final class WildexMobPreviewRenderer {
 
         float yaw = resolvePreviewYaw(mc, partialTick) + manualYawDeg;
         float pitch = manualPitchDeg;
-        float renderPartialTick = safePreviewMode ? 0.0f : partialTick;
+        float renderPartialTick = safePreviewMode ? previewAnimPartialTick() : partialTick;
 
         boolean fish = isUprightFish(mob.getType());
 
@@ -287,26 +302,18 @@ public final class WildexMobPreviewRenderer {
         if (safePreviewMode) {
             mob.setDeltaMovement(Vec3.ZERO);
             mob.setNoGravity(true);
-            mob.tickCount = 0;
+            mob.tickCount = previewAnimTickCount();
         }
 
-        if (!fish) {
-            mob.setYRot(yaw);
-            mob.setXRot(0.0f);
-            mob.xRotO = 0.0f;
-            mob.yBodyRot = yaw;
-            mob.yBodyRotO = yaw;
-            mob.yHeadRot = yaw;
-            mob.yHeadRotO = yaw;
-        } else {
-            mob.setYRot(0.0f);
-            mob.setXRot(0.0f);
-            mob.xRotO = 0.0f;
-            mob.yBodyRot = 0.0f;
-            mob.yBodyRotO = 0.0f;
-            mob.yHeadRot = 0.0f;
-            mob.yHeadRotO = 0.0f;
-        }
+        // Keep entity-internal orientation neutral and drive preview orbit via pose transforms.
+        // This avoids fighting per-entity animation controllers and reduces visible jitter.
+        mob.setYRot(0.0f);
+        mob.setXRot(0.0f);
+        mob.xRotO = 0.0f;
+        mob.yBodyRot = 0.0f;
+        mob.yBodyRotO = 0.0f;
+        mob.yHeadRot = 0.0f;
+        mob.yHeadRotO = 0.0f;
 
         EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
 
@@ -320,13 +327,16 @@ public final class WildexMobPreviewRenderer {
         graphics.pose().mulPose(base);
 
         if (fish) {
-            graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(yaw)));
+            graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(-yaw)));
             graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(pitch)));
             graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(FISH_MODEL_PITCH_DEG)));
             graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(FISH_MODEL_SIDE_YAW_DEG)));
-        } else if (Math.abs(pitch) > 0.01f) {
-            // Apply pitch as a view-space orbit tilt so it is consistently visible for vanilla and modded mobs.
-            graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(pitch)));
+        } else {
+            graphics.pose().mulPose(new Quaternionf().rotateY((float) Math.toRadians(-yaw)));
+            if (Math.abs(pitch) > 0.01f) {
+                // Apply pitch as a view-space orbit tilt so it is consistently visible for vanilla and modded mobs.
+                graphics.pose().mulPose(new Quaternionf().rotateX((float) Math.toRadians(pitch)));
+            }
         }
 
         dispatcher.setRenderShadow(false);
@@ -337,6 +347,7 @@ public final class WildexMobPreviewRenderer {
         if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
         try {
             renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
+                MultiBufferSource.BufferSource entityBuffers = mc.renderBuffers().bufferSource();
                 dispatcher.render(
                         mob,
                         0.0,
@@ -345,10 +356,10 @@ public final class WildexMobPreviewRenderer {
                         0.0f,
                         renderPartialTick,
                         graphics.pose(),
-                        graphics.bufferSource(),
+                        entityBuffers,
                         LightTexture.FULL_BRIGHT
                 );
-                graphics.flush();
+                entityBuffers.endBatch();
             });
         } finally {
             if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
@@ -485,7 +496,7 @@ public final class WildexMobPreviewRenderer {
         float pitch = manualPitchDeg;
         float sizePx = Math.min(area.w(), area.h()) * DRAGON_MODEL_FILL;
         float scale = (sizePx / DRAGON_MODEL_EFFECTIVE_DIM) * zoom;
-        float renderPartialTick = safePreviewMode ? 0.0f : partialTick;
+        float renderPartialTick = safePreviewMode ? previewAnimPartialTick() : partialTick;
 
         float prevYRot = dragon.getYRot();
         float prevXRot = dragon.getXRot();
@@ -501,7 +512,7 @@ public final class WildexMobPreviewRenderer {
         if (safePreviewMode) {
             dragon.setDeltaMovement(Vec3.ZERO);
             dragon.setNoGravity(true);
-            dragon.tickCount = 0;
+            dragon.tickCount = previewAnimTickCount();
         }
 
         dragon.setYRot(yaw);
@@ -528,6 +539,7 @@ public final class WildexMobPreviewRenderer {
         if (hiddenUndiscovered) RenderSystem.setShaderColor(0f, 0f, 0f, 1f);
         try {
             renderWithRoundedScissorBands(graphics, innerX0, innerY0, innerX1, innerY1, clipCut, () -> {
+                MultiBufferSource.BufferSource entityBuffers = mc.renderBuffers().bufferSource();
                 dispatcher.render(
                         dragon,
                         0.0,
@@ -536,10 +548,10 @@ public final class WildexMobPreviewRenderer {
                         0.0f,
                         renderPartialTick,
                         graphics.pose(),
-                        graphics.bufferSource(),
+                        entityBuffers,
                         LightTexture.FULL_BRIGHT
                 );
-                graphics.flush();
+                entityBuffers.endBatch();
             });
         } finally {
             if (hiddenUndiscovered) RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
@@ -758,13 +770,11 @@ public final class WildexMobPreviewRenderer {
         if (hintW == 0) return null;
 
         int pad = Math.max(2, Math.round(2 * layout.scale()));
-        int padX = pad;
-        int padY = pad;
 
-        int exX0 = Math.max(innerX0, hintBaseX - padX);
-        int exY0 = Math.max(innerY0, hintBaseY - padY);
-        int exX1 = Math.min(innerX1, hintBaseX + hintW + padX);
-        int exY1 = Math.min(innerY1, hintBaseY + scaledTextH + padY);
+        int exX0 = Math.max(innerX0, hintBaseX - pad);
+        int exY0 = Math.max(innerY0, hintBaseY - pad);
+        int exX1 = Math.min(innerX1, hintBaseX + hintW + pad);
+        int exY1 = Math.min(innerY1, hintBaseY + scaledTextH + pad);
 
         if (exX1 <= exX0 || exY1 <= exY0) return null;
         return new ExclusionRect(exX0, exY0, exX1, exY1);
@@ -877,6 +887,7 @@ public final class WildexMobPreviewRenderer {
         cachedId = id;
         cachedEntity = mob;
         cachedSupportsBabyVariant = null;
+        applyConfiguredVariantOption(mob);
         return mob;
     }
 
@@ -885,6 +896,40 @@ public final class WildexMobPreviewRenderer {
         cachedEntity = null;
         cachedId = null;
         cachedSupportsBabyVariant = null;
+        previewAnimTimeTicks = 0.0f;
+        previewAnimPartialTick = 0.0f;
+        previewAnimLastNanos = 0L;
+    }
+
+    private void advancePreviewAnimClock() {
+        long now = System.nanoTime();
+        if (previewAnimLastNanos <= 0L) {
+            previewAnimLastNanos = now;
+            return;
+        }
+
+        long deltaNanos = now - previewAnimLastNanos;
+        previewAnimLastNanos = now;
+        if (deltaNanos <= 0L) return;
+
+        double deltaSeconds = deltaNanos / 1_000_000_000.0;
+        if (deltaSeconds > 0.125) deltaSeconds = 0.125;
+
+        previewAnimTimeTicks += (float) (deltaSeconds * 20.0);
+        if (previewAnimTimeTicks > 1_000_000.0f) {
+            previewAnimTimeTicks %= 1000.0f;
+        }
+
+        int whole = (int) Math.floor(previewAnimTimeTicks);
+        previewAnimPartialTick = previewAnimTimeTicks - whole;
+    }
+
+    private int previewAnimTickCount() {
+        return (int) Math.floor(previewAnimTimeTicks);
+    }
+
+    private float previewAnimPartialTick() {
+        return previewAnimPartialTick;
     }
 
     public void clear() {
@@ -893,6 +938,7 @@ public final class WildexMobPreviewRenderer {
         dragActive = false;
         dragButton = -1;
         babyPreviewEnabled = false;
+        selectedVariantOptionId = "";
     }
 
     public boolean isDraggingPreview() {
@@ -912,6 +958,13 @@ public final class WildexMobPreviewRenderer {
             return;
         }
         setMobBabyState(mob, babyPreviewEnabled);
+    }
+
+    private void applyConfiguredVariantOption(Mob mob) {
+        if (mob == null) return;
+        if (!WildexClientConfigView.showMobVariants()) return;
+        if (selectedVariantOptionId == null || selectedVariantOptionId.isBlank()) return;
+        WildexEntityVariantProbe.applyOption(mob, selectedVariantOptionId);
     }
 
     private boolean supportsBabyVariant(Mob mob) {

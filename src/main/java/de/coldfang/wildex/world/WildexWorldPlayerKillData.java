@@ -27,10 +27,7 @@ public final class WildexWorldPlayerKillData extends SavedData {
     public static WildexWorldPlayerKillData get(ServerLevel level) {
         Objects.requireNonNull(level, "level");
         MinecraftServer server = level.getServer();
-        if (server == null) return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
-
-        ServerLevel overworld = server.overworld();
-        ServerLevel rootLevel = overworld != null ? overworld : level;
+        ServerLevel rootLevel = server.overworld();
 
         WildexWorldPlayerKillData data = rootLevel.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
         data.migrateLegacyDimensionData(server, rootLevel);
@@ -95,6 +92,14 @@ public final class WildexWorldPlayerKillData extends SavedData {
 
         setDirty();
         return next;
+    }
+
+    @SuppressWarnings("unused")
+    public Map<ResourceLocation, Integer> getMobKillCounts(UUID player) {
+        if (player == null) return Map.of();
+        Map<ResourceLocation, Integer> map = kills.get(player);
+        if (map == null || map.isEmpty()) return Map.of();
+        return Map.copyOf(map);
     }
 
     private static WildexWorldPlayerKillData load(CompoundTag tag, HolderLookup.Provider provider) {

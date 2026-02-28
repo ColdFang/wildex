@@ -1,6 +1,8 @@
 package de.coldfang.wildex.client.data.extractor;
 
+import de.coldfang.wildex.client.data.WildexEntityVariantProbe;
 import de.coldfang.wildex.client.data.model.WildexStatsData;
+import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
@@ -20,19 +22,28 @@ public final class StatsExtractor {
         LivingEntity living = createLiving(type);
         if (living == null) return WildexStatsData.empty();
 
-        AttributeMap attrs = living.getAttributes();
+        try {
+            return readFromLiving(living);
+        } finally {
+            living.discard();
+        }
+    }
 
-        WildexStatsData data = new WildexStatsData(
-                read(attrs, Attributes.MAX_HEALTH),
-                read(attrs, Attributes.ARMOR),
-                read(attrs, Attributes.MOVEMENT_SPEED),
-                read(attrs, Attributes.ATTACK_DAMAGE),
-                read(attrs, Attributes.FOLLOW_RANGE),
-                read(attrs, Attributes.KNOCKBACK_RESISTANCE)
-        );
+    public Result extractVariant(EntityType<?> type, String variantOptionId) {
+        LivingEntity living = createLiving(type);
+        if (living == null) return Result.unsupported();
 
-        living.discard();
-        return data;
+        try {
+            boolean applied = variantOptionId != null
+                    && !variantOptionId.isBlank()
+                    && WildexEntityVariantProbe.applyOption(living, variantOptionId);
+            if (!applied) {
+                return Result.unsupported();
+            }
+            return Result.ready(readFromLiving(living));
+        } finally {
+            living.discard();
+        }
     }
 
     private static LivingEntity createLiving(EntityType<?> type) {
@@ -48,5 +59,32 @@ public final class StatsExtractor {
     private static OptionalDouble read(AttributeMap attrs, Holder<Attribute> attribute) {
         if (!attrs.hasAttribute(attribute)) return OptionalDouble.empty();
         return OptionalDouble.of(attrs.getValue(attribute));
+    }
+
+    private static WildexStatsData readFromLiving(LivingEntity living) {
+        WildexStatsData cobblemonStats = WildexCobblemonBridge.readPokemonStats(living);
+        if (cobblemonStats != null) {
+            return cobblemonStats;
+        }
+
+        AttributeMap attrs = living.getAttributes();
+        return new WildexStatsData(
+                read(attrs, Attributes.MAX_HEALTH),
+                read(attrs, Attributes.ARMOR),
+                read(attrs, Attributes.MOVEMENT_SPEED),
+                read(attrs, Attributes.ATTACK_DAMAGE),
+                read(attrs, Attributes.FOLLOW_RANGE),
+                read(attrs, Attributes.KNOCKBACK_RESISTANCE)
+        );
+    }
+
+    public record Result(boolean supported, WildexStatsData stats) {
+        public static Result ready(WildexStatsData stats) {
+            return new Result(true, stats == null ? WildexStatsData.empty() : stats);
+        }
+
+        public static Result unsupported() {
+            return new Result(false, WildexStatsData.empty());
+        }
     }
 }

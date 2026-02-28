@@ -56,12 +56,11 @@ public final class WildexNetwork {
     private static final long REQUEST_COOLDOWN_MS = 300L;
     private static final int MAX_RUNTIME_CACHE_ENTRIES = 512;
     private static final int BREEDING_JOBS_PER_TICK = 1;
-    private static final int MAX_BREEDING_QUEUE_SIZE = 256;
 
     private static final Map<RequestKey, Long> NEXT_ALLOWED_REQUEST_MS = new HashMap<>();
-    private static final Map<ResourceLocation, CachedLoot> LOOT_CACHE = createLruCache(MAX_RUNTIME_CACHE_ENTRIES);
-    private static final Map<ResourceLocation, CachedSpawns> SPAWN_CACHE = createLruCache(MAX_RUNTIME_CACHE_ENTRIES);
-    private static final Map<ResourceLocation, CachedBreeding> BREEDING_CACHE = createLruCache(MAX_RUNTIME_CACHE_ENTRIES);
+    private static final Map<ResourceLocation, CachedLoot> LOOT_CACHE = createLruCache();
+    private static final Map<ResourceLocation, CachedSpawns> SPAWN_CACHE = createLruCache();
+    private static final Map<ResourceLocation, CachedBreeding> BREEDING_CACHE = createLruCache();
     private static final Map<ResourceLocation, BreedingWork> BREEDING_IN_FLIGHT = new HashMap<>();
     private static final ArrayDeque<BreedingWork> BREEDING_QUEUE = new ArrayDeque<>();
 
@@ -569,13 +568,6 @@ public final class WildexNetwork {
             return;
         }
 
-        if (BREEDING_QUEUE.size() >= MAX_BREEDING_QUEUE_SIZE) {
-            LinkedHashSet<UUID> singleTarget = new LinkedHashSet<>();
-            singleTarget.add(requester.getUUID());
-            completeBreedingWork(requester.getServer(), mobId, type, singleTarget);
-            return;
-        }
-
         BreedingWork work = new BreedingWork(mobId, type, new LinkedHashSet<>());
         work.waitingPlayerIds().add(requester.getUUID());
         BREEDING_IN_FLIGHT.put(mobId, work);
@@ -620,14 +612,7 @@ public final class WildexNetwork {
 
     private static ServerLevel resolveBreedingLevel(MinecraftServer server) {
         if (server == null) return null;
-
-        ServerLevel overworld = server.overworld();
-        if (overworld != null) return overworld;
-
-        for (ServerLevel level : server.getAllLevels()) {
-            return level;
-        }
-        return null;
+        return server.overworld();
     }
 
     private static void sendBreedingPayload(MinecraftServer server, Set<UUID> waitingPlayerIds, S2CMobBreedingPayload payload) {
@@ -654,9 +639,7 @@ public final class WildexNetwork {
 
     private static CachedSpawns getCachedSpawns(ResourceLocation mobId) {
         if (mobId == null) return null;
-        CachedSpawns cached = SPAWN_CACHE.get(mobId);
-        if (cached == null) return null;
-        return cached;
+        return SPAWN_CACHE.get(mobId);
     }
 
     private static void putCachedSpawns(
@@ -670,9 +653,7 @@ public final class WildexNetwork {
 
     private static CachedBreeding getCachedBreeding(ResourceLocation mobId) {
         if (mobId == null) return null;
-        CachedBreeding cached = BREEDING_CACHE.get(mobId);
-        if (cached == null) return null;
-        return cached;
+        return BREEDING_CACHE.get(mobId);
     }
 
     private static void putCachedBreeding(
@@ -685,11 +666,11 @@ public final class WildexNetwork {
         BREEDING_CACHE.put(mobId, new CachedBreeding(ownable, breedingItemIds, tamingItemIds));
     }
 
-    private static <K, V> Map<K, V> createLruCache(final int maxEntries) {
-        return new LinkedHashMap<>(maxEntries + 1, 0.75f, true) {
+    private static <K, V> Map<K, V> createLruCache() {
+        return new LinkedHashMap<>(MAX_RUNTIME_CACHE_ENTRIES + 1, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                return size() > maxEntries;
+                return size() > MAX_RUNTIME_CACHE_ENTRIES;
             }
         };
     }

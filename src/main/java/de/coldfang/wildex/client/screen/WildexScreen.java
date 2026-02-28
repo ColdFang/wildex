@@ -86,6 +86,7 @@ public final class WildexScreen extends Screen {
     private final WildexTrophyRenderer trophyRenderer = new WildexTrophyRenderer();
 
     private WildexScreenLayout layout;
+    private String selectedVariantOptionId = "";
 
     private WildexSearchBox searchBox;
     private MobListWidget mobList;
@@ -363,6 +364,8 @@ public final class WildexScreen extends Screen {
             if (restoredSelectedRl != null) this.mobList.setSelectedId(restoredSelectedRl);
             ResourceLocation selected = this.mobList.selectedId();
             this.state.setSelectedMobId(selected == null ? "" : selected.toString());
+            this.selectedVariantOptionId = this.mobList.selectedVariantOptionId();
+            this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
         } finally {
             suppressMobSelectionCallback = false;
         }
@@ -382,10 +385,10 @@ public final class WildexScreen extends Screen {
         this.addRenderableWidget(this.previewResetButton);
         WildexScreenLayout.Area babyToggleArea = previewBabyToggleArea(resetArea);
         this.previewBabyToggleButton = new MobPreviewResetButton(
-                babyToggleArea == null ? 0 : babyToggleArea.x(),
-                babyToggleArea == null ? 0 : babyToggleArea.y(),
-                babyToggleArea == null ? resetArea.w() : babyToggleArea.w(),
-                babyToggleArea == null ? resetArea.h() : babyToggleArea.h(),
+                babyToggleArea.x(),
+                babyToggleArea.y(),
+                babyToggleArea.w(),
+                babyToggleArea.h(),
                 PREVIEW_BABY_LABEL,
                 () -> {
                     if (!mobPreviewRenderer.toggleBabyPreview(this.state.selectedMobId())) return;
@@ -542,12 +545,13 @@ public final class WildexScreen extends Screen {
                 this.lastDiscoveryCount = now;
 
                 ResourceLocation keep = this.mobList == null ? null : this.mobList.selectedId();
+                String keepVariant = this.mobList == null ? "" : this.mobList.selectedVariantOptionId();
 
                 applyFiltersFromUi();
                 refreshMobList();
 
                 if (keep != null && this.mobList != null) {
-                    this.mobList.setSelectedId(keep);
+                    this.mobList.setSelectedSelection(keep, keepVariant);
                 }
             }
         }
@@ -567,6 +571,7 @@ public final class WildexScreen extends Screen {
         if (!next.equals(this.state.selectedMobId())) {
             closeShareOverlayIfOpen();
             this.state.setSelectedMobId(next);
+            this.selectedVariantOptionId = "";
             this.mobPreviewRenderer.setBabyPreviewEnabled(false);
             rightInfoRenderer.resetSpawnScroll();
             rightInfoRenderer.resetStatsScroll();
@@ -577,13 +582,24 @@ public final class WildexScreen extends Screen {
         }
     }
 
-    private void onMobSelected(ResourceLocation id) {
+    private void onMobSelected(MobListWidget.Selection selection) {
         if (suppressMobSelectionCallback) return;
         if (this.shareOverlay != null) this.shareOverlay.onSelectionChanged();
         updateShareWidgetsVisibility();
 
+        ResourceLocation id = selection == null ? null : selection.mobId();
+        String variantOptionId = selection == null ? "" : selection.variantOptionId();
+        this.selectedVariantOptionId = variantOptionId == null ? "" : variantOptionId;
+        this.mobPreviewRenderer.setVariantOptionId(variantOptionId);
+
         String next = id == null ? "" : id.toString();
+        boolean mobChanged = !next.equals(this.state.selectedMobId());
         state.setSelectedMobId(next);
+        if (!mobChanged) {
+            updatePreviewBabyToggleButtonState();
+            return;
+        }
+
         this.mobPreviewRenderer.setBabyPreviewEnabled(false);
         rightInfoRenderer.resetSpawnScroll();
         rightInfoRenderer.resetStatsScroll();
@@ -911,7 +927,7 @@ public final class WildexScreen extends Screen {
             }
         }
 
-        WildexMobData data = mobDataResolver.resolve(state.selectedMobId());
+        WildexMobData data = mobDataResolver.resolve(state.selectedMobId(), this.selectedVariantOptionId);
 
         rightHeaderRenderer.render(graphics, this.font, this.layout.rightHeaderArea(), state, data.header(), theme.ink());
         if (vintageLayout) {
@@ -937,6 +953,7 @@ public final class WildexScreen extends Screen {
 
         super.render(graphics, physicalMouseX, physicalMouseY, partialTick);
         renderMobListTopDivider(graphics);
+        renderModernRightEdgeOccluder(graphics);
 
         if (this.previewResetButton != null && this.previewResetButton.isHovered()) {
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(RESET_PREVIEW_TOOLTIP), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
@@ -970,8 +987,6 @@ public final class WildexScreen extends Screen {
         if (this.shareOverlay != null && this.shareOverlay.isShareOpenOffersHovered()) {
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareOpenOffersTooltip()), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
-
-        renderModernRightEdgeOccluder(graphics);
         this.screenSpace.popScale(graphics);
     }
 
@@ -1122,6 +1137,7 @@ public final class WildexScreen extends Screen {
 
         this.currentMobListItemHeight = next;
         ResourceLocation keepSelected = this.mobList.selectedId();
+        String keepVariant = this.mobList.selectedVariantOptionId();
 
         this.removeWidget(this.mobList);
 
@@ -1148,7 +1164,7 @@ public final class WildexScreen extends Screen {
         );
         this.addRenderableWidget(this.mobList);
         this.mobList.setEntries(this.visibleEntries);
-        if (keepSelected != null) this.mobList.setSelectedId(keepSelected);
+        if (keepSelected != null) this.mobList.setSelectedSelection(keepSelected, keepVariant);
     }
 
     private void syncWidgetPositions() {
@@ -1490,7 +1506,7 @@ public final class WildexScreen extends Screen {
                     // No persisted mob for this world/player: fall back to default first entry.
                     this.mobList.setEntries(this.visibleEntries);
                 } else {
-                    this.mobList.setSelectedId(targetMob);
+                    this.mobList.setSelectedSelection(targetMob, "");
                 }
             }
 
@@ -1509,6 +1525,8 @@ public final class WildexScreen extends Screen {
 
         this.lastTab = this.state.selectedTab();
         this.mobPreviewRenderer.setBabyPreviewEnabled(false);
+        this.selectedVariantOptionId = this.mobList == null ? "" : this.mobList.selectedVariantOptionId();
+        this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
         this.rightInfoRenderer.resetSpawnScroll();
         this.rightInfoRenderer.resetStatsScroll();
         requestAllForSelected(this.state.selectedMobId());
@@ -1518,7 +1536,7 @@ public final class WildexScreen extends Screen {
         if (this.previewBabyToggleButton == null) return;
 
         ResourceLocation selectedMob = ResourceLocation.tryParse(this.state.selectedMobId());
-        boolean discovered = selectedMob != null && WildexDiscoveryCache.isDiscovered(selectedMob);
+        boolean discovered = WildexDiscoveryCache.isDiscovered(selectedMob);
         boolean canToggle = discovered && this.mobPreviewRenderer.canToggleBabyPreview(this.state.selectedMobId());
 
         this.previewBabyToggleButton.visible = canToggle;

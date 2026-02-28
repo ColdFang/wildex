@@ -54,4 +54,12 @@ public final class WildexClientConfigView {
     public static boolean hideGuiScaleSlider() {
         return ClientConfig.INSTANCE.hideGuiScaleSlider.get();
     }
+
+    public static boolean showMobVariants() {
+        return ClientConfig.INSTANCE.showMobVariants.get();
+    }
+
+    public static boolean backgroundMobVariantProbe() {
+        return ClientConfig.INSTANCE.backgroundMobVariantProbe.get();
+    }
 }

@@ -1,8 +1,13 @@
 package de.coldfang.wildex.client.screen;
 
-import de.coldfang.wildex.client.data.WildexDiscoveryCache;
-import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.client.WildexClientConfigView;
+import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
+import de.coldfang.wildex.client.data.WildexEntityVariantCatalog;
+import de.coldfang.wildex.client.data.WildexEntityVariantCatalog.ProbeState;
+import de.coldfang.wildex.client.data.WildexEntityVariantCatalog.SupportState;
+import de.coldfang.wildex.client.data.WildexEntityVariantProbe;
+import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,10 +17,18 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry> {
@@ -42,10 +55,34 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     private static final int NEW_BADGE_PAD_RIGHT = 6;
     private static final int NEW_BADGE_GAP = 3;
 
-    private final Consumer<ResourceLocation> onSelect;
+    private static final int EXPAND_BTN_MIN_SIZE = 12;
+    private static final int EXPAND_BTN_MAX_SIZE = 22;
+    private static final float EXPAND_BTN_ROW_FACTOR = 0.82f;
+    private static final float EXPAND_BTN_GAP_FACTOR = 0.28f;
+    private static final int EXPAND_BTN_MIN_GAP = 3;
+    private static final int SUBENTRY_INDENT = 11;
+    private static final int EXPAND_BTN_BG = 0xCC1A120C;
+    private static final int EXPAND_BTN_SYMBOL = 0xFFFFF6E8;
+    private static final String VARIANT_GROUP_DERIVED = "derived";
+    private static final long VARIANT_UNSUPPORTED_RETRY_MS = 10_000L;
+    private static final Component VARIANT_LOADING_LABEL = Component.translatable("gui.wildex.variants.loading");
+    private static final Set<ResourceLocation> KNOWN_VARIANT_SUPPORTED_IDS = ConcurrentHashMap.newKeySet();
+
+    private final Consumer<Selection> onSelect;
     private final Consumer<ResourceLocation> onEntryClicked;
     private final Consumer<ResourceLocation> onDebugDiscover;
+
+    private List<EntityType<?>> sourceTypes = List.of();
+    private final Map<ResourceLocation, EntityType<?>> typeById = new HashMap<>();
+    private final Set<ResourceLocation> expandedIds = new HashSet<>();
+    private final Set<ResourceLocation> variantUnsupportedIds = new HashSet<>();
+    private final Map<ResourceLocation, Long> variantUnsupportedRetryAtMs = new HashMap<>();
+    private final Set<String> expandedVariantGroupKeys = new HashSet<>();
+    private long variantCatalogRevisionSeen = -1L;
+
     private ResourceLocation selectedId;
+    private String selectedVariantOptionId = "";
+
     private boolean draggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
 
@@ -56,16 +93,17 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             int w,
             int h,
             int itemHeightPx,
-            Consumer<ResourceLocation> onSelect,
+            Consumer<Selection> onSelect,
             Consumer<ResourceLocation> onEntryClicked,
             Consumer<ResourceLocation> onDebugDiscover
     ) {
         super(mc, w, h, y, Math.max(14, itemHeightPx));
-        this.onSelect = onSelect == null ? id -> {
+        this.onSelect = onSelect == null ? s -> {
         } : onSelect;
         this.onEntryClicked = onEntryClicked == null ? id -> {
         } : onEntryClicked;
-        this.onDebugDiscover = onDebugDiscover == null ? id -> { } : onDebugDiscover;
+        this.onDebugDiscover = onDebugDiscover == null ? id -> {
+        } : onDebugDiscover;
         this.setX(x);
         this.setRenderHeader(false, 0);
     }
@@ -74,13 +112,20 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         return Math.max(14, Math.round(ITEM_H * WildexUiScale.clamp(uiScale)));
     }
 
-    public void setEntries(List<EntityType<?>> types) {
-        this.clearEntries();
-        if (types == null) return;
+    public static void clearVariantUiCache() {
+        KNOWN_VARIANT_SUPPORTED_IDS.clear();
+    }
 
-        for (EntityType<?> type : types) {
-            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-            this.addEntry(new Entry(type, id));
+    public void setEntries(List<EntityType<?>> types) {
+        ResourceLocation keepId = this.selectedId;
+        String keepVariant = this.selectedVariantOptionId;
+
+        this.sourceTypes = types == null ? List.of() : List.copyOf(types);
+        this.variantCatalogRevisionSeen = WildexEntityVariantCatalog.cacheRevision();
+        rebuildEntries();
+
+        if (keepId != null && setSelectedSelection(keepId, keepVariant)) {
+            return;
         }
 
         if (this.getSelected() == null && !this.children().isEmpty()) {
@@ -88,39 +133,63 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             this.setSelected(first);
             this.centerScrollOn(first);
         } else {
-            syncSelectedIdFromSelected();
+            syncSelectionFromSelected();
         }
     }
 
-    public void setSelectedId(ResourceLocation id) {
+    public boolean setSelectedSelection(ResourceLocation id, String variantOptionId) {
+        return setSelectedSelection(id, variantOptionId, true);
+    }
+
+    private boolean setSelectedSelection(ResourceLocation id, String variantOptionId, boolean centerOnFound) {
         this.selectedId = id;
+        this.selectedVariantOptionId = variantOptionId == null ? "" : variantOptionId;
 
         if (id == null) {
             this.setSelected(null);
-            return;
+            return false;
         }
 
-        for (Entry e : this.children()) {
-            if (id.equals(e.id)) {
+        if (!this.selectedVariantOptionId.isBlank()) {
+            for (Entry e : this.children()) {
+                if (!id.equals(e.id)) continue;
+                if (!this.selectedVariantOptionId.equals(e.variantOptionId)) continue;
                 this.setSelected(e);
-                this.centerScrollOn(e);
-                return;
+                if (centerOnFound) this.centerScrollOn(e);
+                return true;
             }
         }
 
+        for (Entry e : this.children()) {
+            if (!id.equals(e.id)) continue;
+            if (e.variantSubentry) continue;
+            this.setSelected(e);
+            if (centerOnFound) this.centerScrollOn(e);
+            return true;
+        }
+
         this.setSelected(null);
+        return false;
+    }
+
+    public void setSelectedId(ResourceLocation id) {
+        setSelectedSelection(id, "");
     }
 
     public ResourceLocation selectedId() {
         return this.selectedId;
     }
 
+    public String selectedVariantOptionId() {
+        return this.selectedVariantOptionId;
+    }
+
     @Override
     public void setSelected(Entry entry) {
         super.setSelected(entry);
-        syncSelectedIdFromSelected();
+        syncSelectionFromSelected();
         if (this.selectedId != null) {
-            this.onSelect.accept(this.selectedId);
+            this.onSelect.accept(new Selection(this.selectedId, this.selectedVariantOptionId));
         }
     }
 
@@ -141,7 +210,6 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     @Override
     protected boolean scrollbarVisible() {
-        // We render and handle a custom, wider scrollbar ourselves.
         return false;
     }
 
@@ -164,11 +232,11 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     @Override
     protected void updateScrollingState(double mouseX, double mouseY, int button) {
-        // Disable vanilla drag logic (hardcoded 6px scrollbar), custom logic handles this widget.
     }
 
     @Override
     public void renderWidget(@NotNull GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        refreshVariantProbeStateIfNeeded();
         super.renderWidget(graphics, mouseX, mouseY, partialTick);
         renderCustomScrollbar(graphics, mouseX, mouseY);
     }
@@ -276,9 +344,35 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    private void syncSelectedIdFromSelected() {
+    private void syncSelectionFromSelected() {
         Entry sel = this.getSelected();
-        this.selectedId = sel == null ? null : sel.id;
+        if (sel == null) {
+            this.selectedId = null;
+            this.selectedVariantOptionId = "";
+            return;
+        }
+        this.selectedId = sel.id;
+        this.selectedVariantOptionId = sel.variantOptionId == null ? "" : sel.variantOptionId;
+    }
+
+    private void refreshVariantProbeStateIfNeeded() {
+        if (!WildexClientConfigView.showMobVariants()) return;
+        if (!WildexClientConfigView.backgroundMobVariantProbe()) return;
+        if (this.expandedIds.isEmpty()) return;
+
+        long revision = WildexEntityVariantCatalog.cacheRevision();
+        if (revision == this.variantCatalogRevisionSeen) return;
+        this.variantCatalogRevisionSeen = revision;
+
+        ResourceLocation keepId = this.selectedId;
+        String keepVariant = this.selectedVariantOptionId;
+        double keepScrollAmount = this.getScrollAmount();
+
+        rebuildEntries();
+        if (keepId != null) {
+            setSelectedSelection(keepId, keepVariant, false);
+        }
+        this.setScrollAmount(Math.min(keepScrollAmount, this.getMaxScroll()));
     }
 
     private static boolean debugDiscoverEnabled() {
@@ -370,17 +464,291 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         WildexUiText.draw(graphics, font, NEW_BADGE_LABEL, textX, textY, textColor, false);
     }
 
+    private void rebuildEntries() {
+        this.clearEntries();
+        this.typeById.clear();
+
+        Level level = this.minecraft.level;
+        if (level == null) return;
+        boolean hiddenMode = WildexClientConfigView.hiddenMode();
+        boolean variantEntriesEnabled = WildexClientConfigView.showMobVariants();
+        if (!variantEntriesEnabled) {
+            this.expandedIds.clear();
+            this.expandedVariantGroupKeys.clear();
+            this.variantUnsupportedIds.clear();
+            this.variantUnsupportedRetryAtMs.clear();
+        }
+        long nowMs = System.currentTimeMillis();
+
+        for (EntityType<?> type : sourceTypes) {
+            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+
+            this.typeById.put(id, type);
+            Component name = WildexEntityDisplayNameResolver.resolve(type);
+            boolean discovered = !hiddenMode || WildexDiscoveryCache.isDiscovered(id);
+            boolean unsupportedCoolingDown = false;
+            if (this.variantUnsupportedIds.contains(id)) {
+                Long retryAt = this.variantUnsupportedRetryAtMs.get(id);
+                if (retryAt != null && nowMs < retryAt) {
+                    unsupportedCoolingDown = true;
+                } else {
+                    this.variantUnsupportedIds.remove(id);
+                    this.variantUnsupportedRetryAtMs.remove(id);
+                }
+            }
+            boolean expandable = variantEntriesEnabled && discovered && !unsupportedCoolingDown;
+            this.addEntry(newBaseEntry(type, id, name, expandable));
+
+            if (!variantEntriesEnabled || !discovered || !this.expandedIds.contains(id)) continue;
+            VariantOptionsResolveResult resolved = resolveVariantOptions(type, level);
+            if (resolved.pending()) {
+                this.addEntry(newVariantLoadingEntry(type, id));
+                continue;
+            }
+            List<WildexEntityVariantProbe.VariantOption> options = resolved.options();
+            if (options == null || options.isEmpty()) {
+                this.expandedIds.remove(id);
+                this.variantUnsupportedIds.add(id);
+                this.variantUnsupportedRetryAtMs.put(id, nowMs + VARIANT_UNSUPPORTED_RETRY_MS);
+                KNOWN_VARIANT_SUPPORTED_IDS.remove(id);
+                clearVariantGroupExpansionsFor(id);
+                continue;
+            }
+            this.variantUnsupportedIds.remove(id);
+            this.variantUnsupportedRetryAtMs.remove(id);
+            KNOWN_VARIANT_SUPPORTED_IDS.add(id);
+
+            VariantBuckets buckets = splitVariantBuckets(options);
+            for (WildexEntityVariantProbe.VariantOption option : buckets.primary()) {
+                Component optionName = Component.literal(option.label());
+                this.addEntry(newVariantEntry(type, id, optionName, option.id(), 1));
+            }
+
+            if (!buckets.derived().isEmpty()) {
+                Component groupName = Component.literal(derivedGroupLabel(buckets.derived()));
+                this.addEntry(newVariantGroupEntry(type, id, groupName));
+                if (isVariantGroupExpanded(id, VARIANT_GROUP_DERIVED)) {
+                    for (WildexEntityVariantProbe.VariantOption option : buckets.derived()) {
+                        Component optionName = Component.literal(option.label());
+                        this.addEntry(newVariantEntry(type, id, optionName, option.id(), 2));
+                    }
+                }
+            }
+        }
+    }
+
+    private Entry newBaseEntry(EntityType<?> type, ResourceLocation id, Component name, boolean expandable) {
+        return new Entry(type, id, name, "", false, expandable, false, "", 0);
+    }
+
+    private Entry newVariantEntry(EntityType<?> type, ResourceLocation id, Component name, String variantOptionId, int depth) {
+        return new Entry(type, id, name, variantOptionId, true, false, false, "", Math.max(1, depth));
+    }
+
+    private Entry newVariantLoadingEntry(EntityType<?> type, ResourceLocation id) {
+        return new Entry(type, id, VARIANT_LOADING_LABEL, "__loading__", true, false, false, "", 1);
+    }
+
+    private Entry newVariantGroupEntry(EntityType<?> type, ResourceLocation id, Component name) {
+        return new Entry(type, id, name, "", true, true, true, VARIANT_GROUP_DERIVED, 1);
+    }
+
+    private void toggleExpanded(Entry entry) {
+        if (entry == null || entry.id == null) return;
+        if (!WildexClientConfigView.showMobVariants()) return;
+
+        ResourceLocation keepId = this.selectedId;
+        String keepVariant = this.selectedVariantOptionId;
+        double keepScrollAmount = this.getScrollAmount();
+
+        if (entry.variantGroupHeader) {
+            String key = variantGroupExpansionKey(entry.id, entry.variantGroupKey);
+            if (this.expandedVariantGroupKeys.contains(key)) {
+                this.expandedVariantGroupKeys.remove(key);
+            } else {
+                this.expandedVariantGroupKeys.add(key);
+            }
+        } else {
+            if (entry.variantSubentry) return;
+
+            EntityType<?> type = this.typeById.get(entry.id);
+            if (type == null) return;
+
+            if (this.expandedIds.contains(entry.id)) {
+                this.expandedIds.remove(entry.id);
+                clearVariantGroupExpansionsFor(entry.id);
+            } else {
+                Level level = this.minecraft.level;
+                if (level == null) return;
+
+                VariantOptionsResolveResult resolved = resolveVariantOptions(type, level);
+                if (resolved.pending()) {
+                    this.variantUnsupportedIds.remove(entry.id);
+                    this.variantUnsupportedRetryAtMs.remove(entry.id);
+                    this.expandedIds.add(entry.id);
+                } else if (resolved.options() == null || resolved.options().isEmpty()) {
+                    this.variantUnsupportedIds.add(entry.id);
+                    this.variantUnsupportedRetryAtMs.put(entry.id, System.currentTimeMillis() + VARIANT_UNSUPPORTED_RETRY_MS);
+                    KNOWN_VARIANT_SUPPORTED_IDS.remove(entry.id);
+                } else {
+                    this.variantUnsupportedIds.remove(entry.id);
+                    this.variantUnsupportedRetryAtMs.remove(entry.id);
+                    this.expandedIds.add(entry.id);
+                    KNOWN_VARIANT_SUPPORTED_IDS.add(entry.id);
+                }
+            }
+        }
+
+        rebuildEntries();
+        if (!setSelectedSelection(keepId, keepVariant, false)) {
+            setSelectedSelection(entry.id, "", false);
+        }
+        this.setScrollAmount(Math.min(keepScrollAmount, this.getMaxScroll()));
+    }
+
+    private VariantOptionsResolveResult resolveVariantOptions(EntityType<?> type, Level level) {
+        if (type == null || level == null) return new VariantOptionsResolveResult(List.of(), false);
+
+        if (!WildexClientConfigView.backgroundMobVariantProbe()) {
+            List<WildexEntityVariantProbe.VariantOption> options = WildexEntityVariantCatalog.options(type, level);
+            return new VariantOptionsResolveResult(options, false);
+        }
+
+        ProbeState probeState = WildexEntityVariantCatalog.requestOptions(type);
+        if (probeState == ProbeState.PENDING) {
+            return new VariantOptionsResolveResult(List.of(), true);
+        }
+        if (probeState == ProbeState.UNSUPPORTED) {
+            return new VariantOptionsResolveResult(List.of(), false);
+        }
+        return new VariantOptionsResolveResult(WildexEntityVariantCatalog.cachedOptions(type), false);
+    }
+
+    private static VariantBuckets splitVariantBuckets(List<WildexEntityVariantProbe.VariantOption> options) {
+        if (options == null || options.isEmpty()) return new VariantBuckets(List.of(), List.of());
+
+        List<WildexEntityVariantProbe.VariantOption> primary = new ArrayList<>();
+        List<WildexEntityVariantProbe.VariantOption> derived = new ArrayList<>();
+        for (WildexEntityVariantProbe.VariantOption option : options) {
+            if (isDerivedVariantOption(option)) {
+                derived.add(option);
+            } else {
+                primary.add(option);
+            }
+        }
+
+        if (primary.isEmpty() || derived.isEmpty()) {
+            return new VariantBuckets(List.copyOf(options), List.of());
+        }
+        return new VariantBuckets(List.copyOf(primary), List.copyOf(derived));
+    }
+
+    private static boolean isDerivedVariantOption(WildexEntityVariantProbe.VariantOption option) {
+        if (option == null) return false;
+        String token = optionToken(option);
+        if (looksDerivedToken(token)) return true;
+        String label = option.label();
+        if (label == null) return false;
+        return label.toLowerCase(Locale.ROOT).contains("hybrid");
+    }
+
+    private static String optionToken(WildexEntityVariantProbe.VariantOption option) {
+        if (option == null) return "";
+        String id = option.id();
+        if (id == null || id.isBlank()) return "";
+        int sep = id.indexOf('|');
+        if (sep < 0 || sep + 1 >= id.length()) return id;
+        return id.substring(sep + 1);
+    }
+
+    private static boolean looksDerivedToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String lower = token.toLowerCase(Locale.ROOT);
+        return lower.startsWith("hybrid_")
+                || lower.contains("_hybrid_")
+                || lower.endsWith("_hybrid")
+                || lower.contains("+");
+    }
+
+    private static String derivedGroupLabel(List<WildexEntityVariantProbe.VariantOption> options) {
+        if (options == null || options.isEmpty()) return "Derived Variants";
+        boolean allHybrid = true;
+        for (WildexEntityVariantProbe.VariantOption option : options) {
+            String token = optionToken(option).toLowerCase(Locale.ROOT);
+            String label = option.label();
+            String lowerLabel = label == null ? "" : label.toLowerCase(Locale.ROOT);
+            if (!(token.contains("hybrid") || lowerLabel.contains("hybrid"))) {
+                allHybrid = false;
+                break;
+            }
+        }
+        String base = allHybrid ? "Hybrid Variants" : "Derived Variants";
+        return base + " (" + options.size() + ")";
+    }
+
+    private boolean isVariantGroupExpanded(ResourceLocation id, String groupKey) {
+        return this.expandedVariantGroupKeys.contains(variantGroupExpansionKey(id, groupKey));
+    }
+
+    private static String variantGroupExpansionKey(ResourceLocation id, String groupKey) {
+        if (id == null) return "";
+        String suffix = (groupKey == null || groupKey.isBlank()) ? "group" : groupKey;
+        return id + "|" + suffix;
+    }
+
+    private void clearVariantGroupExpansionsFor(ResourceLocation id) {
+        if (id == null || this.expandedVariantGroupKeys.isEmpty()) return;
+        String prefix = id + "|";
+        this.expandedVariantGroupKeys.removeIf(key -> key != null && key.startsWith(prefix));
+    }
+
+    private record VariantBuckets(
+            List<WildexEntityVariantProbe.VariantOption> primary,
+            List<WildexEntityVariantProbe.VariantOption> derived
+    ) {
+    }
+
+    private record VariantOptionsResolveResult(
+            List<WildexEntityVariantProbe.VariantOption> options,
+            boolean pending
+    ) {
+    }
+
     public final class Entry extends ObjectSelectionList.Entry<Entry> {
 
+        private final EntityType<?> type;
         private final ResourceLocation id;
         private final Component name;
+        private final String variantOptionId;
+        private final boolean variantSubentry;
+        private final boolean expandable;
+        private final boolean variantGroupHeader;
+        private final String variantGroupKey;
+        private final int depth;
 
         private int lastY = 0;
         private int lastRowHeight = ITEM_H;
 
-        private Entry(EntityType<?> type, ResourceLocation id) {
+        private Entry(
+                EntityType<?> type,
+                ResourceLocation id,
+                Component name,
+                String variantOptionId,
+                boolean variantSubentry,
+                boolean expandable,
+                boolean variantGroupHeader,
+                String variantGroupKey,
+                int depth
+        ) {
+            this.type = type;
             this.id = id;
-            this.name = type.getDescription();
+            this.name = name == null ? Component.empty() : name;
+            this.variantOptionId = variantOptionId == null ? "" : variantOptionId;
+            this.variantSubentry = variantSubentry;
+            this.expandable = expandable;
+            this.variantGroupHeader = variantGroupHeader;
+            this.variantGroupKey = variantGroupKey == null ? "" : variantGroupKey;
+            this.depth = Math.max(0, depth);
         }
 
         @Override
@@ -393,7 +761,59 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         }
 
         private boolean showDebugDiscover(boolean discovered) {
-            return debugDiscoverEnabled() && !discovered;
+            return !this.variantSubentry && debugDiscoverEnabled() && !discovered;
+        }
+
+        private boolean isExpanded() {
+            if (this.variantGroupHeader) {
+                return MobListWidget.this.isVariantGroupExpanded(this.id, this.variantGroupKey);
+            }
+            return !this.variantSubentry && MobListWidget.this.expandedIds.contains(this.id);
+        }
+
+        private int contentStartX(int x0, int rowHeight) {
+            int x = x0 + TEXT_PAD_X;
+            if (this.depth > 0) {
+                x += subentryIndent(rowHeight) * this.depth;
+            }
+            return x;
+        }
+
+        private int expandButtonX(int x0, int rowHeight) {
+            return contentStartX(x0, rowHeight);
+        }
+
+        private int expandButtonSize(int rowHeight) {
+            int byRow = Math.round(rowHeight * EXPAND_BTN_ROW_FACTOR);
+            int byUiScale = Math.round(13.0f * WildexUiScale.clamp(WildexUiScale.get()));
+            return Mth.clamp(Math.max(byRow, byUiScale), EXPAND_BTN_MIN_SIZE, EXPAND_BTN_MAX_SIZE);
+        }
+
+        private int expandButtonGap(int rowHeight) {
+            int size = expandButtonSize(rowHeight);
+            return Math.max(EXPAND_BTN_MIN_GAP, Math.round(size * EXPAND_BTN_GAP_FACTOR));
+        }
+
+        private int subentryIndent(int rowHeight) {
+            int size = expandButtonSize(rowHeight);
+            return Math.max(SUBENTRY_INDENT, size - 2);
+        }
+
+        private int expandButtonY(int y, int rowHeight, int buttonSize) {
+            float textScale = resolveListTextScale();
+            int scaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(MobListWidget.this.minecraft.font) * textScale));
+            int textY = y + ((rowHeight - scaledLineH) / 2) + TEXT_NUDGE_Y;
+            int aligned = textY + ((scaledLineH - buttonSize) / 2);
+            int maxTop = y + Math.max(0, rowHeight - buttonSize);
+            return Mth.clamp(aligned, y, maxTop);
+        }
+
+        private boolean isInsideExpandButton(double mouseX, double mouseY, int x0, int y, int rowHeight) {
+            if (!this.expandable || (this.variantSubentry && !this.variantGroupHeader)) return false;
+            int size = expandButtonSize(rowHeight);
+            int bx = expandButtonX(x0, rowHeight);
+            int by = expandButtonY(y, rowHeight, size);
+            return mouseX >= bx && mouseX < bx + size && mouseY >= by && mouseY < by + size;
         }
 
         @Override
@@ -419,7 +839,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             int y1 = y + rowHeight;
             int topClipPad = WildexThemes.isModernLayout() ? 4 : 2;
-            int listTopClip = MobListWidget.this.getY() + topClipPad; // keep clear under top divider line
+            int listTopClip = MobListWidget.this.getY() + topClipPad;
             int listBottomClip = MobListWidget.this.getY() + MobListWidget.this.getHeight();
             int rowY0 = Math.max(y, listTopClip);
             int rowY1 = Math.min(y1, listBottomClip);
@@ -428,7 +848,6 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             if (selected) {
                 WildexUiTheme.Palette theme = WildexUiTheme.current();
                 graphics.fill(x0, rowY0, x1, rowY1, theme.selectionBg());
-
                 graphics.fill(x0, rowY0, x1, rowY0 + 1, theme.selectionBorder());
                 graphics.fill(x0, rowY1 - 1, x1, rowY1, theme.selectionBorder());
                 graphics.fill(x0, rowY0, x0 + 1, rowY1, theme.selectionBorder());
@@ -437,9 +856,10 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             boolean hiddenMode = WildexClientConfigView.hiddenMode();
             boolean discovered = isDiscovered(hiddenMode);
+            boolean canExpand = canExpand(discovered);
 
             boolean showDebug = showDebugDiscover(discovered);
-            boolean showNew = hiddenMode && discovered && !WildexViewedMobEntriesCache.isViewed(this.id);
+            boolean showNew = !this.variantSubentry && hiddenMode && discovered && !WildexViewedMobEntriesCache.isViewed(this.id);
 
             int textRightCut = 2;
             if (showDebug) {
@@ -451,7 +871,11 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             WildexUiTheme.Palette theme = WildexUiTheme.current();
             int color = selected ? theme.inkOnDark() : theme.ink();
 
-            int textX = x0 + TEXT_PAD_X;
+            int textX = contentStartX(x0, rowHeight);
+            if (canExpand) {
+                textX += expandButtonSize(rowHeight) + expandButtonGap(rowHeight);
+            }
+
             float textScale = resolveListTextScale();
             int scaledLineH = Math.max(1, Math.round(WildexUiText.lineHeight(MobListWidget.this.minecraft.font) * textScale));
             int textY = y + ((rowHeight - scaledLineH) / 2) + TEXT_NUDGE_Y;
@@ -474,7 +898,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                         float inv = 1.0f / textScale;
                         graphics.pose().pushPose();
                         graphics.pose().scale(textScale, textScale, 1.0f);
-                        WildexUiText.draw(graphics, 
+                        WildexUiText.draw(
+                                graphics,
                                 MobListWidget.this.minecraft.font,
                                 s,
                                 Math.round(textX * inv),
@@ -486,7 +911,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                     }
                 } else {
                     int travel = (textW - availLogicalW) + MARQUEE_GAP_PX;
-                    int phase = this.id.toString().hashCode();
+                    int phase = (this.id.toString() + "|" + this.variantOptionId).hashCode();
                     float off = marqueeOffset(System.currentTimeMillis(), travel, phase);
 
                     int baseX = textX - Math.round(off);
@@ -496,7 +921,8 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                         float inv = 1.0f / textScale;
                         graphics.pose().pushPose();
                         graphics.pose().scale(textScale, textScale, 1.0f);
-                        WildexUiText.draw(graphics, 
+                        WildexUiText.draw(
+                                graphics,
                                 MobListWidget.this.minecraft.font,
                                 s,
                                 Math.round(baseX * inv),
@@ -509,6 +935,22 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 }
             } finally {
                 graphics.disableScissor();
+            }
+
+            if (canExpand) {
+                int buttonSize = expandButtonSize(rowHeight);
+                int bx = expandButtonX(x0, rowHeight);
+                int by = expandButtonY(y, rowHeight, buttonSize);
+                boolean expanded = isExpanded();
+                WildexUiRenderUtil.drawMenuStyleToggleButton(
+                        graphics,
+                        bx,
+                        by,
+                        buttonSize,
+                        !expanded,
+                        EXPAND_BTN_BG,
+                        EXPAND_BTN_SYMBOL
+                );
             }
 
             if (showDebug) {
@@ -527,6 +969,14 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             boolean hiddenMode = WildexClientConfigView.hiddenMode();
             boolean discovered = isDiscovered(hiddenMode);
+
+            int x0 = MobListWidget.this.getX();
+            boolean canExpand = canExpand(discovered);
+            if (button == 0 && canExpand && isInsideExpandButton(mouseX, mouseY, x0, this.lastY, this.lastRowHeight)) {
+                MobListWidget.this.toggleExpanded(this);
+                return true;
+            }
+
             boolean showDebug = showDebugDiscover(discovered);
 
             int x1 = MobListWidget.this.getX() + MobListWidget.this.width - SCROLLBAR_W;
@@ -546,15 +996,39 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 }
             }
 
+            if (this.variantGroupHeader) {
+                return true;
+            }
+
             MobListWidget.this.setSelected(this);
-            if (discovered) {
+            if (discovered && !this.variantSubentry) {
                 MobListWidget.this.onEntryClicked.accept(this.id);
             }
             return true;
         }
+
+        private boolean canExpand(boolean discovered) {
+            if (!this.expandable || !discovered) return false;
+            if (this.variantSubentry && !this.variantGroupHeader) return false;
+            if (this.variantGroupHeader) return true;
+            if (!WildexClientConfigView.backgroundMobVariantProbe()) return true;
+            if (this.id != null && KNOWN_VARIANT_SUPPORTED_IDS.contains(this.id)) return true;
+            if (this.type == null) return false;
+
+            SupportState state = WildexEntityVariantCatalog.requestSupport(this.type);
+            if (state == SupportState.SUPPORTED) {
+                if (this.id != null) {
+                    KNOWN_VARIANT_SUPPORTED_IDS.add(this.id);
+                }
+                return true;
+            }
+            if (state == SupportState.UNSUPPORTED && this.id != null) {
+                KNOWN_VARIANT_SUPPORTED_IDS.remove(this.id);
+            }
+            return false;
+        }
+    }
+
+    public record Selection(ResourceLocation mobId, String variantOptionId) {
     }
 }
-
-
-
-

@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.data.model.WildexStatsData;
+import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -146,7 +147,7 @@ final class WildexRightInfoStatsRenderer {
         int viewportH = Math.max(24, dividerY - y - 1);
 
         int line = Math.max(10, WildexUiText.lineHeight(font) + 2);
-        int estimatedContentH = Math.max(viewportH, WildexRightInfoRenderer.PAD_Y + (line * 9) + 2);
+        int estimatedContentH = Math.max(viewportH, WildexRightInfoRenderer.PAD_Y + (line * 10) + 2);
         statsViewportH = viewportH;
         statsContentH = estimatedContentH;
         int maxScroll = Math.max(0, statsContentH - statsViewportH);
@@ -257,7 +258,8 @@ final class WildexRightInfoStatsRenderer {
         int maxLabelBySpace = Math.max(24, contentW - colGap - STATS_MIN_VALUE_COL_W);
         int labelColWBase = Math.round(contentW * STATS_LABEL_COL_RATIO);
         labelColWBase = Math.max(STATS_LABEL_COL_MIN, Math.min(labelColWBase, STATS_LABEL_COL_MAX));
-        int requiredLabelW = requiredLabelColumnWidth(font);
+        boolean cobblemonStats = isCobblemonPokemon(selectedMobId);
+        int requiredLabelW = requiredLabelColumnWidth(font, cobblemonStats);
         int labelColW = Math.max(labelColWBase, requiredLabelW);
         labelColW = Math.min(labelColW, maxLabelBySpace);
 
@@ -281,81 +283,126 @@ final class WildexRightInfoStatsRenderer {
         }
 
         int y0 = y;
-        y = drawHeartsLine(
-                g,
-                font,
-                x,
-                y,
-                labelColW,
-                valueX,
-                valueW,
-                maxY,
-                WildexRightInfoTabUtil.tr("gui.wildex.stats.health"),
-                s.maxHealth().orElse(Double.NaN),
-                inkColor,
-                line,
-                screenOriginX,
-                screenOriginY,
-                scale
-        );
-        if (isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("tooltip.wildex.stats.health");
+        if (cobblemonStats) {
+            String heading = WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.level1_heading");
+            int headingMaxW = Math.max(1, rightLimitX - x);
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.clipToWidth(font, heading, headingMaxW), x, y, inkColor, false);
+            y += line;
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.hp"), fmtOpt(s.maxHealth().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.hp");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.attack"), fmtOpt(s.attackDamage().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.attack");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.defense"), fmtOpt(s.armor().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.defense");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.sp_attack"), fmtOpt(s.followRange().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.sp_attack");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.sp_defense"), fmtOpt(s.knockbackResistance().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.sp_defense");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.pokemon.speed"), fmtOpt(s.movementSpeed().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.pokemon.speed");
+            }
+        } else {
+            y = drawHeartsLine(
+                    g,
+                    font,
+                    x,
+                    y,
+                    labelColW,
+                    valueX,
+                    valueW,
+                    maxY,
+                    WildexRightInfoTabUtil.tr("gui.wildex.stats.health"),
+                    s.maxHealth().orElse(Double.NaN),
+                    inkColor,
+                    line,
+                    screenOriginX,
+                    screenOriginY,
+                    scale
+            );
+            if (isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.health");
+            }
+
+            y0 = y;
+            y = drawArmorLine(
+                    g,
+                    font,
+                    x,
+                    y,
+                    labelColW,
+                    valueX,
+                    valueW,
+                    maxY,
+                    WildexRightInfoTabUtil.tr("gui.wildex.stats.armor"),
+                    s.armor().orElse(Double.NaN),
+                    inkColor,
+                    line,
+                    screenOriginX,
+                    screenOriginY,
+                    scale
+            );
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.armor.1", "tooltip.wildex.stats.armor.2");
+            }
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.move_speed"), fmtOpt(s.movementSpeed().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.move_speed");
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.attack_damage");
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.follow_range"), fmtOptWithUnit(s.followRange().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.follow_range");
+
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.knockback_res"), fmtOpt(s.knockbackResistance().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.knockback_res.1", "tooltip.wildex.stats.knockback_res.2");
+            }
         }
 
-        y0 = y;
-        y = drawArmorLine(
-                g,
-                font,
-                x,
-                y,
-                labelColW,
-                valueX,
-                valueW,
-                maxY,
-                WildexRightInfoTabUtil.tr("gui.wildex.stats.armor"),
-                s.armor().orElse(Double.NaN),
-                inkColor,
-                line,
-                screenOriginX,
-                screenOriginY,
-                scale
-        );
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("tooltip.wildex.stats.armor.1", "tooltip.wildex.stats.armor.2");
-        }
+        if (!cobblemonStats) {
+            Dims dims = resolveDims(selectedMobId);
 
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.move_speed"), fmtOpt(s.movementSpeed().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.move_speed");
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_width"), fmtOptWithUnit(dims.hitboxWidth().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_width");
 
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.attack_damage");
+            y0 = y;
+            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_height"), fmtOptWithUnit(dims.hitboxHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_height");
 
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.follow_range"), fmtOptWithUnit(s.followRange().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.follow_range");
-
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.knockback_res"), fmtOpt(s.knockbackResistance().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("tooltip.wildex.stats.knockback_res.1", "tooltip.wildex.stats.knockback_res.2");
-        }
-
-        Dims dims = resolveDims(selectedMobId);
-
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_width"), fmtOptWithUnit(dims.hitboxWidth().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_width");
-
-        y0 = y;
-        y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.hitbox_height"), fmtOptWithUnit(dims.hitboxHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.hitbox_height");
-
-        y0 = y;
-        drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.eye_height"), fmtOptWithUnit(dims.eyeHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
-        if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
-            tooltip = tooltipLines("tooltip.wildex.stats.eye_height.1", "tooltip.wildex.stats.eye_height.2");
+            y0 = y;
+            drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.eye_height"), fmtOptWithUnit(dims.eyeHeight().orElse(Double.NaN), WildexRightInfoTabUtil.tr("gui.wildex.unit.blocks")), inkColor, line, screenOriginX, screenOriginY, scale);
+            if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) {
+                tooltip = tooltipLines("tooltip.wildex.stats.eye_height.1", "tooltip.wildex.stats.eye_height.2");
+            }
         }
 
         int dividerEndY = Math.min(maxY, y + line - 1);
@@ -366,10 +413,11 @@ final class WildexRightInfoStatsRenderer {
         return tooltip;
     }
 
-    private static int requiredLabelColumnWidth(Font font) {
+    private static int requiredLabelColumnWidth(Font font, boolean cobblemonStats) {
         int pad = Math.max(4, Math.round(4 * WildexUiScale.get()));
         int max = 0;
-        for (String key : STAT_LABEL_KEYS) {
+        String[] keys = cobblemonStats ? POKEMON_STAT_LABEL_KEYS : STAT_LABEL_KEYS;
+        for (String key : keys) {
             int w = WildexUiText.width(font, WildexRightInfoTabUtil.tr(key));
             if (w > max) max = w;
         }
@@ -387,6 +435,22 @@ final class WildexRightInfoStatsRenderer {
             "gui.wildex.stats.hitbox_height",
             "gui.wildex.stats.eye_height"
     };
+
+    private static final String[] POKEMON_STAT_LABEL_KEYS = new String[] {
+            "gui.wildex.stats.pokemon.hp",
+            "gui.wildex.stats.pokemon.attack",
+            "gui.wildex.stats.pokemon.defense",
+            "gui.wildex.stats.pokemon.sp_attack",
+            "gui.wildex.stats.pokemon.sp_defense",
+            "gui.wildex.stats.pokemon.speed",
+            "gui.wildex.stats.hitbox_width",
+            "gui.wildex.stats.hitbox_height",
+            "gui.wildex.stats.eye_height"
+    };
+
+    private static boolean isCobblemonPokemon(String selectedMobId) {
+        return WildexCobblemonBridge.isCobblemonPokemon(selectedMobId);
+    }
 
     private static boolean isHover(int mx, int my, int x, int y, int w, int h) {
         if (mx < 0 || my < 0) return false;

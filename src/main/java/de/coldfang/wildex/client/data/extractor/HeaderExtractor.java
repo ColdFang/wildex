@@ -1,5 +1,6 @@
 package de.coldfang.wildex.client.data.extractor;
 
+import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
 import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexHeaderData;
 import de.coldfang.wildex.util.WildexEntityFactory;
@@ -15,7 +16,7 @@ public final class HeaderExtractor {
     public WildexHeaderData extract(EntityType<?> type, Level level) {
         if (type == null) return WildexHeaderData.empty();
 
-        Component name = type.getDescription();
+        Component name = WildexEntityDisplayNameResolver.resolve(type);
         WildexAggression aggression = classify(type, null);
 
         if (level != null) {

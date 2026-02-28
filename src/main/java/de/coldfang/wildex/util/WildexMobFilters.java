@@ -4,7 +4,6 @@ import de.coldfang.wildex.config.CommonConfig;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Mob;
 
 import java.util.List;
 import java.util.Locale;
@@ -25,18 +24,6 @@ public final class WildexMobFilters {
         if (type == EntityType.PLAYER) return false;
         ResourceLocation id = EntityType.getKey(type);
         return isTrackableId(id);
-    }
-
-    public static boolean isTrackableMobType(EntityType<?> type) {
-        if (!isTrackable(type)) return false;
-        return Mob.class.isAssignableFrom(type.getBaseClass());
-    }
-
-    public static boolean isTrackableMobId(ResourceLocation id) {
-        if (id == null) return false;
-        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
-        if (type == null) return false;
-        return isTrackableMobType(type);
     }
 
     private static boolean isTrackableId(ResourceLocation id) {

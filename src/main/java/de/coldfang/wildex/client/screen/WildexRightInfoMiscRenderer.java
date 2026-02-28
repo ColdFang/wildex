@@ -2,6 +2,7 @@ package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.data.extractor.WildexEntityTypeTags;
 import de.coldfang.wildex.client.data.model.WildexMiscData;
+import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,6 +32,7 @@ final class WildexRightInfoMiscRenderer {
     private static final String TAMING_ITEMS_LABEL = "gui.wildex.info.taming_items";
     private static final String NO_ITEMS = "gui.wildex.info.none";
     private static final String TAMING_NONE_OWNABLE_HINT = "gui.wildex.info.taming_none_ownable_hint";
+    private static final String TAMING_NONE_COBBLEMON_HINT = "gui.wildex.info.taming_none_cobblemon_hint";
 
     private static final int ITEM_ICON = 16;
     private static final int ITEM_GAP_X = 6;
@@ -60,7 +62,6 @@ final class WildexRightInfoMiscRenderer {
     private static int miscThumbScreenY1 = 0;
     private static final int TOGGLE_GAP_X = 4;
     private static final int TOGGLE_BG = 0xCC1A120C;
-    private static final int TOGGLE_BORDER = 0xFFECDCC3;
     private static final int TOGGLE_SYMBOL = 0xFFFFF6E8;
     private static final int WRAPPED_EMPTY_LINE_GAP = 2;
     private static final int FULLWIDTH_COLON_CODEPOINT = 0xFF1A;
@@ -183,9 +184,10 @@ final class WildexRightInfoMiscRenderer {
         List<ResourceLocation> breedingItems = miscData == null ? List.of() : miscData.breedingItemIds();
         List<ResourceLocation> tamingItems = miscData == null ? List.of() : miscData.tamingItemIds();
         boolean ownable = miscData != null && miscData.ownable();
+        boolean cobblemonPokemon = WildexCobblemonBridge.isCobblemonPokemon(type);
         boolean wrapTamingEmpty = ownable && tamingItems.isEmpty();
         String tamingEmptyText = wrapTamingEmpty
-                ? WildexRightInfoTabUtil.tr(TAMING_NONE_OWNABLE_HINT)
+                ? WildexRightInfoTabUtil.tr(cobblemonPokemon ? TAMING_NONE_COBBLEMON_HINT : TAMING_NONE_OWNABLE_HINT)
                 : WildexRightInfoTabUtil.tr(NO_ITEMS);
 
         miscViewportH = viewportH;
@@ -416,23 +418,15 @@ final class WildexRightInfoMiscRenderer {
     }
 
     private static void renderToggle(GuiGraphics g, int x, int y, int size, boolean collapsed) {
-        int x1 = x + size;
-        int y1 = y + size;
-        g.fill(x, y, x1, y1, TOGGLE_BG);
-        g.fill(x, y, x1, y + 1, TOGGLE_BORDER);
-        g.fill(x, y1 - 1, x1, y1, TOGGLE_BORDER);
-        g.fill(x, y, x + 1, y1, TOGGLE_BORDER);
-        g.fill(x1 - 1, y, x1, y1, TOGGLE_BORDER);
-
-        int cx = x + (size / 2);
-        int cy = y + (size / 2);
-        int arm = Math.max(1, (size - 9) / 2);
-        int thick = size >= 12 ? 2 : 1;
-
-        g.fill(cx - arm, cy - (thick / 2), cx + arm + 1, cy - (thick / 2) + thick, TOGGLE_SYMBOL);
-        if (collapsed) {
-            g.fill(cx - (thick / 2), cy - arm, cx - (thick / 2) + thick, cy + arm + 1, TOGGLE_SYMBOL);
-        }
+        WildexUiRenderUtil.drawMenuStyleToggleButton(
+                g,
+                x,
+                y,
+                size,
+                collapsed,
+                TOGGLE_BG,
+                TOGGLE_SYMBOL
+        );
     }
 
     private static String stripTrailingColon(String raw) {

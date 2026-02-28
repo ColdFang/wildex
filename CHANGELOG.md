@@ -1,5 +1,47 @@
 # Changelog
 
+## 2.4.0 - Unreleased
+You’ll immediately notice that mob variants now appear in Wildex instead of only showing a single base entry.
+This also means Wildex now supports far more modded mobs and variant systems across many additional mods.
+### Added
+- Added dynamic mob variant entries in the left list:
+  - expandable `+/-` per mob
+  - optional second level for derived/hybrid variants
+- Added client config options:
+  - `showMobVariants` (default: `true`)
+  - `backgroundMobVariantProbe` (default: `true`)
+- Added Cobblemon bridge support step 1:
+  - Cobblemon species/forms are shown as variants under the Cobblemon entry
+  - Cobblemon names use localization instead of raw keys where available
+  - Cobblemon-specific stats are shown in the Stats tab (Level 1 profile)
+  - Cobblemon-specific hint text when no classic taming item is detected
+
+### Changed
+- Variant probing now runs as a low-priority background queue with cache-backed results to reduce spikes on heavily modded packs.
+- Variant discovery remains generic (no hardcoded per-mod variant tables in the core path).
+- Variant grouping/prioritization now prefers base variants before derived/hybrid entries.
+- Mob preview entities now animate in the preview, so mobs no longer appear static.
+
+### Fixed
+- Fixed taming item detection for ownable mobs with non-standard tame flows:
+  - normal interaction first
+  - baby-state fallback if needed
+  - sneak (`Shift + Right Click`) fallback if needed
+  - ownable fallback path for mods not using standard `TamableAnimal` flow
+- Fixed cases where raw translation keys (`entity.*`) could appear as mob names in UI/toasts.
+- Fixed variant list UX issues:
+  - no unintended list jump when expanding/collapsing
+  - expand button style/size/alignment now follows Wildex UI scaling
+  - known variant-capable entries keep their `+` state reliably across GUI reopen
+- Fixed noisy pseudo-variant detection (for example platform-like technical fields) to keep variant lists cleaner.
+- Fixed preview interaction regressions so drag rotation/orbit feels consistent again.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Multiplayer-safe: server-authoritative data flow is unchanged.
+- Safe when optional mods are missing (for example Cobblemon): no hard dependency required.
+
 ## 2.3.0 - 2026-02-26
 
 ### Added

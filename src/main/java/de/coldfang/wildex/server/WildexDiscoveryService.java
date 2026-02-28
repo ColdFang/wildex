@@ -3,6 +3,7 @@ package de.coldfang.wildex.server;
 import de.coldfang.wildex.network.S2CDiscoveredMobPayload;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
+import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,6 +23,7 @@ public final class WildexDiscoveryService {
         WildexWorldPlayerDiscoveryData data = WildexWorldPlayerDiscoveryData.get(level);
         boolean newlyDiscovered = data.markDiscovered(player.getUUID(), mobId);
         if (!newlyDiscovered) return false;
+        WildexPedestalBlockEntity.invalidateDiscoverySnapshot(player.getUUID());
 
         PacketDistributor.sendToPlayer(player, new S2CDiscoveredMobPayload(mobId));
 

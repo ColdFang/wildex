@@ -24,6 +24,7 @@ runs
 run-data
 
 repo
+.repo_analysis/
 
 # local test helpers
 examples/kubejs/
