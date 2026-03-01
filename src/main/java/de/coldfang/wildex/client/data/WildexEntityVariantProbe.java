@@ -1,11 +1,14 @@
 package de.coldfang.wildex.client.data;
 
 import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -16,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -27,6 +31,9 @@ public final class WildexEntityVariantProbe {
 
     private static final int[] INT_CANDIDATES = {15, 7, 3, 2, 1, 4, 5, 6, 8};
     private static final Map<Class<?>, List<Accessor>> ACCESSOR_CACHE = new ConcurrentHashMap<>();
+    private static final int HOLDER_REGISTRY_SCAN_CAP = 256;
+    private static final Object NO_HOLDER_REGISTRY = new Object();
+    private static final Map<Class<?>, Object> HOLDER_VALUE_REGISTRY_CACHE = new ConcurrentHashMap<>();
 
     private WildexEntityVariantProbe() {
     }
@@ -306,7 +313,18 @@ public final class WildexEntityVariantProbe {
             return dynamic;
         }
         String titleSuffix = toTitleCase(suffix);
-        return titleSuffix + " " + ordinal + " (" + rawValue + ")";
+        return titleSuffix + " " + ordinal + " (" + formatVariantRawValue(rawValue) + ")";
+    }
+
+    private static String formatVariantRawValue(Object rawValue) {
+        if (rawValue == null) return "";
+        String text = String.valueOf(rawValue).trim();
+        if (text.isBlank()) return "";
+        int namespaceSep = text.indexOf(':');
+        if (namespaceSep > 0 && namespaceSep < text.length() - 1) {
+            return text.substring(namespaceSep + 1);
+        }
+        return text;
     }
 
     private static String safeEntityName(Mob entity) {
@@ -652,6 +670,10 @@ public final class WildexEntityVariantProbe {
         Object current = read(accessor.getter(), entity);
         addCandidate(out, current);
 
+        if (current instanceof Holder<?> holder) {
+            discoverHolderCandidates(setterType, holder, out);
+        }
+
         for (String className : registryClassNameCandidates(entityClass, setterType)) {
             Class<?> registryClass = tryLoadClass(entityClass, className);
             if (registryClass == null) continue;
@@ -676,6 +698,78 @@ public final class WildexEntityVariantProbe {
         }
 
         return new ArrayList<>(out.values());
+    }
+
+    private static void discoverHolderCandidates(Class<?> setterType, Holder<?> holder, Map<String, Object> out) {
+        if (setterType == null || holder == null || out == null) return;
+
+        Object holderValue = tryCallZeroArg(holder, "value");
+        if (holderValue == null) return;
+
+        Object registry = resolveBuiltInRegistryForValue(holderValue);
+        if (registry == null) return;
+
+        Object holders = tryCallZeroArg(registry, "holders");
+        for (Object candidate : extractElements(holders)) {
+            if (!setterType.isInstance(candidate)) continue;
+            addCandidate(out, candidate);
+            if (out.size() >= HOLDER_REGISTRY_SCAN_CAP) return;
+        }
+        if (out.size() > 1) return;
+
+        int scanned = 0;
+        Object values = tryCallZeroArg(registry, "stream");
+        for (Object value : extractElements(values)) {
+            if (value == null) continue;
+
+            Object candidate = setterType.isInstance(value) ? value : tryCallOneArg(registry, "wrapAsHolder", value);
+            if (!setterType.isInstance(candidate)) continue;
+
+            addCandidate(out, candidate);
+            scanned++;
+            if (scanned >= HOLDER_REGISTRY_SCAN_CAP || out.size() >= HOLDER_REGISTRY_SCAN_CAP) return;
+        }
+    }
+
+    private static Object resolveBuiltInRegistryForValue(Object holderValue) {
+        if (holderValue == null) return null;
+
+        Class<?> valueClass = holderValue.getClass();
+        Object cached = HOLDER_VALUE_REGISTRY_CACHE.get(valueClass);
+        if (cached == NO_HOLDER_REGISTRY) return null;
+        if (cached instanceof Field field) {
+            return readStaticField(field);
+        }
+
+        for (Field field : BuiltInRegistries.class.getFields()) {
+            if (!Modifier.isStatic(field.getModifiers())) continue;
+
+            Object registry = readStaticField(field);
+            if (registry == null) continue;
+            if (!registryContainsValue(registry, holderValue)) continue;
+
+            HOLDER_VALUE_REGISTRY_CACHE.put(valueClass, field);
+            return registry;
+        }
+
+        HOLDER_VALUE_REGISTRY_CACHE.put(valueClass, NO_HOLDER_REGISTRY);
+        return null;
+    }
+
+    private static boolean registryContainsValue(Object registry, Object value) {
+        if (registry == null || value == null) return false;
+
+        Object keyOpt = tryCallOneArg(registry, "getResourceKey", value);
+        if (keyOpt instanceof Optional<?> optional) {
+            return optional.isPresent();
+        }
+
+        Object contains = tryCallOneArg(registry, "containsValue", value);
+        if (contains instanceof Boolean boolValue) {
+            return boolValue;
+        }
+
+        return false;
     }
 
     private static boolean isLikelyVariantRegistryMethod(Method method, Class<?> setterType) {
@@ -764,6 +858,17 @@ public final class WildexEntityVariantProbe {
         }
     }
 
+    private static Object readStaticField(Field field) {
+        if (field == null) return null;
+        try {
+            if (!Modifier.isStatic(field.getModifiers())) return null;
+            field.setAccessible(true);
+            return field.get(null);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private static Object tryCallZeroArg(Object target, String methodName) {
         if (target == null || methodName == null || methodName.isBlank()) return null;
         try {
@@ -773,6 +878,41 @@ public final class WildexEntityVariantProbe {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private static Object tryCallOneArg(Object target, String methodName, Object arg) {
+        if (target == null || methodName == null || methodName.isBlank()) return null;
+
+        for (Method method : target.getClass().getMethods()) {
+            if (!methodName.equals(method.getName())) continue;
+            if (method.getParameterCount() != 1) continue;
+
+            Class<?> paramType = method.getParameterTypes()[0];
+            if (!isParameterCompatible(paramType, arg)) continue;
+
+            try {
+                trySetAccessible(method);
+                return method.invoke(target, arg);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static boolean isParameterCompatible(Class<?> paramType, Object arg) {
+        if (paramType == null) return false;
+        if (arg == null) return !paramType.isPrimitive();
+        if (paramType.isInstance(arg)) return true;
+
+        if (!paramType.isPrimitive()) return false;
+        return (paramType == int.class && arg instanceof Integer)
+                || (paramType == long.class && arg instanceof Long)
+                || (paramType == byte.class && arg instanceof Byte)
+                || (paramType == short.class && arg instanceof Short)
+                || (paramType == float.class && arg instanceof Float)
+                || (paramType == double.class && arg instanceof Double)
+                || (paramType == boolean.class && arg instanceof Boolean)
+                || (paramType == char.class && arg instanceof Character);
     }
 
     private static List<Object> extractElements(Object source) {
@@ -812,6 +952,19 @@ public final class WildexEntityVariantProbe {
     }
 
     private static String stableToken(Object value) {
+        if (value instanceof Holder<?> holder) {
+            Object keyOut = tryCallZeroArg(holder, "unwrapKey");
+            if (keyOut instanceof Optional<?> optional && optional.isPresent()) {
+                Object key = optional.get();
+                Object location = tryCallZeroArg(key, "location");
+                if (location != null) return location.toString();
+            }
+
+            Object holderValue = tryCallZeroArg(holder, "value");
+            String nested = stableToken(holderValue);
+            if (nested != null && !nested.isBlank()) return nested;
+        }
+
         switch (value) {
             case null -> {
                 return null;
