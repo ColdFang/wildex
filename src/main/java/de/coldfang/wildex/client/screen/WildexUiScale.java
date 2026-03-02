@@ -1,5 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.config.ClientConfig;
 
 public final class WildexUiScale {
@@ -13,9 +14,7 @@ public final class WildexUiScale {
     }
 
     public static float clamp(float v) {
-        if (v < MIN) return MIN;
-        if (v > MAX) return MAX;
-        return v;
+        return Math.max(MIN, Math.min(MAX, v));
     }
 
     public static float snap(float v) {
@@ -24,7 +23,7 @@ public final class WildexUiScale {
     }
 
     public static float get() {
-        return snap((float) ClientConfig.INSTANCE.wildexUiScale.get().doubleValue());
+        return snap((float) WildexClientConfigView.wildexUiScale());
     }
 
     public static void set(float v) {
@@ -36,6 +35,7 @@ public final class WildexUiScale {
         return (snap(uiScale) - MIN) / (MAX - MIN);
     }
 
+    @SuppressWarnings("unused")
     public static float fromNormalized(float t) {
         float n = Math.max(0.0f, Math.min(1.0f, t));
         return snap(MIN + (MAX - MIN) * n);

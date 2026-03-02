@@ -1,7 +1,6 @@
 package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
-import de.coldfang.wildex.config.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.debug.DebugRenderer;
@@ -49,7 +48,7 @@ public final class WildexSpyglassKnownMobOverlayClient {
             return;
         }
 
-        if (!ClientConfig.INSTANCE.showDiscoveredSpyglassOverlay.get()) {
+        if (!WildexClientConfigView.showDiscoveredSpyglassOverlay()) {
             fadeOutAndForget();
             return;
         }

@@ -1,7 +1,6 @@
 package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.Wildex;
-import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import de.coldfang.wildex.registry.ModItems;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -25,7 +24,7 @@ public final class WildexClientItemProperties {
         event.enqueueWork(() -> ItemProperties.register(
                 ModItems.WILDEX_BOOK.get(),
                 BOOK_THEME_PROPERTY,
-                (stack, level, entity, seed) -> styleToModelValue(ClientConfig.INSTANCE.designStyle.get())
+                (stack, level, entity, seed) -> styleToModelValue(WildexClientConfigView.designStyle())
         ));
     }
 

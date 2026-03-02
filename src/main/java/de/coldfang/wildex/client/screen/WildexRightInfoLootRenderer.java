@@ -27,6 +27,8 @@ final class WildexRightInfoLootRenderer {
     private static final int SCROLLBAR_SHOW_THRESHOLD_PX = 2;
     private static final String CONDITIONAL_MARKER = "[!]";
     private static final ResourceLocation WHITE_BANNER_ID = ResourceLocation.fromNamespaceAndPath("minecraft", "white_banner");
+    private static final ResourceLocation EXPERIENCE_ORB_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/experience_orb.png");
 
     private static int lootScrollPx = 0;
     private static int lootViewportH = 1;
@@ -120,15 +122,17 @@ final class WildexRightInfoLootRenderer {
         int viewportW = area.w();
         int viewportH = Math.max(1, maxY - yTop);
 
-        List<S2CMobLootPayload.LootLine> lines = WildexLootCache.get(mobId);
-        if (lines.isEmpty()) {
+        WildexLootCache.LootData lootData = WildexLootCache.get(mobId);
+        List<S2CMobLootPayload.LootLine> lines = lootData.lines();
+        boolean showPlayerKillXp = lootData.hasPlayerKillXp();
+        if (lines.isEmpty() && !showPlayerKillXp) {
             WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
             lootHasScrollbar = false;
             lootDraggingScrollbar = false;
             return null;
         }
 
-        int totalRows = Math.min(64, lines.size());
+        int totalRows = Math.min(64, lines.size()) + (showPlayerKillXp ? 1 : 0);
         int contentH = Math.max(lootRowH, totalRows * lootRowH);
         lootViewportH = viewportH;
         lootContentH = contentH;
@@ -155,6 +159,33 @@ final class WildexRightInfoLootRenderer {
 
         WildexScissor.enablePhysical(g, sx0, sy0, sx1, sy1);
         try {
+            if (showPlayerKillXp) {
+                if (y + itemIcon >= yTop && y < maxY) {
+                    int orbSize = Math.max(5, Math.round(itemIcon * 0.56f));
+                    int orbX = x + Math.max(0, (itemIcon - orbSize) / 2);
+                    int orbY = y + Math.max(0, (itemIcon - orbSize) / 2);
+                    drawXpOrb(g, orbX, orbY, orbSize);
+                    String xpLabel = WildexRightInfoTabUtil.tr("gui.wildex.loot.xp_player_kill");
+                    String xpValue = formatXpRange(lootData.playerKillXpMin(), lootData.playerKillXpMax());
+                    String line = xpLabel + " " + xpValue;
+                    int textY = y + Math.max(0, (itemIcon - WildexUiText.lineHeight(font)) / 2);
+                    WildexRightInfoTabUtil.drawMarqueeIfNeeded(g, font, line, textX, textY, textW, inkColor, screenOriginX, screenOriginY, scale);
+                }
+                y += lootRowH;
+
+                if (!lines.isEmpty()) {
+                    int dividerRightX = showLootScrollbar ? (rightLimitX - SCROLLBAR_W - SCROLLBAR_PAD) : rightLimitX;
+                    int dividerY = y - 1;
+                    if (dividerRightX > x && dividerY >= yTop && dividerY < maxY) {
+                        WildexUiTheme.Palette theme = WildexUiTheme.current();
+                        int dividerColor = WildexThemes.isVintageLayout()
+                                ? theme.rowSeparator()
+                                : theme.frameInner();
+                        g.fill(x, dividerY, dividerRightX, dividerY + 1, dividerColor);
+                    }
+                }
+            }
+
             int shown = 0;
             for (S2CMobLootPayload.LootLine l : lines) {
                 if (shown >= 64) break;
@@ -261,6 +292,13 @@ final class WildexRightInfoLootRenderer {
         if (a == 0 && b == 0) return "";
         if (a == b) return "x" + a;
         return "x" + a + "-" + b;
+    }
+
+    private static String formatXpRange(int min, int max) {
+        int a = Math.max(0, min);
+        int b = Math.max(a, Math.max(0, max));
+        if (a == b) return Integer.toString(a);
+        return a + "-" + b;
     }
 
     private static WildexRightInfoRenderer.TooltipRequest tooltipForConditionProfiles(List<Integer> profiles) {
@@ -373,6 +411,35 @@ final class WildexRightInfoLootRenderer {
 
     private static int scaledLootRowHeightPx(int iconPx) {
         return Math.max(iconPx + 2, Math.round(LOOT_ROW_H * WildexUiScale.get()));
+    }
+
+    private static void drawXpOrb(GuiGraphics g, int x, int y, int iconPx) {
+        long nowMs = System.currentTimeMillis();
+        int frame = (int) ((nowMs / 120L) & 15L);
+        int u = (frame & 3) * 16;
+        int v = (frame >> 2) * 16;
+
+        // Keep a stable green XP-orb look in tiny UI sizes.
+        float t = (float) (nowMs / 220.0);
+        float red = 0.28f + (0.07f * (float) Math.sin(t));
+        float green = 0.95f + (0.05f * (float) Math.sin(t + 1.4f));
+        float blue = 0.20f + (0.10f * (float) Math.sin(t + 4.0f));
+        g.setColor(red, green, blue, 1.0f);
+
+        g.blit(
+                EXPERIENCE_ORB_TEXTURE,
+                x,
+                y,
+                iconPx,
+                iconPx,
+                (float) u,
+                (float) v,
+                16,
+                16,
+                64,
+                64
+        );
+        g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     private static void drawScaledItem(GuiGraphics g, ItemStack stack, int x, int y, int iconPx) {

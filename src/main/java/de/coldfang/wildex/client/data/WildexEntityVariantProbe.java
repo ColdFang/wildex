@@ -671,7 +671,7 @@ public final class WildexEntityVariantProbe {
         addCandidate(out, current);
 
         if (current instanceof Holder<?> holder) {
-            discoverHolderCandidates(setterType, holder, out);
+            discoverHolderCandidates(setterType, holder, entity.level(), out);
         }
 
         for (String className : registryClassNameCandidates(entityClass, setterType)) {
@@ -700,13 +700,16 @@ public final class WildexEntityVariantProbe {
         return new ArrayList<>(out.values());
     }
 
-    private static void discoverHolderCandidates(Class<?> setterType, Holder<?> holder, Map<String, Object> out) {
+    private static void discoverHolderCandidates(Class<?> setterType, Holder<?> holder, Level level, Map<String, Object> out) {
         if (setterType == null || holder == null || out == null) return;
 
         Object holderValue = tryCallZeroArg(holder, "value");
         if (holderValue == null) return;
 
         Object registry = resolveBuiltInRegistryForValue(holderValue);
+        if (registry == null) {
+            registry = resolveLevelRegistryForValue(level, holderValue);
+        }
         if (registry == null) return;
 
         Object holders = tryCallZeroArg(registry, "holders");
@@ -753,6 +756,25 @@ public final class WildexEntityVariantProbe {
         }
 
         HOLDER_VALUE_REGISTRY_CACHE.put(valueClass, NO_HOLDER_REGISTRY);
+        return null;
+    }
+
+    private static Object resolveLevelRegistryForValue(Level level, Object holderValue) {
+        if (level == null || holderValue == null) return null;
+        Object registryAccess = tryCallZeroArg(level, "registryAccess");
+        if (registryAccess == null) return null;
+
+        Object registries = tryCallZeroArg(registryAccess, "registries");
+        for (Object entry : extractElements(registries)) {
+            Object registry = tryCallZeroArg(entry, "value");
+            if (registry == null) {
+                registry = tryCallZeroArg(entry, "registry");
+            }
+            if (registry == null) continue;
+            if (registryContainsValue(registry, holderValue)) {
+                return registry;
+            }
+        }
         return null;
     }
 

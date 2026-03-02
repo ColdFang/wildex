@@ -70,11 +70,13 @@ public final class WildexClientSessionEvents {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
+        boolean runBackgroundVariantProbe = WildexClientConfigView.showMobVariants()
+                && WildexClientConfigView.backgroundMobVariantProbe();
         WildexEntityVariantCatalog.tickClient(
-                WildexClientConfigView.showMobVariants() && WildexClientConfigView.backgroundMobVariantProbe()
+                runBackgroundVariantProbe
         );
         WildexVariantStatsCatalog.tickClient(
-                WildexClientConfigView.showMobVariants() && WildexClientConfigView.backgroundMobVariantProbe()
+                runBackgroundVariantProbe
         );
         WildexDiscoveryEffectClient.tickClient();
     }

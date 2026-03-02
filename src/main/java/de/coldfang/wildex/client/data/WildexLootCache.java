@@ -9,7 +9,7 @@ import java.util.Map;
 
 public final class WildexLootCache {
 
-    private static final Map<ResourceLocation, List<S2CMobLootPayload.LootLine>> CACHE = new HashMap<>();
+    private static final Map<ResourceLocation, LootData> CACHE = new HashMap<>();
 
     private WildexLootCache() {
     }
@@ -18,14 +18,53 @@ public final class WildexLootCache {
         CACHE.clear();
     }
 
-    public static void set(ResourceLocation mobId, List<S2CMobLootPayload.LootLine> lines) {
+    public static void set(
+            ResourceLocation mobId,
+            List<S2CMobLootPayload.LootLine> lines,
+            boolean hasPlayerKillXp,
+            int playerKillXpMin,
+            int playerKillXpMax
+    ) {
         if (mobId == null) return;
-        CACHE.put(mobId, lines == null ? List.of() : List.copyOf(lines));
+        CACHE.put(
+                mobId,
+                new LootData(
+                        lines == null ? List.of() : List.copyOf(lines),
+                        hasPlayerKillXp,
+                        Math.max(0, playerKillXpMin),
+                        Math.max(0, playerKillXpMax)
+                )
+        );
     }
 
-    public static List<S2CMobLootPayload.LootLine> get(ResourceLocation mobId) {
-        if (mobId == null) return List.of();
-        List<S2CMobLootPayload.LootLine> v = CACHE.get(mobId);
-        return v == null ? List.of() : v;
+    public static LootData get(ResourceLocation mobId) {
+        if (mobId == null) return LootData.empty();
+        LootData v = CACHE.get(mobId);
+        return v == null ? LootData.empty() : v;
+    }
+
+    public record LootData(
+            List<S2CMobLootPayload.LootLine> lines,
+            boolean hasPlayerKillXp,
+            int playerKillXpMin,
+            int playerKillXpMax
+    ) {
+        public LootData {
+            List<S2CMobLootPayload.LootLine> normalizedLines = lines == null ? List.of() : List.copyOf(lines);
+            int min = Math.max(0, playerKillXpMin);
+            int max = Math.max(min, Math.max(0, playerKillXpMax));
+            if (!hasPlayerKillXp) {
+                min = 0;
+                max = 0;
+            }
+
+            lines = normalizedLines;
+            playerKillXpMin = min;
+            playerKillXpMax = max;
+        }
+
+        public static LootData empty() {
+            return new LootData(List.of(), false, 0, 0);
+        }
     }
 }

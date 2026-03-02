@@ -28,7 +28,6 @@ public final class WildexEntityDisplayNameResolver {
         }
 
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-        if (id == null) return base;
 
         Component cached = PRETTY_CACHE.get(id);
         if (cached != null) return cached;
@@ -68,9 +67,9 @@ public final class WildexEntityDisplayNameResolver {
         if (text == null) return false;
         String s = text.trim();
         if (s.isBlank()) return false;
-        if (s.indexOf(' ') >= 0) return false;
-        if (s.indexOf('.') < 0) return false;
-        return !RAW_KEY_PATTERN.matcher(s).matches();
+        // Treat raw translation-style keys as unreadable fallback candidates.
+        // Localized names (with or without spaces/dots) should stay as-is.
+        return !(RAW_KEY_PATTERN.matcher(s).matches() && s.indexOf('.') >= 0);
     }
 
     private static String prettyNameFromId(ResourceLocation id) {

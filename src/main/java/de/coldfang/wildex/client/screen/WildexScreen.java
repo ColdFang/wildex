@@ -258,7 +258,7 @@ public final class WildexScreen extends Screen {
                 guiScaleButtonArea.h(),
                 Component.literal("GUI Scale"),
                 () -> {
-                    boolean next = !ClientConfig.INSTANCE.hideGuiScaleSlider.get();
+                    boolean next = !WildexClientConfigView.hideGuiScaleSlider();
                     ClientConfig.INSTANCE.hideGuiScaleSlider.set(next);
                     ClientConfig.SPEC.save();
                     if (next) {
@@ -277,16 +277,16 @@ public final class WildexScreen extends Screen {
                 styleButtonArea.h(),
                 Component.translatable("gui.wildex.theme"),
                 () -> {
-            var next = WildexThemes.nextStyle(ClientConfig.INSTANCE.designStyle.get());
-            ClientConfig.INSTANCE.designStyle.set(next);
-            ClientConfig.SPEC.save();
-            mobDataResolver.clearCache();
-            // Recreate the screen so all layout metrics/widgets are rebuilt from the selected theme.
-            Minecraft mcRef = this.minecraft;
-            if (mcRef != null) {
-                mcRef.setScreen(new WildexScreen(this.topMenuExpanded));
-            }
-        },
+                    var next = WildexThemes.nextStyle(WildexClientConfigView.designStyle());
+                    ClientConfig.INSTANCE.designStyle.set(next);
+                    ClientConfig.SPEC.save();
+                    mobDataResolver.clearCache();
+                    // Recreate the screen so all layout metrics/widgets are rebuilt from the selected theme.
+                    Minecraft mcRef = this.minecraft;
+                    if (mcRef != null) {
+                        mcRef.setScreen(new WildexScreen(this.topMenuExpanded));
+                    }
+                },
                 null,
                 this::topButtonBackgroundTexture
         ));

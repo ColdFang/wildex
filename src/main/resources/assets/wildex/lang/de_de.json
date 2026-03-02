@@ -66,6 +66,7 @@
   "gui.wildex.locked.line2": "Mit einem Fernrohr ansehen",
   "gui.wildex.locked.line3": "oder töten..",
   "gui.wildex.loot.none": "Keine Loot-Daten",
+  "gui.wildex.loot.xp_player_kill": "XP:",
   "gui.wildex.spawn.none": "Keine Spawn-Infos gefunden",
   "gui.wildex.spawn.heading.natural": "NATÜRLICHE BIOM-SPAWNS",
   "gui.wildex.spawn.heading.structures": "STRUKTUR-SPAWNS",

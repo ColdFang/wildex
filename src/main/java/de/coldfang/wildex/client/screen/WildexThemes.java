@@ -1,6 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
-import de.coldfang.wildex.config.ClientConfig;
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public final class WildexThemes {
     }
 
     public static WildexTheme current() {
-        return fromDesignStyle(ClientConfig.INSTANCE.designStyle.get());
+        return fromDesignStyle(WildexClientConfigView.designStyle());
     }
 
     public static WildexTheme fromDesignStyle(DesignStyle style) {

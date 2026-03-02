@@ -145,7 +145,15 @@ public final class WildexNetworkClient {
         r.playToClient(
                 S2CMobLootPayload.TYPE,
                 S2CMobLootPayload.STREAM_CODEC,
-                (payload, ctx) -> ctx.enqueueWork(() -> WildexLootCache.set(payload.mobId(), payload.lines()))
+                (payload, ctx) -> ctx.enqueueWork(() ->
+                        WildexLootCache.set(
+                                payload.mobId(),
+                                payload.lines(),
+                                payload.hasPlayerKillXp(),
+                                payload.playerKillXpMin(),
+                                payload.playerKillXpMax()
+                        )
+                )
         );
 
         r.playToClient(

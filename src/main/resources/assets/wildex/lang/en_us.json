@@ -66,6 +66,7 @@
   "gui.wildex.locked.line2": "Look at it with a Spyglass",
   "gui.wildex.locked.line3": "or kill it..",
   "gui.wildex.loot.none": "No loot data",
+  "gui.wildex.loot.xp_player_kill": "XP:",
   "gui.wildex.spawn.none": "No spawn info found",
   "gui.wildex.spawn.heading.natural": "NATURAL BIOME SPAWNS",
   "gui.wildex.spawn.heading.structures": "STRUCTURE SPAWNS",

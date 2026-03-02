@@ -11,7 +11,13 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-public record S2CMobLootPayload(ResourceLocation mobId, List<LootLine> lines) implements CustomPacketPayload {
+public record S2CMobLootPayload(
+        ResourceLocation mobId,
+        List<LootLine> lines,
+        boolean hasPlayerKillXp,
+        int playerKillXpMin,
+        int playerKillXpMax
+) implements CustomPacketPayload {
 
     public static final int COND_NONE = 0;
     public static final int COND_PLAYER_KILL = 1;
@@ -36,10 +42,15 @@ public record S2CMobLootPayload(ResourceLocation mobId, List<LootLine> lines) im
                             buf.writeVarInt(l.maxCount());
                             buf.writeVarInt(Math.max(0, l.conditionMask()));
                             List<Integer> profiles = l.conditionProfiles();
-                            buf.writeVarInt(Math.max(0, profiles.size()));
+                            buf.writeVarInt(profiles.size());
                             for (int profile : profiles) {
                                 buf.writeVarInt(Math.max(0, profile));
                             }
+                        }
+                        buf.writeBoolean(p.hasPlayerKillXp());
+                        if (p.hasPlayerKillXp()) {
+                            buf.writeVarInt(Math.max(0, p.playerKillXpMin()));
+                            buf.writeVarInt(Math.max(0, p.playerKillXpMax()));
                         }
                     },
                     buf -> {
@@ -62,9 +73,38 @@ public record S2CMobLootPayload(ResourceLocation mobId, List<LootLine> lines) im
                             }
                             out.add(new LootLine(itemId, min, max, conditionMask, profiles));
                         }
-                        return new S2CMobLootPayload(mobId, List.copyOf(out));
+                        boolean hasPlayerKillXp = buf.readBoolean();
+                        int xpMin = 0;
+                        int xpMax = 0;
+                        if (hasPlayerKillXp) {
+                            xpMin = Math.max(0, buf.readVarInt());
+                            xpMax = Math.max(0, buf.readVarInt());
+                        }
+                        return new S2CMobLootPayload(mobId, List.copyOf(out), hasPlayerKillXp, xpMin, xpMax);
                     }
             );
+
+    @SuppressWarnings("unused")
+    public S2CMobLootPayload(ResourceLocation mobId, List<LootLine> lines) {
+        this(mobId, lines, false, 0, 0);
+    }
+
+    public S2CMobLootPayload {
+        List<LootLine> normalizedLines = lines == null ? List.of() : List.copyOf(lines);
+
+        int normalizedXpMin = Math.max(0, playerKillXpMin);
+        int normalizedXpMax = Math.max(0, playerKillXpMax);
+        if (!hasPlayerKillXp) {
+            normalizedXpMin = 0;
+            normalizedXpMax = 0;
+        } else if (normalizedXpMax < normalizedXpMin) {
+            normalizedXpMax = normalizedXpMin;
+        }
+
+        lines = normalizedLines;
+        playerKillXpMin = normalizedXpMin;
+        playerKillXpMax = normalizedXpMax;
+    }
 
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {
@@ -93,6 +133,7 @@ public record S2CMobLootPayload(ResourceLocation mobId, List<LootLine> lines) im
             conditionProfiles = normalizedProfiles;
         }
 
+        @SuppressWarnings("unused")
         public LootLine(ResourceLocation itemId, int minCount, int maxCount, int conditionMask) {
             this(itemId, minCount, maxCount, conditionMask, List.of());
         }

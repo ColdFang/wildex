@@ -16,6 +16,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.monster.Pillager;
 import net.minecraft.world.entity.monster.Slime;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -502,6 +503,11 @@ public final class WildexLootExtractor {
             List<ItemStack> outDrops
     ) {
         if (level == null || outDrops == null) return;
+
+        if (victim instanceof WitherBoss) {
+            outDrops.add(new ItemStack(Items.NETHER_STAR));
+        }
+
         if (!(victim instanceof Pillager pillager) || source == null) return;
 
         // Mirrors vanilla "recentlyHit" gating used in Mob#dropCustomDeathLoot.

@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.5.0 - 2026-03-02
+
+### Added
+- Added XP display to the Loot tab:
+  - new XP row
+  - XP value is shown as a range (`min-max`) when multiple outcomes are possible
+- Added player-kill XP extraction pipeline on the server and synced it through the existing loot payload/cache flow.
+- Added Ender Dragon XP handling in the XP extractor:
+  - first-kill and repeat-kill values are now represented correctly instead of showing `0`.
+
+### Fixed
+- Fixed mob list names not updating correctly after language changes.
+- Fixed Cat/Wolf/Frog variant probing reliability:
+  - improved holder/registry-aware variant candidate discovery
+  - improved stable token resolution for holder-based values
+  - cleaner variant raw value formatting for names/tokens
+- Fixed Wither loot sampling so the guaranteed Nether Star is represented in Wildex loot results.
+- Fixed an early-client-tick crash caused by reading client config values before NeoForge finished loading the config.
+
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Multiplayer-safe: server-authoritative data flow remains intact.
+
 ## 2.4.0 - 2026-02-28
 You’ll immediately notice that mob variants now appear in Wildex instead of only showing a single base entry.
 This also means Wildex now supports far more modded mobs and variant systems across many additional mods.

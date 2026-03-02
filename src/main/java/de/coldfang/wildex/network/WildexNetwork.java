@@ -6,6 +6,7 @@ import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.server.breeding.WildexBreedingExtractor;
 import de.coldfang.wildex.server.WildexShareOfferService;
 import de.coldfang.wildex.server.loot.WildexLootExtractor;
+import de.coldfang.wildex.server.loot.WildexXpExtractor;
 import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerCooldownData;
@@ -56,6 +57,7 @@ public final class WildexNetwork {
     private static final long REQUEST_COOLDOWN_MS = 300L;
     private static final int MAX_RUNTIME_CACHE_ENTRIES = 512;
     private static final int BREEDING_JOBS_PER_TICK = 1;
+    private static final int XP_SAMPLES_PER_PLAN = 96;
 
     private static final Map<RequestKey, Long> NEXT_ALLOWED_REQUEST_MS = new HashMap<>();
     private static final Map<ResourceLocation, CachedLoot> LOOT_CACHE = createLruCache();
@@ -258,15 +260,24 @@ public final class WildexNetwork {
                     long nowMs = System.currentTimeMillis();
                     if (isRequestBlocked(sp, mobId, RequestKind.LOOT, nowMs)) return;
 
-                    List<S2CMobLootPayload.LootLine> cachedLines = getCachedLoot(mobId);
-                    if (cachedLines != null) {
-                        PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, cachedLines));
+                    CachedLoot cached = getCachedLoot(mobId);
+                    if (cached != null) {
+                        PacketDistributor.sendToPlayer(
+                                sp,
+                                new S2CMobLootPayload(
+                                        mobId,
+                                        cached.lines(),
+                                        cached.hasPlayerKillXp(),
+                                        cached.playerKillXpMin(),
+                                        cached.playerKillXpMax()
+                                )
+                        );
                         return;
                     }
 
                     EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(mobId).orElse(null);
                     if (type == null) {
-                        PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, List.of()));
+                        PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, List.of(), false, 0, 0));
                         return;
                     }
 
@@ -290,9 +301,27 @@ public final class WildexNetwork {
                         ));
                     }
 
+                    WildexXpExtractor.XpSummary xpSummary =
+                            WildexXpExtractor.samplePlayerKillXp(serverLevel, type, XP_SAMPLES_PER_PLAN);
+
                     List<S2CMobLootPayload.LootLine> frozen = List.copyOf(lines);
-                    putCachedLoot(mobId, frozen);
-                    PacketDistributor.sendToPlayer(sp, new S2CMobLootPayload(mobId, frozen));
+                    putCachedLoot(
+                            mobId,
+                            frozen,
+                            xpSummary.known(),
+                            xpSummary.minXp(),
+                            xpSummary.maxXp()
+                    );
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CMobLootPayload(
+                                    mobId,
+                                    frozen,
+                                    xpSummary.known(),
+                                    xpSummary.minXp(),
+                                    xpSummary.maxXp()
+                            )
+                    );
                 })
         );
 
@@ -593,11 +622,6 @@ public final class WildexNetwork {
         }
 
         ServerLevel workLevel = resolveBreedingLevel(server);
-        if (workLevel == null) {
-            sendBreedingPayload(server, waitingPlayerIds, new S2CMobBreedingPayload(mobId, false, List.of(), List.of()));
-            return;
-        }
-
         WildexBreedingExtractor.Result result = WildexBreedingExtractor.extract(workLevel, type);
         List<ResourceLocation> breedingItems = List.copyOf(result.breedingItemIds());
         List<ResourceLocation> tamingItems = List.copyOf(result.tamingItemIds());
@@ -611,7 +635,6 @@ public final class WildexNetwork {
     }
 
     private static ServerLevel resolveBreedingLevel(MinecraftServer server) {
-        if (server == null) return null;
         return server.overworld();
     }
 
@@ -625,16 +648,30 @@ public final class WildexNetwork {
         }
     }
 
-    private static List<S2CMobLootPayload.LootLine> getCachedLoot(ResourceLocation mobId) {
+    private static CachedLoot getCachedLoot(ResourceLocation mobId) {
         if (mobId == null) return null;
-        CachedLoot cached = LOOT_CACHE.get(mobId);
-        if (cached == null) return null;
-        return cached.lines();
+        return LOOT_CACHE.get(mobId);
     }
 
-    private static void putCachedLoot(ResourceLocation mobId, List<S2CMobLootPayload.LootLine> lines) {
+    private static void putCachedLoot(
+            ResourceLocation mobId,
+            List<S2CMobLootPayload.LootLine> lines,
+            boolean hasPlayerKillXp,
+            int playerKillXpMin,
+            int playerKillXpMax
+    ) {
         if (mobId == null || lines == null) return;
-        LOOT_CACHE.put(mobId, new CachedLoot(lines));
+        int xpMin = Math.max(0, playerKillXpMin);
+        int xpMax = Math.max(xpMin, Math.max(0, playerKillXpMax));
+        LOOT_CACHE.put(
+                mobId,
+                new CachedLoot(
+                        lines,
+                        hasPlayerKillXp,
+                        xpMin,
+                        xpMax
+                )
+        );
     }
 
     private static CachedSpawns getCachedSpawns(ResourceLocation mobId) {
@@ -684,7 +721,12 @@ public final class WildexNetwork {
         BREEDING
     }
 
-    private record CachedLoot(List<S2CMobLootPayload.LootLine> lines) {
+    private record CachedLoot(
+            List<S2CMobLootPayload.LootLine> lines,
+            boolean hasPlayerKillXp,
+            int playerKillXpMin,
+            int playerKillXpMax
+    ) {
     }
 
     private record CachedSpawns(
