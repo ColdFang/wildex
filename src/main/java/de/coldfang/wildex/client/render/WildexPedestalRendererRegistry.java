@@ -18,5 +18,9 @@ public final class WildexPedestalRendererRegistry {
                 ModBlockEntities.WILDEX_PEDESTAL.get(),
                 WildexPedestalBlockEntityRenderer::new
         );
+        event.registerBlockEntityRenderer(
+                ModBlockEntities.WILDEX_ANALYZER.get(),
+                WildexAnalyzerBlockEntityRenderer::new
+        );
     }
 }

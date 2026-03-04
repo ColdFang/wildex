@@ -1,6 +1,7 @@
 package de.coldfang.wildex.world;
 
 import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
+import de.coldfang.wildex.world.block.entity.WildexAnalyzerBlockEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -18,16 +19,33 @@ public final class WildexPedestalProtectionEvents {
         if (level.isClientSide()) return;
 
         var pos = event.getPos();
-        if (!(level.getBlockEntity(pos) instanceof WildexPedestalBlockEntity pedestal)) return;
-        if (!pedestal.hasBook()) return;
-        if (pedestal.isOwner(player.getUUID())) return;
+        var blockEntity = level.getBlockEntity(pos);
 
-        event.setCanceled(true);
-        Component text = Component.translatable("message.wildex.pedestal.owner_only_break");
-        if (player instanceof ServerPlayer sp) {
-            sp.displayClientMessage(text, true);
-        } else {
-            player.displayClientMessage(text, true);
+        if (blockEntity instanceof WildexPedestalBlockEntity pedestal) {
+            if (!pedestal.hasBook()) return;
+            if (pedestal.isOwner(player.getUUID())) return;
+
+            event.setCanceled(true);
+            Component text = Component.translatable("message.wildex.pedestal.owner_only_break");
+            if (player instanceof ServerPlayer sp) {
+                sp.displayClientMessage(text, true);
+            } else {
+                player.displayClientMessage(text, true);
+            }
+            return;
+        }
+
+        if (blockEntity instanceof WildexAnalyzerBlockEntity analyzer) {
+            if (!analyzer.hasItem()) return;
+            if (analyzer.isOwner(player.getUUID())) return;
+
+            event.setCanceled(true);
+            Component text = Component.translatable("message.wildex.analyzer.owner_only_break");
+            if (player instanceof ServerPlayer sp) {
+                sp.displayClientMessage(text, true);
+            } else {
+                player.displayClientMessage(text, true);
+            }
         }
     }
 }

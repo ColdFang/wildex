@@ -253,10 +253,9 @@ final class WildexRightInfoStatsRenderer {
 
         int maxY = (area.y() + WildexRightInfoRenderer.PAD_Y) + innerH;
 
-        int contentW = innerW;
         int colGap = Math.max(4, Math.round(COL_GAP * WildexUiScale.get()));
-        int maxLabelBySpace = Math.max(24, contentW - colGap - STATS_MIN_VALUE_COL_W);
-        int labelColWBase = Math.round(contentW * STATS_LABEL_COL_RATIO);
+        int maxLabelBySpace = Math.max(24, innerW - colGap - STATS_MIN_VALUE_COL_W);
+        int labelColWBase = Math.round(innerW * STATS_LABEL_COL_RATIO);
         labelColWBase = Math.max(STATS_LABEL_COL_MIN, Math.min(labelColWBase, STATS_LABEL_COL_MAX));
         boolean cobblemonStats = isCobblemonPokemon(selectedMobId);
         int requiredLabelW = requiredLabelColumnWidth(font, cobblemonStats);
@@ -373,7 +372,23 @@ final class WildexRightInfoStatsRenderer {
             if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.move_speed");
 
             y0 = y;
-            y = drawTextLine(g, font, x, y, labelColW, valueX, rightLimitX, maxY, WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage"), fmtOpt(s.attackDamage().orElse(Double.NaN)), inkColor, line, screenOriginX, screenOriginY, scale);
+            y = drawTextLine(
+                    g,
+                    font,
+                    x,
+                    y,
+                    labelColW,
+                    valueX,
+                    rightLimitX,
+                    maxY,
+                    attackDamageLabel(),
+                    fmtAttackDamageByDifficulty(s.attackDamage().orElse(Double.NaN)),
+                    inkColor,
+                    line,
+                    screenOriginX,
+                    screenOriginY,
+                    scale
+            );
             if (tooltip == null && isHover(mxL, myL, x, y0, rightLimitX - x, line)) tooltip = tooltipLines("tooltip.wildex.stats.attack_damage");
 
             y0 = y;
@@ -421,6 +436,9 @@ final class WildexRightInfoStatsRenderer {
             int w = WildexUiText.width(font, WildexRightInfoTabUtil.tr(key));
             if (w > max) max = w;
         }
+        if (!cobblemonStats) {
+            max = Math.max(max, WildexUiText.width(font, attackDamageLabel()));
+        }
         return max + pad;
     }
 
@@ -428,7 +446,7 @@ final class WildexRightInfoStatsRenderer {
             "gui.wildex.stats.health",
             "gui.wildex.stats.armor",
             "gui.wildex.stats.move_speed",
-            "gui.wildex.stats.attack_damage",
+            "gui.wildex.stats.attack_damage_enh",
             "gui.wildex.stats.follow_range",
             "gui.wildex.stats.knockback_res",
             "gui.wildex.stats.hitbox_width",
@@ -737,6 +755,19 @@ final class WildexRightInfoStatsRenderer {
 
     private static String fmtOptWithUnit(double v, String unit) {
         return Double.isNaN(v) ? "-" : (fmt(v) + " " + unit);
+    }
+
+    private static String attackDamageLabel() {
+        return WildexRightInfoTabUtil.tr("gui.wildex.stats.attack_damage_enh");
+    }
+
+    private static String fmtAttackDamageByDifficulty(double baseDamage) {
+        if (Double.isNaN(baseDamage)) return "-";
+
+        double base = Math.max(0.0, baseDamage);
+        double easy = Math.min(base / 2.0 + 1.0, base);
+        double hard = base * 1.5;
+        return fmt(easy) + "/" + fmt(base) + "/" + fmt(hard);
     }
 
     private static String fmt(double v) {

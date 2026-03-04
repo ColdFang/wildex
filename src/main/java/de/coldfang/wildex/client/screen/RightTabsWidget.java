@@ -165,7 +165,11 @@ public final class RightTabsWidget extends AbstractWidget {
         int start = idx * stride;
         if (relX >= start + tabW) return false;
 
-        state.setSelectedTab(tabs[idx]);
+        WildexTab next = tabs[idx];
+        if (next != state.selectedTab()) {
+            state.setSelectedTab(next);
+            WildexUiSounds.playTabSwitch();
+        }
         return true;
     }
 }

@@ -2,7 +2,11 @@ package de.coldfang.wildex.client.data;
 
 import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
@@ -20,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -27,19 +32,50 @@ import java.util.stream.Stream;
  * Generic, low-cost client-side probe that nudges preview entities into a non-default visual variant.
  * It only touches entity instances created for UI rendering and never affects server state.
  */
+@SuppressWarnings({
+        "resource",
+        "SimplifiableIfStatement",
+        "RedundantIfStatement",
+        "ConstantConditions"
+})
 public final class WildexEntityVariantProbe {
 
     private static final int[] INT_CANDIDATES = {15, 7, 3, 2, 1, 4, 5, 6, 8};
     private static final Map<Class<?>, List<Accessor>> ACCESSOR_CACHE = new ConcurrentHashMap<>();
     private static final int HOLDER_REGISTRY_SCAN_CAP = 256;
+    private static final int RESOURCE_KEY_SCAN_CAP = 256;
+    private static final int RESOURCE_KEY_PER_REGISTRY_CAP = 128;
     private static final Object NO_HOLDER_REGISTRY = new Object();
     private static final Map<Class<?>, Object> HOLDER_VALUE_REGISTRY_CACHE = new ConcurrentHashMap<>();
+    private static final Set<ResourceLocation> VARIANT_PROBE_EXCLUDED_ENTITY_IDS = Set.of(
+            ResourceLocation.fromNamespaceAndPath("aether", "whirlwind"),
+            ResourceLocation.fromNamespaceAndPath("aether", "evil_whirlwind")
+    );
 
     private WildexEntityVariantProbe() {
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private static boolean isClientPreviewEntity(Entity entity) {
+        if (entity == null) return false;
+        try {
+            Level level = entity.level();
+            return level != null && level.isClientSide;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isVariantProbeExcluded(Entity entity) {
+        if (entity == null) return true;
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id != null && VARIANT_PROBE_EXCLUDED_ENTITY_IDS.contains(id);
+    }
+
     @SuppressWarnings("unused")
     public static void applyIfSupported(Entity entity) {
+        if (!isClientPreviewEntity(entity)) return;
+        if (isVariantProbeExcluded(entity)) return;
         if (!(entity instanceof Mob mob)) return;
 
         List<Accessor> accessors = resolveAccessors(mob.getClass());
@@ -58,6 +94,8 @@ public final class WildexEntityVariantProbe {
      */
     @SuppressWarnings("unused")
     public static void applySoftFallback(Entity entity) {
+        if (!isClientPreviewEntity(entity)) return;
+        if (isVariantProbeExcluded(entity)) return;
         if (!(entity instanceof Mob mob)) return;
 
         List<Accessor> accessors = resolveAccessors(mob.getClass());
@@ -76,6 +114,8 @@ public final class WildexEntityVariantProbe {
     }
 
     public static List<VariantOption> discoverOptions(Entity entity, int maxOptions) {
+        if (!isClientPreviewEntity(entity)) return List.of();
+        if (isVariantProbeExcluded(entity)) return List.of();
         if (!(entity instanceof Mob mob)) return List.of();
         int cap = Math.max(1, maxOptions);
 
@@ -109,6 +149,8 @@ public final class WildexEntityVariantProbe {
     }
 
     public static boolean applyOption(Entity entity, String optionId) {
+        if (!isClientPreviewEntity(entity)) return false;
+        if (isVariantProbeExcluded(entity)) return false;
         if (!(entity instanceof Mob mob)) return false;
         if (optionId == null || optionId.isBlank()) return false;
 
@@ -612,27 +654,52 @@ public final class WildexEntityVariantProbe {
     }
 
     private static Method findSetter(Class<?> owner, String suffix, Kind kind, Class<?> getterType) {
-        String setterName = "set" + suffix;
+        for (String setterName : setterNameCandidates(suffix)) {
+            for (Method method : owner.getMethods()) {
+                if (!setterName.equals(method.getName())) continue;
+                if (method.getParameterCount() != 1) continue;
 
-        for (Method method : owner.getMethods()) {
-            if (!setterName.equals(method.getName())) continue;
-            if (method.getParameterCount() != 1) continue;
-
-            Class<?> paramType = method.getParameterTypes()[0];
-            if (kind == Kind.INT && isIntLike(paramType)) {
-                return method;
-            }
-            if (kind == Kind.ENUM && paramType.isAssignableFrom(getterType)) {
-                return method;
-            }
-            if (kind == Kind.STRING && paramType == String.class) {
-                return method;
-            }
-            if (kind == Kind.OBJECT && (paramType.isAssignableFrom(getterType) || getterType.isAssignableFrom(paramType))) {
+                Class<?> paramType = method.getParameterTypes()[0];
+                if (!isSetterTypeCompatible(kind, getterType, paramType)) continue;
                 return method;
             }
         }
         return null;
+    }
+
+    private static List<String> setterNameCandidates(String suffix) {
+        Map<String, Boolean> names = new LinkedHashMap<>();
+        if (suffix == null || suffix.isBlank()) return List.of();
+
+        names.putIfAbsent("set" + suffix, true);
+
+        String withoutKey = trimSuffixKey(suffix);
+        if (!withoutKey.equals(suffix)) {
+            names.putIfAbsent("set" + withoutKey + "ByKey", true);
+            names.putIfAbsent("set" + withoutKey + "Key", true);
+            names.putIfAbsent("set" + withoutKey, true);
+        }
+
+        names.putIfAbsent("set" + suffix + "ByKey", true);
+        return new ArrayList<>(names.keySet());
+    }
+
+    private static String trimSuffixKey(String suffix) {
+        if (suffix == null || suffix.length() <= 3) return suffix == null ? "" : suffix;
+        return suffix.endsWith("Key") ? suffix.substring(0, suffix.length() - 3) : suffix;
+    }
+
+    private static boolean isSetterTypeCompatible(Kind kind, Class<?> getterType, Class<?> paramType) {
+        if (kind == Kind.INT) return isIntLike(paramType);
+        if (kind == Kind.ENUM) return paramType.isAssignableFrom(getterType);
+        if (kind == Kind.STRING) return paramType == String.class;
+        if (kind != Kind.OBJECT) return false;
+
+        if (paramType.isAssignableFrom(getterType) || getterType.isAssignableFrom(paramType)) {
+            return true;
+        }
+
+        return isResourceKeyType(getterType) && isResourceKeyType(paramType);
     }
 
     private static boolean isIntLike(Class<?> type) {
@@ -640,6 +707,10 @@ public final class WildexEntityVariantProbe {
                 || type == byte.class || type == Byte.class
                 || type == short.class || type == Short.class
                 || type == long.class || type == Long.class;
+    }
+
+    private static boolean isResourceKeyType(Class<?> type) {
+        return type != null && ResourceKey.class.isAssignableFrom(type);
     }
 
     private static List<String> discoverStringCandidates(Mob entity, Accessor accessor, String original) {
@@ -673,8 +744,12 @@ public final class WildexEntityVariantProbe {
         if (current instanceof Holder<?> holder) {
             discoverHolderCandidates(setterType, holder, entity.level(), out);
         }
+        if (out.size() < RESOURCE_KEY_SCAN_CAP) {
+            discoverResourceKeyCandidates(entity, accessor, out);
+        }
 
         for (String className : registryClassNameCandidates(entityClass, setterType)) {
+            if (out.size() >= RESOURCE_KEY_SCAN_CAP) break;
             Class<?> registryClass = tryLoadClass(entityClass, className);
             if (registryClass == null) continue;
 
@@ -692,8 +767,10 @@ public final class WildexEntityVariantProbe {
                 for (Object element : extractElements(result)) {
                     if (setterType.isInstance(element)) {
                         addCandidate(out, element);
+                        if (out.size() >= RESOURCE_KEY_SCAN_CAP) break;
                     }
                 }
+                if (out.size() >= RESOURCE_KEY_SCAN_CAP) break;
             }
         }
 
@@ -731,6 +808,178 @@ public final class WildexEntityVariantProbe {
             addCandidate(out, candidate);
             scanned++;
             if (scanned >= HOLDER_REGISTRY_SCAN_CAP || out.size() >= HOLDER_REGISTRY_SCAN_CAP) return;
+        }
+    }
+
+    private static void discoverResourceKeyCandidates(Mob entity, Accessor accessor, Map<String, Object> out) {
+        if (entity == null || accessor == null || out == null) return;
+
+        Class<?> setterType = accessor.setter().getParameterTypes()[0];
+        if (!isResourceKeyType(setterType)) return;
+
+        Level level = entity.level();
+        if (level == null) return;
+        RegistryAccess registryAccess = level.registryAccess();
+        if (registryAccess == null) return;
+
+        ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        String entityNamespace = entityId == null ? "" : entityId.getNamespace();
+        String pathHint = registryPathHint(accessor.suffix());
+        List<RegistryEntryView> registries = collectRegistryEntries(registryAccess);
+        registries.sort((a, b) -> Integer.compare(
+                registryEntryScore(b.registryKey(), entityNamespace, pathHint),
+                registryEntryScore(a.registryKey(), entityNamespace, pathHint)
+        ));
+
+        int scanned = 0;
+        for (RegistryEntryView entry : registries) {
+            int scannedInRegistry = 0;
+            for (ResourceLocation location : extractRegistryLocations(entry.registry())) {
+                Object candidate = createRegistryKeyCandidate(entry.registryKey(), location);
+                if (!setterType.isInstance(candidate)) continue;
+
+                addCandidate(out, candidate);
+                scanned++;
+                scannedInRegistry++;
+                if (scanned >= RESOURCE_KEY_SCAN_CAP || out.size() >= RESOURCE_KEY_SCAN_CAP) return;
+                if (scannedInRegistry >= RESOURCE_KEY_PER_REGISTRY_CAP) break;
+            }
+        }
+    }
+
+    private static List<RegistryEntryView> collectRegistryEntries(RegistryAccess registryAccess) {
+        if (registryAccess == null) return List.of();
+        Object registries = tryCallZeroArg(registryAccess, "registries");
+        if (registries == null) return List.of();
+
+        List<RegistryEntryView> out = new ArrayList<>();
+        if (registries instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                addRegistryEntry(out, entry);
+            }
+            return out;
+        }
+
+        for (Object entry : extractElements(registries)) {
+            addRegistryEntry(out, entry);
+        }
+        return out;
+    }
+
+    private static void addRegistryEntry(List<RegistryEntryView> out, Object rawEntry) {
+        if (out == null || rawEntry == null) return;
+        Object registryKey = extractRegistryKey(rawEntry);
+        Object registry = extractRegistry(rawEntry);
+        if (registryKey == null || registry == null) return;
+        out.add(new RegistryEntryView(registryKey, registry));
+    }
+
+    private static Object extractRegistryKey(Object entry) {
+        if (entry == null) return null;
+        if (entry instanceof Map.Entry<?, ?> mapEntry) return mapEntry.getKey();
+
+        Object key = tryCallZeroArg(entry, "key");
+        if (key != null) return key;
+        return tryCallZeroArg(entry, "registryKey");
+    }
+
+    private static Object extractRegistry(Object entry) {
+        if (entry == null) return null;
+        if (entry instanceof Map.Entry<?, ?> mapEntry) return mapEntry.getValue();
+
+        Object registry = tryCallZeroArg(entry, "value");
+        if (registry != null) return registry;
+        return tryCallZeroArg(entry, "registry");
+    }
+
+    private static int registryEntryScore(Object registryKeyObj, String entityNamespace, String pathHint) {
+        ResourceLocation registryId = asResourceLocation(registryKeyObj);
+        if (registryId == null) return 0;
+
+        int score = 0;
+        if (entityNamespace != null && !entityNamespace.isBlank() && entityNamespace.equals(registryId.getNamespace())) {
+            score += 80;
+        }
+        String path = registryId.getPath();
+        if (pathHint != null && !pathHint.isBlank()) {
+            if (path.equals(pathHint)) score += 220;
+            else if (path.endsWith("_" + pathHint) || path.startsWith(pathHint + "_")) score += 170;
+            else if (path.contains(pathHint)) score += 140;
+        }
+        if (path.contains("variant") || path.contains("type") || path.contains("skin") || path.contains("form")) {
+            score += 20;
+        }
+        return score;
+    }
+
+    private static String registryPathHint(String suffix) {
+        if (suffix == null || suffix.isBlank()) return "";
+        String base = trimSuffixKey(suffix);
+        if (base.isBlank()) return "";
+
+        StringBuilder out = new StringBuilder();
+        char prev = 0;
+        for (int i = 0; i < base.length(); i++) {
+            char c = base.charAt(i);
+            boolean upper = Character.isUpperCase(c);
+            if (upper && i > 0 && (Character.isLowerCase(prev) || Character.isDigit(prev))) {
+                out.append('_');
+            }
+            out.append(Character.toLowerCase(c));
+            prev = c;
+        }
+        return out.toString();
+    }
+
+    private static List<ResourceLocation> extractRegistryLocations(Object registryObj) {
+        if (registryObj == null) return List.of();
+
+        Map<String, ResourceLocation> out = new LinkedHashMap<>();
+        if (registryObj instanceof Registry<?> registry) {
+            for (ResourceLocation key : registry.keySet()) {
+                out.putIfAbsent(key.toString(), key);
+            }
+        }
+
+        Object keySet = tryCallZeroArg(registryObj, "keySet");
+        for (Object candidate : extractElements(keySet)) {
+            ResourceLocation key = asResourceLocation(candidate);
+            if (key != null) out.putIfAbsent(key.toString(), key);
+        }
+
+        Object holders = tryCallZeroArg(registryObj, "holders");
+        for (Object holder : extractElements(holders)) {
+            ResourceLocation key = extractHolderLocation(holder);
+            if (key != null) out.putIfAbsent(key.toString(), key);
+        }
+        return new ArrayList<>(out.values());
+    }
+
+    private static ResourceLocation extractHolderLocation(Object holder) {
+        if (holder == null) return null;
+
+        Object keyOut = tryCallZeroArg(holder, "unwrapKey");
+        if (keyOut instanceof Optional<?> optional && optional.isPresent()) {
+            Object key = optional.get();
+            ResourceLocation location = asResourceLocation(tryCallZeroArg(key, "location"));
+            if (location != null) return location;
+        }
+
+        Object direct = tryCallZeroArg(holder, "key");
+        if (direct != null) {
+            ResourceLocation location = asResourceLocation(tryCallZeroArg(direct, "location"));
+            if (location != null) return location;
+        }
+        return null;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Object createRegistryKeyCandidate(Object registryKeyObj, ResourceLocation location) {
+        if (!(registryKeyObj instanceof ResourceKey<?> registryKey) || location == null) return null;
+        try {
+            return ResourceKey.create((ResourceKey) registryKey, location);
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
@@ -872,6 +1121,32 @@ public final class WildexEntityVariantProbe {
         return s;
     }
 
+    private static ResourceLocation asResourceLocation(Object value) {
+        switch (value) {
+            case null -> {
+                return null;
+            }
+            case ResourceLocation location -> {
+                return location;
+            }
+            case ResourceKey<?> resourceKey -> {
+                return resourceKey.location();
+            }
+            case CharSequence text -> {
+                return ResourceLocation.tryParse(text.toString().trim());
+            }
+            default -> {
+            }
+        }
+
+        Object locationOut = tryCallZeroArg(value, "location");
+        if (locationOut instanceof ResourceLocation location) return location;
+        if (locationOut instanceof CharSequence text) {
+            return ResourceLocation.tryParse(text.toString().trim());
+        }
+        return null;
+    }
+
     private static Class<?> tryLoadClass(Class<?> contextClass, String className) {
         try {
             return Class.forName(className, false, contextClass.getClassLoader());
@@ -987,6 +1262,11 @@ public final class WildexEntityVariantProbe {
             if (nested != null && !nested.isBlank()) return nested;
         }
 
+        ResourceLocation asLocation = asResourceLocation(value);
+        if (asLocation != null) {
+            return asLocation.toString();
+        }
+
         switch (value) {
             case null -> {
                 return null;
@@ -1001,14 +1281,19 @@ public final class WildexEntityVariantProbe {
             }
         }
 
-        for (String methodName : List.of("id", "getId", "name", "getName")) {
+        for (String methodName : List.of("location", "getLocation", "id", "getId", "name", "getName")) {
             Object out = tryCallZeroArg(value, methodName);
+            ResourceLocation location = asResourceLocation(out);
+            if (location != null) return location.toString();
             if (out instanceof CharSequence s && !s.toString().isBlank()) {
                 return s.toString().trim();
             }
         }
 
         return null;
+    }
+
+    private record RegistryEntryView(Object registryKey, Object registry) {
     }
 
     private enum Kind {

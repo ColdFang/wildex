@@ -28,7 +28,8 @@ public final class WildexRightHeaderRenderer {
             WildexScreenLayout.Area area,
             WildexScreenState state,
             WildexHeaderData header,
-            int inkColor
+            int inkColor,
+            String variantLabel
     ) {
         if (g == null || font == null || area == null || state == null) return;
 
@@ -78,9 +79,13 @@ public final class WildexRightHeaderRenderer {
 
             int phase = mobRl.toString().hashCode();
 
-            Component emphasizedName = header.name() == null
+            Component baseName = header.name() == null
                     ? Component.empty()
                     : header.name().copy();
+            String compactVariant = variantLabel == null ? "" : variantLabel.trim();
+            Component emphasizedName = compactVariant.isBlank()
+                    ? baseName
+                    : Component.literal(baseName.getString() + " (" + compactVariant + ")");
             boolean modern = WildexThemes.isModernLayout();
             int nameColor = modern ? 0xFF000000 : 0xFFFFFFFF;
             int detailColor = modern ? 0xFFE6EEF7 : inkColor;

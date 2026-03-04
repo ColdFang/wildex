@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.6.0 - 2026-03-05
+At this point, I have implemented all features I wanted to see in Wildex for now, so I am starting the port to newer versions (1.21.11) to be better prepared for the next update drop.  
+If issues appear, the 1.21.1 version will of course still receive bug-fix updates.
+
+### Added
+- Added UI Sounds
+- Added admin commands for Wildex discovery management:
+  - `/wildex discover add <player> <mob_id>`
+  - `/wildex discover remove <player> <mob_id>`
+- Added `Wildex Pedestal Block`.
+  Place a Wildex on the pedestal to show a rotating hologram of discovered mobs. The hologram can be turned off via redstone. The inserted Wildex is owner-protected in multiplayer.
+- Added `Wildex Analyzer Block`.
+  Insert an item and power it with redstone to run an analysis (~10 seconds). The inserted item must be one of the mob's Wildex loot items: if it can unlock a new Wildex entry, the item is consumed; otherwise the item is dropped back out with feedback.
+- Added custom block models/textures for `Wildex Pedestal` and `Wildex Analyzer`
+- Added dedicated recipe unlock advancements
+
+### Changed
+- Variant labels in the mob list are now shown as compact names (for example `Blue`) instead of generic `Variant N (blue)` labels.
+- The right header now appends the selected variant to the mob name (for example `Sheep (Blue)`).
+- Stats tab now shows attack damage split by difficulty as `Damage (E/N/H)` (Easy/Normal/Hard).
+- Variant probing now supports more registry-key driven variant APIs:
+  - extended setter matching (`setX`, `setXByKey`, `setXKey`) for broader mod compatibility
+  - improved `ResourceKey`/`ResourceLocation` token handling for stable variant IDs
+- Variant probing remains client-preview scoped to keep multiplayer behavior safe.
+
+### Fixed
+
+- Fixed Aether Moa variants not being detected by Wildex variant discovery
+- Fixed Share screen player-dropdown arrow alignment so the indicator sits correctly inside the dropdown box.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Multiplayer-safe: server-authoritative discovery/progress flow remains intact.
+- Safe update path from `2.5.0`.
+
 ## 2.5.0 - 2026-03-02
 
 ### Added

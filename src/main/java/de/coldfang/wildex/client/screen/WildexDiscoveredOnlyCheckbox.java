@@ -52,6 +52,7 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
 
         this.checked = !this.checked;
         this.onChange.accept(this.checked);
+        WildexUiSounds.playButtonClick();
         this.setFocused(false);
         return true;
     }
@@ -73,7 +74,7 @@ public final class WildexDiscoveredOnlyCheckbox extends AbstractWidget {
             g.fill(x0 + 3, y0 + 3, x1 - 3, y1 - 3, theme.checkboxChecked());
 
             var font = Minecraft.getInstance().font;
-            String mark = "\u2714";
+            String mark = Character.toString((char) 0x2714);
             int markW = WildexUiText.width(font, mark);
             int markH = WildexUiText.lineHeight(font);
 

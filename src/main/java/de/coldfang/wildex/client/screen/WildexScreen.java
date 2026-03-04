@@ -929,7 +929,16 @@ public final class WildexScreen extends Screen {
 
         WildexMobData data = mobDataResolver.resolve(state.selectedMobId(), this.selectedVariantOptionId);
 
-        rightHeaderRenderer.render(graphics, this.font, this.layout.rightHeaderArea(), state, data.header(), theme.ink());
+        String selectedVariantLabel = this.mobList == null ? "" : this.mobList.selectedVariantDisplayLabel();
+        rightHeaderRenderer.render(
+                graphics,
+                this.font,
+                this.layout.rightHeaderArea(),
+                state,
+                data.header(),
+                theme.ink(),
+                selectedVariantLabel
+        );
         if (vintageLayout) {
             WildexUiRenderUtil.drawRoundedPanelFrame(graphics, this.layout.rightHeaderArea(), theme, 3, 3, 1);
         }

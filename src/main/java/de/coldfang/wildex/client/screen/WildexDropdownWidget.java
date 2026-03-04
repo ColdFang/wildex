@@ -16,6 +16,7 @@ public final class WildexDropdownWidget extends AbstractWidget {
     private static final int SCROLL_MIN_THUMB_H = 10;
 
     private static final int TEXT_PAD_X = 5;
+    private static final int INDICATOR_PAD_RIGHT = 4;
 
     private final List<String> options = new ArrayList<>();
     private int selected = -1;
@@ -114,12 +115,18 @@ public final class WildexDropdownWidget extends AbstractWidget {
         drawFrame(graphics, getX(), getY(), getWidth(), getHeight(), theme.frameBg(), theme);
 
         var font = Minecraft.getInstance().font;
+        String indicator = open ? (openUpwards ? "^" : "v") : ">";
+        int indicatorW = WildexUiText.width(font, indicator);
+        int indicatorX = getX() + getWidth() - 2 - INDICATOR_PAD_RIGHT - indicatorW;
+
         String text = selectedValue();
         if (text.isBlank()) text = emptyText;
+        int textMaxW = Math.max(8, indicatorX - (getX() + TEXT_PAD_X) - 2);
+        text = font.plainSubstrByWidth(text, textMaxW);
         int tx = getX() + TEXT_PAD_X;
         int ty = getY() + (getHeight() - WildexUiText.lineHeight(font)) / 2;
         WildexUiText.draw(graphics, font, text, tx, ty, theme.ink(), false);
-        WildexUiText.draw(graphics, font, open ? (openUpwards ? "^" : "v") : ">", getX() + getWidth() - 8, ty, theme.ink(), false);
+        WildexUiText.draw(graphics, font, indicator, indicatorX, ty, theme.ink(), false);
 
         if (!open || options.isEmpty()) return;
 
@@ -192,6 +199,7 @@ public final class WildexDropdownWidget extends AbstractWidget {
             open = !open;
             draggingScrollbar = false;
             if (onOpenChanged != null) onOpenChanged.accept(open);
+            WildexUiSounds.playButtonClick();
             return true;
         }
 
@@ -232,6 +240,7 @@ public final class WildexDropdownWidget extends AbstractWidget {
         setMessage(Component.literal(options.get(selected)));
         open = false;
         draggingScrollbar = false;
+        WildexUiSounds.playButtonClick();
         return true;
     }
 

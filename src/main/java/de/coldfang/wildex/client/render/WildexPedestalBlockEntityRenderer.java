@@ -3,6 +3,7 @@ package de.coldfang.wildex.client.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
 import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
@@ -11,11 +12,15 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.util.Mth;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 
 public final class WildexPedestalBlockEntityRenderer implements BlockEntityRenderer<WildexPedestalBlockEntity> {
@@ -29,17 +34,24 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
     private static final float ROTATION_DEG_PER_TICK = 2.1f;
     private static final float MIN_SCALE = 0.22f;
     private static final float MAX_SCALE = 0.60f;
-    private static final float CONE_APEX_Y = 1.06f;
+    private static final float BOOK_RENDER_X = 0.50f;
+    private static final float BOOK_RENDER_Y = 0.80f;
+    private static final float BOOK_RENDER_Z = 0.45f;
+    private static final float BOOK_RENDER_ROT_Y = 259.0f;
+    private static final float BOOK_RENDER_SCALE = 0.40f;
+    private static final float BOOK_CONE_APEX_Y = BOOK_RENDER_Y + 0.03f;
     private static final int CONE_SEGMENTS_NEAR = 12;
     private static final int CONE_SEGMENTS_MID = 8;
     private static final int CONE_SEGMENTS_FAR = 6;
+    private final ItemRenderer itemRenderer;
 
     public WildexPedestalBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
+        this.itemRenderer = context.getItemRenderer();
     }
 
     @Override
-    public boolean shouldRenderOffScreen(WildexPedestalBlockEntity blockEntity) {
-        return true;
+    public boolean shouldRenderOffScreen(@NotNull WildexPedestalBlockEntity blockEntity) {
+        return false;
     }
 
     @Override
@@ -48,38 +60,44 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
     }
 
     @Override
-    public boolean shouldRender(WildexPedestalBlockEntity blockEntity, Vec3 cameraPos) {
-        if (blockEntity == null || cameraPos == null) return false;
+    public boolean shouldRender(@NotNull WildexPedestalBlockEntity blockEntity, @NotNull Vec3 cameraPos) {
         return Vec3.atCenterOf(blockEntity.getBlockPos()).closerThan(cameraPos, MAX_RENDER_DISTANCE);
     }
 
     @Override
-    public AABB getRenderBoundingBox(WildexPedestalBlockEntity blockEntity) {
+    public @NotNull AABB getRenderBoundingBox(@NotNull WildexPedestalBlockEntity blockEntity) {
         return new AABB(blockEntity.getBlockPos()).inflate(1.75, 5.25, 1.75);
     }
 
     @Override
+    @SuppressWarnings("unused")
     public void render(
-            WildexPedestalBlockEntity blockEntity,
+            @NotNull WildexPedestalBlockEntity blockEntity,
             float partialTick,
-            PoseStack poseStack,
-            MultiBufferSource buffer,
+            @NotNull PoseStack poseStack,
+            @NotNull MultiBufferSource buffer,
             int packedLight,
             int packedOverlay
     ) {
-        if (blockEntity == null) return;
-        if (blockEntity.getDisplayMobId() == null) return;
-
-        Entity entity = blockEntity.getOrCreateClientRenderEntity();
-        if (!(entity instanceof LivingEntity living)) return;
-        if (living.isRemoved()) return;
-
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
         Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
         Vec3 centerPos = Vec3.atCenterOf(blockEntity.getBlockPos());
         double distSq = cameraPos.distanceToSqr(centerPos);
         if (distSq > MAX_RENDER_DISTANCE_SQ) return;
+
+        boolean hasBook = blockEntity.hasBook();
+        if (hasBook) {
+            renderBookOnPedestal(blockEntity, poseStack, buffer, packedOverlay);
+        }
+        if (!hasBook) return;
+        if (blockEntity.isRedstonePowered()) return;
+
+        if (blockEntity.getDisplayMobId() == null) return;
+
+        Entity entity = blockEntity.getOrCreateClientRenderEntity();
+        if (!(entity instanceof LivingEntity living)) return;
+        if (living.isRemoved()) return;
 
         float time = mc.level.getGameTime() + partialTick;
         float bob = (float) Math.sin(time * 0.16f) * BOB_AMPLITUDE;
@@ -88,7 +106,7 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         float bbW = Math.max(0.01f, living.getBbWidth());
         float bbH = Math.max(0.01f, living.getBbHeight());
         float dim = Math.max(bbW, bbH);
-        float scale = clamp(0.70f / dim, MIN_SCALE, MAX_SCALE);
+        float scale = clampScale(0.70f / dim);
         float hologramY = BASE_HEIGHT + bob;
         float coneTopY = hologramY - Math.max(0.14f, Math.min(0.34f, bbH * scale * 0.38f));
         float coneRadius = Math.max(0.18f, Math.min(0.48f, bbW * scale * 0.95f + 0.12f));
@@ -110,7 +128,7 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
 
         living.setNoGravity(true);
         living.setDeltaMovement(Vec3.ZERO);
-        living.tickCount = 0;
+        living.tickCount = (int) (mc.level.getGameTime() & Integer.MAX_VALUE);
         living.setYRot(yaw);
         living.setXRot(0.0f);
         living.xRotO = 0.0f;
@@ -123,7 +141,7 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         dispatcher.setRenderShadow(false);
         boolean rootPosePushed = false;
         try {
-            renderProjectionCone(poseStack, buffer, yaw, coneTopY, coneRadius, pulse, coneSegments);
+            renderProjectionCone(poseStack, buffer, yaw, BOOK_CONE_APEX_Y, coneTopY, coneRadius, pulse, coneSegments);
 
             poseStack.pushPose();
             rootPosePushed = true;
@@ -185,20 +203,20 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         }
     }
 
-    private static float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
+    private static float clampScale(float value) {
+        return Math.max(MIN_SCALE, Math.min(MAX_SCALE, value));
     }
 
     private static void renderProjectionCone(
             PoseStack poseStack,
             MultiBufferSource buffer,
             float yawDeg,
+            float apexY,
             float topY,
             float topRadius,
             float pulse,
             int segments
     ) {
-        float apexY = CONE_APEX_Y;
         int clampedSegments = Math.max(3, segments);
         if (topY <= apexY + 0.03f || topRadius <= 0.0f) return;
 
@@ -227,6 +245,33 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
             vertices.addVertex(mat, 0.0f, apexY, 0.0f).setColor(64, 232, 255, apexAlpha);
         }
 
+        poseStack.popPose();
+    }
+
+    private void renderBookOnPedestal(
+            @NotNull WildexPedestalBlockEntity blockEntity,
+            @NotNull PoseStack poseStack,
+            @NotNull MultiBufferSource buffer,
+            int packedOverlay
+    ) {
+        ItemStack stack = blockEntity.getStoredBookForRender();
+        if (stack.isEmpty()) return;
+
+        poseStack.pushPose();
+        poseStack.translate(BOOK_RENDER_X, BOOK_RENDER_Y, BOOK_RENDER_Z);
+        poseStack.mulPose(Axis.YP.rotationDegrees(BOOK_RENDER_ROT_Y));
+        poseStack.mulPose(Axis.XP.rotationDegrees(-90.0f));
+        poseStack.scale(BOOK_RENDER_SCALE, BOOK_RENDER_SCALE, BOOK_RENDER_SCALE);
+        itemRenderer.renderStatic(
+                stack,
+                ItemDisplayContext.FIXED,
+                LightTexture.FULL_BRIGHT,
+                packedOverlay,
+                poseStack,
+                buffer,
+                blockEntity.getLevel(),
+                0
+        );
         poseStack.popPose();
     }
 
@@ -264,7 +309,7 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
 
     private record TintingBufferSource(MultiBufferSource delegate, float rMul, float gMul, float bMul, float aMul) implements MultiBufferSource {
         @Override
-        public VertexConsumer getBuffer(RenderType type) {
+        public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) {
             return new TintingVertexConsumer(delegate.getBuffer(type), rMul, gMul, bMul, aMul);
         }
     }
@@ -285,37 +330,37 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         }
 
         @Override
-        public VertexConsumer addVertex(float x, float y, float z) {
+        public @NotNull VertexConsumer addVertex(float x, float y, float z) {
             delegate.addVertex(x, y, z);
             return this;
         }
 
         @Override
-        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
+        public @NotNull VertexConsumer setColor(int red, int green, int blue, int alpha) {
             delegate.setColor(tint(red, rMul), tint(green, gMul), tint(blue, bMul), tint(alpha, aMul));
             return this;
         }
 
         @Override
-        public VertexConsumer setUv(float u, float v) {
+        public @NotNull VertexConsumer setUv(float u, float v) {
             delegate.setUv(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer setUv1(int u, int v) {
+        public @NotNull VertexConsumer setUv1(int u, int v) {
             delegate.setUv1(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer setUv2(int u, int v) {
+        public @NotNull VertexConsumer setUv2(int u, int v) {
             delegate.setUv2(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer setNormal(float normalX, float normalY, float normalZ) {
+        public @NotNull VertexConsumer setNormal(float normalX, float normalY, float normalZ) {
             delegate.setNormal(normalX, normalY, normalZ);
             return this;
         }

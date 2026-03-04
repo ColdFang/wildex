@@ -37,10 +37,7 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
     public static WildexWorldPlayerDiscoveryData get(ServerLevel level) {
         Objects.requireNonNull(level, "level");
         MinecraftServer server = level.getServer();
-        if (server == null) return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
-
-        ServerLevel overworld = server.overworld();
-        ServerLevel rootLevel = overworld != null ? overworld : level;
+        ServerLevel rootLevel = server.overworld();
 
         WildexWorldPlayerDiscoveryData data = rootLevel.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
         data.migrateLegacyDimensionData(server, rootLevel);
@@ -98,6 +95,23 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
         return added;
     }
 
+    public boolean unmarkDiscovered(UUID player, ResourceLocation mobId) {
+        if (player == null || mobId == null) return false;
+        if (!WildexMobFilters.isTrackable(mobId)) return false;
+
+        Set<ResourceLocation> set = discovered.get(player);
+        if (set == null || set.isEmpty()) return false;
+
+        boolean removed = set.remove(mobId);
+        if (!removed) return false;
+
+        if (set.isEmpty()) {
+            discovered.remove(player);
+        }
+        setDirty();
+        return true;
+    }
+
     public Set<ResourceLocation> getDiscovered(UUID player) {
         if (player == null) return Set.of();
         Set<ResourceLocation> set = discovered.get(player);
@@ -130,11 +144,18 @@ public final class WildexWorldPlayerDiscoveryData extends SavedData {
         return complete.contains(player);
     }
 
-    public boolean markComplete(UUID player) {
-        if (player == null) return false;
-        boolean added = complete.add(player);
-        if (added) setDirty();
-        return added;
+    public void markComplete(UUID player) {
+        if (player == null) return;
+        if (complete.add(player)) {
+            setDirty();
+        }
+    }
+
+    public void unmarkComplete(UUID player) {
+        if (player == null) return;
+        if (complete.remove(player)) {
+            setDirty();
+        }
     }
 
     public boolean hasReceivedBook(UUID player) {

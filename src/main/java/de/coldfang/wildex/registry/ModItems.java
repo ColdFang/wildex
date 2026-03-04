@@ -20,6 +20,10 @@ public final class ModItems {
             ITEMS.register("wildex_pedestal",
                     () -> new BlockItem(ModBlocks.WILDEX_PEDESTAL.get(), new Item.Properties()));
 
+    public static final DeferredItem<BlockItem> WILDEX_ANALYZER =
+            ITEMS.register("wildex_analyzer",
+                    () -> new BlockItem(ModBlocks.WILDEX_ANALYZER.get(), new Item.Properties()));
+
     private ModItems() {
     }
 }

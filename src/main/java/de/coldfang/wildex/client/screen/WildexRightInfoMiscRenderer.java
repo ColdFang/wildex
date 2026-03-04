@@ -117,10 +117,12 @@ final class WildexRightInfoMiscRenderer {
         if (button != 0) return false;
         if (WildexRightInfoTabUtil.isInside(mouseX, mouseY, breedingToggleScreenX0, breedingToggleScreenY0, breedingToggleScreenX1, breedingToggleScreenY1)) {
             breedingCollapsed = !breedingCollapsed;
+            WildexUiSounds.playButtonClick();
             return true;
         }
         if (WildexRightInfoTabUtil.isInside(mouseX, mouseY, tamingToggleScreenX0, tamingToggleScreenY0, tamingToggleScreenX1, tamingToggleScreenY1)) {
             tamingCollapsed = !tamingCollapsed;
+            WildexUiSounds.playButtonClick();
             return true;
         }
 

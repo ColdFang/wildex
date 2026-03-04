@@ -1,9 +1,10 @@
 package de.coldfang.wildex.world.block;
 
 import com.mojang.serialization.MapCodec;
-import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
+import de.coldfang.wildex.world.block.entity.WildexAnalyzerBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -20,20 +21,19 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.server.level.ServerLevel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("NullableProblems")
-public final class WildexPedestalBlock extends BaseEntityBlock {
+public final class WildexAnalyzerBlock extends BaseEntityBlock {
 
-    public static final MapCodec<WildexPedestalBlock> CODEC = simpleCodec(WildexPedestalBlock::new);
+    public static final MapCodec<WildexAnalyzerBlock> CODEC = simpleCodec(WildexAnalyzerBlock::new);
     private static final VoxelShape SHAPE = Block.box(1.0, 0.0, 1.0, 15.0, 13.0, 15.0);
 
-    public WildexPedestalBlock(Properties properties) {
+    public WildexAnalyzerBlock(Properties properties) {
         super(properties);
     }
 
@@ -52,22 +52,26 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
             InteractionHand hand,
             BlockHitResult hitResult
     ) {
-        if (!(level.getBlockEntity(pos) instanceof WildexPedestalBlockEntity pedestal)) {
+        if (!(level.getBlockEntity(pos) instanceof WildexAnalyzerBlockEntity analyzer)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        boolean enabled = WildexPedestalBlockEntity.pedestalEnabled();
-        if (pedestal.hasBook()) {
+        if (analyzer.hasItem()) {
             if (level.isClientSide) {
-                if (pedestal.canPlayerExtract(player)) {
-                    pedestal.clearClientVisualsAfterExtraction();
+                if (analyzer.canPlayerExtract(player) && !analyzer.isAnalyzing()) {
+                    analyzer.clearClientVisualsAfterExtraction();
                 }
                 return ItemInteractionResult.SUCCESS;
             }
-            ItemStack extracted = pedestal.tryExtractForPlayer(player);
+
+            ItemStack extracted = analyzer.tryExtractForPlayer(player);
             if (extracted.isEmpty()) {
-                notifyOwnerOnly(player);
-                return ItemInteractionResult.FAIL;
+                if (analyzer.isAnalyzing()) {
+                    notifyRunning(player);
+                } else {
+                    notifyOwnerOnly(player);
+                }
+                return ItemInteractionResult.CONSUME;
             }
 
             if (!player.addItem(extracted)) {
@@ -76,11 +80,7 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
             return ItemInteractionResult.CONSUME;
         }
 
-        if (!enabled) {
-            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        }
-
-        if (!stack.is(de.coldfang.wildex.registry.ModItems.WILDEX_BOOK.get())) {
+        if (stack.isEmpty()) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
@@ -88,22 +88,11 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
             return ItemInteractionResult.SUCCESS;
         }
 
-        boolean inserted = pedestal.tryInsertFromPlayer((ServerLevel) level, player, stack);
+        boolean inserted = analyzer.tryInsertFromPlayer((ServerLevel) level, player, stack);
         if (!inserted) return ItemInteractionResult.FAIL;
 
         if (!player.getAbilities().instabuild) {
             stack.shrink(1);
-        }
-        if (pedestal.getDisplayMobId() == null) {
-            WildexPedestalBlockEntity.DebugCounts debug = pedestal.getLastDebugCounts();
-            player.displayClientMessage(
-                    Component.translatable(
-                            "message.wildex.pedestal.no_discoveries",
-                            debug.discoveredCount(),
-                            debug.candidateCount()
-                    ),
-                    true
-            );
         }
         return ItemInteractionResult.CONSUME;
     }
@@ -116,20 +105,24 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
             Player player,
             BlockHitResult hitResult
     ) {
-        if (!(level.getBlockEntity(pos) instanceof WildexPedestalBlockEntity pedestal)) return InteractionResult.PASS;
-        if (!pedestal.hasBook()) return InteractionResult.PASS;
+        if (!(level.getBlockEntity(pos) instanceof WildexAnalyzerBlockEntity analyzer)) return InteractionResult.PASS;
+        if (!analyzer.hasItem()) return InteractionResult.PASS;
 
         if (level.isClientSide) {
-            if (pedestal.canPlayerExtract(player)) {
-                pedestal.clearClientVisualsAfterExtraction();
+            if (analyzer.canPlayerExtract(player) && !analyzer.isAnalyzing()) {
+                analyzer.clearClientVisualsAfterExtraction();
             }
             return InteractionResult.SUCCESS;
         }
 
-        ItemStack extracted = pedestal.tryExtractForPlayer(player);
+        ItemStack extracted = analyzer.tryExtractForPlayer(player);
         if (extracted.isEmpty()) {
-            notifyOwnerOnly(player);
-            return InteractionResult.FAIL;
+            if (analyzer.isAnalyzing()) {
+                notifyRunning(player);
+            } else {
+                notifyOwnerOnly(player);
+            }
+            return InteractionResult.CONSUME;
         }
 
         if (!player.addItem(extracted)) {
@@ -165,15 +158,15 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
 
     @Override
     public @NotNull BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new WildexPedestalBlockEntity(pos, state);
+        return new WildexAnalyzerBlockEntity(pos, state);
     }
 
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock())) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof WildexPedestalBlockEntity pedestal) {
-                pedestal.dropStoredBook();
+            if (blockEntity instanceof WildexAnalyzerBlockEntity analyzer) {
+                analyzer.dropStoredItem();
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
@@ -188,20 +181,20 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
         if (level.isClientSide) return null;
         return createTickerHelper(
                 blockEntityType,
-                de.coldfang.wildex.registry.ModBlockEntities.WILDEX_PEDESTAL.get(),
-                WildexPedestalBlockEntity::serverTick
+                de.coldfang.wildex.registry.ModBlockEntities.WILDEX_ANALYZER.get(),
+                WildexAnalyzerBlockEntity::serverTick
         );
     }
 
     @Override
     protected float getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
-        if (!(level.getBlockEntity(pos) instanceof WildexPedestalBlockEntity pedestal)) {
+        if (!(level.getBlockEntity(pos) instanceof WildexAnalyzerBlockEntity analyzer)) {
             return super.getDestroyProgress(state, player, level, pos);
         }
-        if (!pedestal.hasBook()) {
+        if (!analyzer.hasItem()) {
             return super.getDestroyProgress(state, player, level, pos);
         }
-        if (pedestal.isOwner(player.getUUID())) {
+        if (analyzer.isOwner(player.getUUID())) {
             return super.getDestroyProgress(state, player, level, pos);
         }
         return 0.0f;
@@ -209,7 +202,17 @@ public final class WildexPedestalBlock extends BaseEntityBlock {
 
     private static void notifyOwnerOnly(Player player) {
         if (player == null) return;
-        Component text = Component.translatable("message.wildex.pedestal.owner_only_extract");
+        Component text = Component.translatable("message.wildex.analyzer.owner_only_extract");
+        if (player instanceof ServerPlayer sp) {
+            sp.displayClientMessage(text, true);
+            return;
+        }
+        player.displayClientMessage(text, true);
+    }
+
+    private static void notifyRunning(Player player) {
+        if (player == null) return;
+        Component text = Component.translatable("message.wildex.analyzer.running");
         if (player instanceof ServerPlayer sp) {
             sp.displayClientMessage(text, true);
             return;

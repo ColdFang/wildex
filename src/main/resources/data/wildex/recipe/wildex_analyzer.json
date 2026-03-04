@@ -1,23 +1,23 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "ABA",
-    "BWB",
-    "ABA"
+    "CGC",
+    "GWG",
+    "CGC"
   ],
   "key": {
-    "A": {
-      "item": "minecraft:amethyst_shard"
+    "C": {
+      "item": "minecraft:copper_ingot"
     },
-    "B": {
-      "item": "minecraft:polished_basalt"
+    "G": {
+      "item": "minecraft:gold_ingot"
     },
     "W": {
       "item": "wildex:wildex_book"
     }
   },
   "result": {
-    "id": "wildex:wildex_pedestal",
+    "id": "wildex:wildex_analyzer",
     "count": 1
   }
 }

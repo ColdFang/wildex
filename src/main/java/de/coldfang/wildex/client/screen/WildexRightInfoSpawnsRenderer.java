@@ -78,10 +78,12 @@ final class WildexRightInfoSpawnsRenderer {
 
         if (WildexRightInfoTabUtil.isInside(mouseX, mouseY, spawnFilterBiomeX0, spawnFilterBiomeY0, spawnFilterBiomeX1, spawnFilterBiomeY1)) {
             state.toggleSpawnFilterNatural();
+            WildexUiSounds.playButtonClick();
             return true;
         }
         if (WildexRightInfoTabUtil.isInside(mouseX, mouseY, spawnFilterStructureX0, spawnFilterStructureY0, spawnFilterStructureX1, spawnFilterStructureY1)) {
             state.toggleSpawnFilterStructures();
+            WildexUiSounds.playButtonClick();
             return true;
         }
 

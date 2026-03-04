@@ -3,6 +3,7 @@ package de.coldfang.wildex.client.screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,6 +39,11 @@ public final class MobPreviewResetButton extends Button {
     public void onPress() {
         super.onPress();
         this.setFocused(false);
+    }
+
+    @Override
+    public void playDownSound(@NotNull SoundManager soundManager) {
+        WildexUiSounds.playButtonClick();
     }
 
     @Override

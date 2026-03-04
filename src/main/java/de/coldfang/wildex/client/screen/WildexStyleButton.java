@@ -3,6 +3,7 @@ package de.coldfang.wildex.client.screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -107,6 +108,11 @@ public final class WildexStyleButton extends Button {
     public void onPress() {
         action.run();
         setFocused(false);
+    }
+
+    @Override
+    public void playDownSound(@NotNull SoundManager soundManager) {
+        WildexUiSounds.playButtonClick();
     }
 
     @Override

@@ -1,6 +1,5 @@
 package de.coldfang.wildex.world.block.entity;
 
-import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.registry.ModItems;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
@@ -23,6 +22,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -76,13 +76,14 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         super(de.coldfang.wildex.registry.ModBlockEntities.WILDEX_PEDESTAL.get(), pos, blockState);
     }
 
+    @SuppressWarnings("unused")
     public static void serverTick(Level level, BlockPos pos, BlockState state, WildexPedestalBlockEntity blockEntity) {
         if (!(level instanceof ServerLevel serverLevel)) return;
         blockEntity.tickServer(serverLevel);
     }
 
     public static boolean pedestalEnabled() {
-        return CommonConfig.INSTANCE.debugMode.get();
+        return true;
     }
 
     public static void clearMobTypeValidationCache() {
@@ -108,6 +109,11 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
             return;
         }
 
+        // Redstone pauses pedestal hologram logic while keeping the inserted book/state.
+        if (level.hasNeighborSignal(this.worldPosition)) {
+            return;
+        }
+
         long gameTime = level.getGameTime();
         if (lastDiscoveryRefreshTick == Long.MIN_VALUE || (gameTime - lastDiscoveryRefreshTick) >= DISCOVERY_REFRESH_INTERVAL_TICKS) {
             refreshDiscoveredMobCandidates(level, false);
@@ -123,8 +129,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
                 && displayIndex < cachedDiscoveredMobs.size()
                 && Objects.equals(cachedDiscoveredMobs.get(displayIndex), displayMobId);
         if (!currentIndexValid) {
-            int resolved = resolveDisplayIndex(cachedDiscoveredMobs);
-            displayIndex = resolved;
+            displayIndex = resolveDisplayIndex(cachedDiscoveredMobs);
             ticksUntilSwitch = 0;
         }
 
@@ -141,8 +146,26 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         return !storedBook.isEmpty();
     }
 
+    public boolean isRedstonePowered() {
+        Level level = this.level;
+        return level != null && level.hasNeighborSignal(this.worldPosition);
+    }
+
+    public ItemStack getStoredBookForRender() {
+        return storedBook;
+    }
+
+    public void clearClientVisualsAfterExtraction() {
+        if (this.level == null || !this.level.isClientSide) return;
+        this.storedBook = ItemStack.EMPTY;
+        this.ownerId = null;
+        this.displayMobId = null;
+        resetRotationCache();
+        clearClientRenderEntity();
+    }
+
     public boolean isOwner(@Nullable UUID playerId) {
-        return playerId != null && ownerId != null && ownerId.equals(playerId);
+        return ownerId != null && ownerId.equals(playerId);
     }
 
     public boolean canPlayerExtract(@Nullable Player player) {
@@ -156,8 +179,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         if (hasBook()) return false;
         if (!heldStack.is(ModItems.WILDEX_BOOK.get())) return false;
 
-        ItemStack inserted = heldStack.copyWithCount(1);
-        this.storedBook = inserted;
+        this.storedBook = heldStack.copyWithCount(1);
         this.ownerId = player.getUUID();
         this.displayIndex = -1;
         this.ticksUntilSwitch = 0;
@@ -206,6 +228,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         return new DebugCounts(lastRawDiscoveredCount, cachedDiscoveredMobs.size());
     }
 
+    @SuppressWarnings("resource")
     @Nullable
     public Entity getOrCreateClientRenderEntity() {
         Level level = this.level;
@@ -217,7 +240,8 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
 
         if (cachedClientRenderEntity != null
                 && Objects.equals(cachedClientRenderEntityId, displayMobId)
-                && !cachedClientRenderEntity.isRemoved()) {
+                && !cachedClientRenderEntity.isRemoved()
+                && cachedClientRenderEntity.level() == level) {
             return cachedClientRenderEntity;
         }
 
@@ -240,7 +264,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+    protected void saveAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         if (!storedBook.isEmpty()) {
             tag.put(TAG_BOOK, storedBook.saveOptional(registries));
@@ -254,7 +278,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+    protected void loadAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         if (tag.contains(TAG_BOOK, Tag.TAG_COMPOUND)) {
             storedBook = ItemStack.parseOptional(registries, tag.getCompound(TAG_BOOK));
@@ -271,8 +295,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         ResourceLocation loadedDisplayId = null;
         if (tag.contains(TAG_DISPLAY_MOB, Tag.TAG_STRING)) {
             ResourceLocation parsed = ResourceLocation.tryParse(tag.getString(TAG_DISPLAY_MOB));
-            if (parsed != null
-                    && WildexMobFilters.isTrackable(parsed)
+            if (WildexMobFilters.isTrackable(parsed)
                     && BuiltInRegistries.ENTITY_TYPE.containsKey(parsed)) {
                 loadedDisplayId = parsed;
             }
@@ -284,12 +307,12 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+    public @NotNull CompoundTag getUpdateTag(@NotNull HolderLookup.Provider registries) {
         return this.saveWithoutMetadata(registries);
     }
 
     @Override
-    public @Nullable Packet<ClientGamePacketListener> getUpdatePacket() {
+    public @NotNull Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
@@ -297,6 +320,15 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
     public void setRemoved() {
         super.setRemoved();
         clearClientRenderEntity();
+    }
+
+    @Override
+    public void setLevel(@NotNull Level level) {
+        Level previousLevel = this.level;
+        super.setLevel(level);
+        if (previousLevel != level) {
+            clearClientRenderEntity();
+        }
     }
 
     private void refreshDiscoveredMobCandidates(ServerLevel level, boolean forceRefresh) {
@@ -317,9 +349,8 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
             return;
         }
 
-        List<ResourceLocation> frozen = next;
-        if (!frozen.equals(cachedDiscoveredMobs)) {
-            cachedDiscoveredMobs = frozen;
+        if (!next.equals(cachedDiscoveredMobs)) {
+            cachedDiscoveredMobs = next;
             displayIndex = resolveDisplayIndex(cachedDiscoveredMobs);
             ticksUntilSwitch = 0;
         }
@@ -327,8 +358,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
 
     private int resolveDisplayIndex(List<ResourceLocation> candidates) {
         if (displayMobId == null || candidates == null || candidates.isEmpty()) return -1;
-        int idx = candidates.indexOf(displayMobId);
-        return Math.max(-1, idx);
+        return candidates.indexOf(displayMobId);
     }
 
     private void clearDisplayMob() {
@@ -408,7 +438,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         if (!cachedDiscoveredMobs.isEmpty()) {
             this.displayIndex = 0;
             this.ticksUntilSwitch = MOB_SWITCH_INTERVAL_TICKS;
-            setDisplayMobId(cachedDiscoveredMobs.get(0));
+            setDisplayMobId(cachedDiscoveredMobs.getFirst());
         } else {
             clearDisplayMob();
         }

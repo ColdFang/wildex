@@ -1,6 +1,7 @@
 package de.coldfang.wildex.registry;
 
 import de.coldfang.wildex.Wildex;
+import de.coldfang.wildex.world.block.entity.WildexAnalyzerBlockEntity;
 import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -19,6 +20,16 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(
                             WildexPedestalBlockEntity::new,
                             ModBlocks.WILDEX_PEDESTAL.get()
+                    ).build(null)
+            );
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<WildexAnalyzerBlockEntity>> WILDEX_ANALYZER =
+            BLOCK_ENTITY_TYPES.register(
+                    "wildex_analyzer",
+                    () -> BlockEntityType.Builder.of(
+                            WildexAnalyzerBlockEntity::new,
+                            ModBlocks.WILDEX_ANALYZER.get()
                     ).build(null)
             );
 

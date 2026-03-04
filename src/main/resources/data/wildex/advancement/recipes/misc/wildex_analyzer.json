@@ -1,24 +1,24 @@
 {
   "criteria": {
-    "has_amethyst_shard": {
+    "has_raw_copper": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
           {
             "items": [
-              "minecraft:amethyst_shard"
+              "minecraft:raw_copper"
             ]
           }
         ]
       }
     },
-    "has_basalt": {
+    "has_raw_gold": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
           {
             "items": [
-              "minecraft:basalt"
+              "minecraft:raw_gold"
             ]
           }
         ]
@@ -27,13 +27,13 @@
   },
   "requirements": [
     [
-      "has_amethyst_shard",
-      "has_basalt"
+      "has_raw_copper",
+      "has_raw_gold"
     ]
   ],
   "rewards": {
     "recipes": [
-      "wildex:wildex_pedestal"
+      "wildex:wildex_analyzer"
     ]
   }
 }

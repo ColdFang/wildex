@@ -184,6 +184,28 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
         return this.selectedVariantOptionId;
     }
 
+    public String selectedVariantDisplayLabel() {
+        String optionId = this.selectedVariantOptionId == null ? "" : this.selectedVariantOptionId;
+        if (optionId.isBlank()) return "";
+
+        Entry selected = this.getSelected();
+        if (selected != null && optionId.equals(selected.variantOptionId)) {
+            String name = selected.name.getString().trim();
+            if (!name.isBlank()) return name;
+        }
+
+        ResourceLocation id = this.selectedId;
+        if (id != null) {
+            for (Entry entry : this.children()) {
+                if (!id.equals(entry.id)) continue;
+                if (!optionId.equals(entry.variantOptionId)) continue;
+                String name = entry.name.getString().trim();
+                if (!name.isBlank()) return name;
+            }
+        }
+        return formatVariantDisplayLabel(optionId, "");
+    }
+
     @Override
     public void setSelected(Entry entry) {
         super.setSelected(entry);
@@ -520,7 +542,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
             VariantBuckets buckets = splitVariantBuckets(options);
             for (WildexEntityVariantProbe.VariantOption option : buckets.primary()) {
-                Component optionName = Component.literal(option.label());
+                Component optionName = Component.literal(formatVariantDisplayLabel(option));
                 this.addEntry(newVariantEntry(type, id, optionName, option.id(), 1));
             }
 
@@ -529,7 +551,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 this.addEntry(newVariantGroupEntry(type, id, groupName));
                 if (isVariantGroupExpanded(id, VARIANT_GROUP_DERIVED)) {
                     for (WildexEntityVariantProbe.VariantOption option : buckets.derived()) {
-                        Component optionName = Component.literal(option.label());
+                        Component optionName = Component.literal(formatVariantDisplayLabel(option));
                         this.addEntry(newVariantEntry(type, id, optionName, option.id(), 2));
                     }
                 }
@@ -654,11 +676,105 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
 
     private static String optionToken(WildexEntityVariantProbe.VariantOption option) {
         if (option == null) return "";
-        String id = option.id();
-        if (id == null || id.isBlank()) return "";
-        int sep = id.indexOf('|');
-        if (sep < 0 || sep + 1 >= id.length()) return id;
-        return id.substring(sep + 1);
+        return optionValueToken(option.id());
+    }
+
+    private static String optionValueToken(String optionId) {
+        if (optionId == null || optionId.isBlank()) return "";
+        int sep = optionId.indexOf('|');
+        String payload = (sep < 0 || sep + 1 >= optionId.length())
+                ? optionId
+                : optionId.substring(sep + 1);
+
+        int lastSep = payload.lastIndexOf('|');
+        if (lastSep >= 0 && lastSep + 1 < payload.length()) {
+            payload = payload.substring(lastSep + 1);
+        }
+        return payload.trim();
+    }
+
+    private static String formatVariantDisplayLabel(WildexEntityVariantProbe.VariantOption option) {
+        if (option == null) return "";
+        return formatVariantDisplayLabel(option.id(), option.label());
+    }
+
+    private static String formatVariantDisplayLabel(String optionId, String optionLabel) {
+        String compactFromLabel = compactVariantFromLabel(optionLabel);
+        if (!compactFromLabel.isBlank()) return compactFromLabel;
+
+        String fromToken = prettifyVariantToken(optionValueToken(optionId));
+        if (!fromToken.isBlank()) return fromToken;
+
+        String fallback = optionLabel == null ? "" : optionLabel.trim();
+        if (!fallback.isBlank()) return fallback;
+        return optionValueToken(optionId);
+    }
+
+    private static String compactVariantFromLabel(String label) {
+        if (label == null || label.isBlank()) return "";
+        String trimmed = label.trim();
+
+        int closeParen = trimmed.lastIndexOf(')');
+        int openParen = trimmed.lastIndexOf('(');
+        if (openParen >= 0 && closeParen > openParen) {
+            String inside = trimmed.substring(openParen + 1, closeParen).trim();
+            String compact = prettifyVariantToken(inside);
+            if (!compact.isBlank()) return compact;
+        }
+
+        int closeBracket = trimmed.lastIndexOf(']');
+        int openBracket = trimmed.lastIndexOf('[');
+        if (openBracket >= 0 && closeBracket > openBracket) {
+            String inside = trimmed.substring(openBracket + 1, closeBracket).trim();
+            String compact = prettifyVariantToken(inside);
+            if (!compact.isBlank()) return compact;
+        }
+        return "";
+    }
+
+    private static String prettifyVariantToken(String token) {
+        if (token == null || token.isBlank()) return "";
+        String s = token.trim();
+
+        int namespaceSep = s.indexOf(':');
+        if (namespaceSep > 0 && namespaceSep + 1 < s.length()) {
+            s = s.substring(namespaceSep + 1);
+        }
+        int pathSep = s.lastIndexOf('/');
+        if (pathSep >= 0 && pathSep + 1 < s.length()) {
+            s = s.substring(pathSep + 1);
+        }
+
+        s = s.replace('_', ' ')
+                .replace('-', ' ')
+                .replace('.', ' ')
+                .replace('+', ' ')
+                .trim();
+        if (s.isBlank()) return "";
+
+        StringBuilder normalized = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (i > 0 && Character.isUpperCase(c) && Character.isLowerCase(s.charAt(i - 1))) {
+                normalized.append(' ');
+            }
+            normalized.append(c);
+        }
+
+        String[] words = normalized.toString().trim().split("\\s+");
+        StringBuilder out = new StringBuilder();
+        for (String word : words) {
+            if (word == null || word.isBlank()) continue;
+            if (!out.isEmpty()) out.append(' ');
+            if (word.chars().allMatch(Character::isDigit)) {
+                out.append(word);
+                continue;
+            }
+            String lower = word.toLowerCase(Locale.ROOT);
+            out.append(Character.toUpperCase(lower.charAt(0)));
+            if (lower.length() > 1) out.append(lower.substring(1));
+        }
+        return out.toString().trim();
     }
 
     private static boolean looksDerivedToken(String token) {
@@ -974,6 +1090,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
             boolean canExpand = canExpand(discovered);
             if (button == 0 && canExpand && isInsideExpandButton(mouseX, mouseY, x0, this.lastY, this.lastRowHeight)) {
                 MobListWidget.this.toggleExpanded(this);
+                WildexUiSounds.playButtonClick();
                 return true;
             }
 
@@ -992,6 +1109,7 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 if (inCb) {
                     MobListWidget.this.setSelected(this);
                     MobListWidget.this.onDebugDiscover.accept(this.id);
+                    WildexUiSounds.playButtonClick();
                     return true;
                 }
             }
@@ -1000,7 +1118,12 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
                 return true;
             }
 
+            ResourceLocation previousId = MobListWidget.this.selectedId;
+            String previousVariant = MobListWidget.this.selectedVariantOptionId;
             MobListWidget.this.setSelected(this);
+            if (!Objects.equals(previousId, this.id) || !Objects.equals(previousVariant, this.variantOptionId)) {
+                WildexUiSounds.playListSelection();
+            }
             if (discovered && !this.variantSubentry) {
                 MobListWidget.this.onEntryClicked.accept(this.id);
             }

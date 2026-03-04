@@ -1,6 +1,7 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.world.block.entity.WildexPedestalBlockEntity;
+import de.coldfang.wildex.world.block.entity.WildexAnalyzerBlockEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
@@ -16,12 +17,14 @@ public final class WildexRuntimeCacheEvents {
     public static void onServerAboutToStart(ServerAboutToStartEvent event) {
         WildexNetwork.clearRuntimeCaches();
         WildexPedestalBlockEntity.clearMobTypeValidationCache();
+        WildexAnalyzerBlockEntity.clearAnalyzerCaches();
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WildexNetwork.clearRuntimeCaches();
         WildexPedestalBlockEntity.clearMobTypeValidationCache();
+        WildexAnalyzerBlockEntity.clearAnalyzerCaches();
     }
 
     @SubscribeEvent
@@ -29,6 +32,7 @@ public final class WildexRuntimeCacheEvents {
         if (event.getPlayer() != null) return;
         WildexNetwork.clearRuntimeCaches();
         WildexPedestalBlockEntity.clearMobTypeValidationCache();
+        WildexAnalyzerBlockEntity.clearAnalyzerCaches();
     }
 
     @SubscribeEvent

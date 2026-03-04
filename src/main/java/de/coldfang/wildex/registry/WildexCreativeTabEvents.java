@@ -15,6 +15,7 @@ public final class WildexCreativeTabEvents {
             if (WildexPedestalBlockEntity.pedestalEnabled()) {
                 event.accept(ModItems.WILDEX_PEDESTAL.get());
             }
+            event.accept(ModItems.WILDEX_ANALYZER.get());
         }
     }
 }
