@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -114,6 +115,7 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         int coneSegments = distSq <= MID_DETAIL_DISTANCE_SQ ? (distSq <= NEAR_DETAIL_DISTANCE_SQ ? CONE_SEGMENTS_NEAR : CONE_SEGMENTS_MID) : CONE_SEGMENTS_FAR;
         boolean renderShellPass = distSq <= MID_DETAIL_DISTANCE_SQ;
         boolean renderGhostPass = distSq <= NEAR_DETAIL_DISTANCE_SQ;
+        float renderPartialTick = 0.0f;
 
         float prevYRot = living.getYRot();
         float prevXRot = living.getXRot();
@@ -125,10 +127,17 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         boolean prevNoGravity = living.isNoGravity();
         Vec3 prevDelta = living.getDeltaMovement();
         int prevTickCount = living.tickCount;
+        boolean prevSwinging = living.swinging;
+        int prevSwingTime = living.swingTime;
+        int prevHurtTime = living.hurtTime;
+        int prevHurtDuration = living.hurtDuration;
+        float prevAttackAnim = living.attackAnim;
+        float prevOAttackAnim = living.oAttackAnim;
+        float prevWalkSpeed = living.walkAnimation.speed();
 
         living.setNoGravity(true);
         living.setDeltaMovement(Vec3.ZERO);
-        living.tickCount = (int) (mc.level.getGameTime() & Integer.MAX_VALUE);
+        living.tickCount = 0;
         living.setYRot(yaw);
         living.setXRot(0.0f);
         living.xRotO = 0.0f;
@@ -136,12 +145,21 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         living.yHeadRot = yaw;
         living.yBodyRotO = yaw;
         living.yHeadRotO = yaw;
+        living.swinging = false;
+        living.swingTime = 0;
+        living.hurtTime = 0;
+        living.hurtDuration = 0;
+        living.attackAnim = 0.0f;
+        living.oAttackAnim = 0.0f;
+        living.walkAnimation.setSpeed(0.0f);
 
         EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
+        EntityRenderer<? super LivingEntity> entityRenderer = dispatcher.getRenderer(living);
+        boolean useAzureLibCompat = WildexPedestalAzureLibCompat.prepareRenderer(entityRenderer);
         dispatcher.setRenderShadow(false);
         boolean rootPosePushed = false;
         try {
-            renderProjectionCone(poseStack, buffer, yaw, BOOK_CONE_APEX_Y, coneTopY, coneRadius, pulse, coneSegments);
+            renderProjectionCone(poseStack, buffer, yaw, coneTopY, coneRadius, pulse, coneSegments);
 
             poseStack.pushPose();
             rootPosePushed = true;
@@ -150,40 +168,62 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
             RenderSystem.enableDepthTest();
             RenderSystem.enableBlend();
 
-            // Base hologram pass.
-            renderMobPass(
-                    living,
-                    dispatcher,
-                    poseStack,
-                    new TintingBufferSource(buffer, 0.10f, 0.92f, 1.0f, 0.88f),
-                    partialTick,
-                    scale,
-                    0.0f
-            );
-            if (renderShellPass) {
-                // Slightly larger shell pass for holographic glow/ghosting.
+            if (useAzureLibCompat) {
+                try (WildexPedestalAzureLibCompat.ActiveHologram ignored = WildexPedestalAzureLibCompat.activate(living, pulse, renderShellPass, renderGhostPass)) {
+                    renderMobPass(
+                            living,
+                            dispatcher,
+                            poseStack,
+                            buffer,
+                            renderPartialTick,
+                            scale,
+                            0.0f,
+                            0.0f,
+                            true
+                    );
+                }
+            } else {
+                // Base hologram pass.
                 renderMobPass(
                         living,
                         dispatcher,
                         poseStack,
-                        new TintingBufferSource(buffer, 0.18f, 1.0f, 1.0f, 0.62f + 0.14f * pulse),
-                        partialTick,
-                        scale * 1.03f,
-                        0.006f
-                );
-            }
-            if (renderGhostPass) {
-                // Small offset pass to imitate scan ghosting.
-                float ghostShift = 0.006f + 0.006f * pulse;
-                renderMobPass(
-                        living,
-                        dispatcher,
-                        poseStack,
-                        new TintingBufferSource(buffer, 0.04f, 0.66f, 1.0f, 0.45f),
-                        partialTick,
+                        new TintingBufferSource(buffer, 0.10f, 0.92f, 1.0f, 0.88f),
+                        renderPartialTick,
                         scale,
-                        ghostShift
+                        0.0f,
+                        0.0f,
+                        true
                 );
+                if (renderShellPass) {
+                    // Keep the shell close to the base tint so broad flat surfaces do not flip between two blues.
+                    renderMobPass(
+                            living,
+                            dispatcher,
+                            poseStack,
+                            new TintingBufferSource(buffer, 0.11f, 0.95f, 1.0f, 0.22f + 0.05f * pulse),
+                            renderPartialTick,
+                            scale * 1.012f,
+                            0.004f,
+                            -0.25f,
+                            false
+                    );
+                }
+                if (renderGhostPass) {
+                    // Near-only ghost pass should read as a soft shimmer, not a second visible body.
+                    float ghostShift = 0.004f + 0.003f * pulse;
+                    renderMobPass(
+                            living,
+                            dispatcher,
+                            poseStack,
+                            new TintingBufferSource(buffer, 0.10f, 0.90f, 1.0f, 0.08f),
+                            renderPartialTick,
+                            scale * 1.001f,
+                            ghostShift,
+                            -0.1f,
+                            false
+                    );
+                }
             }
         } finally {
             RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -200,6 +240,13 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
             living.setNoGravity(prevNoGravity);
             living.setDeltaMovement(prevDelta);
             living.tickCount = prevTickCount;
+            living.swinging = prevSwinging;
+            living.swingTime = prevSwingTime;
+            living.hurtTime = prevHurtTime;
+            living.hurtDuration = prevHurtDuration;
+            living.attackAnim = prevAttackAnim;
+            living.oAttackAnim = prevOAttackAnim;
+            living.walkAnimation.setSpeed(prevWalkSpeed);
         }
     }
 
@@ -211,13 +258,13 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
             PoseStack poseStack,
             MultiBufferSource buffer,
             float yawDeg,
-            float apexY,
             float topY,
             float topRadius,
             float pulse,
             int segments
     ) {
         int clampedSegments = Math.max(3, segments);
+        float apexY = BOOK_CONE_APEX_Y;
         if (topY <= apexY + 0.03f || topRadius <= 0.0f) return;
 
         VertexConsumer vertices = buffer.getBuffer(RenderType.debugStructureQuads());
@@ -226,8 +273,8 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
 
         Matrix4f mat = poseStack.last().pose();
         float rot = yawDeg * Mth.DEG_TO_RAD * 0.55f;
-        int apexAlpha = (int) (28 + 12 * pulse);
-        int rimAlpha = (int) (5 + 4 * pulse);
+        int apexAlpha = (int) (40 + 16 * pulse);
+        int rimAlpha = (int) (10 + 6 * pulse);
 
         for (int i = 0; i < clampedSegments; i++) {
             float a0 = rot + (Mth.TWO_PI * i / clampedSegments);
@@ -282,25 +329,46 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
             MultiBufferSource buffer,
             float partialTick,
             float scale,
-            float yOffset
+            float yOffset,
+            float depthBias,
+            boolean writeDepth
     ) {
         poseStack.pushPose();
         poseStack.translate(0.0f, yOffset, 0.0f);
         poseStack.scale(scale, scale, scale);
 
-        dispatcher.render(
-                living,
-                0.0,
-                0.0,
-                0.0,
-                0.0f,
-                partialTick,
-                poseStack,
-                buffer,
-                LightTexture.FULL_BRIGHT
-        );
+        beginDepthBias(depthBias);
+        RenderSystem.depthMask(writeDepth);
+        try {
+            dispatcher.render(
+                    living,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0f,
+                    partialTick,
+                    poseStack,
+                    buffer,
+                    LightTexture.FULL_BRIGHT
+            );
+        } finally {
+            RenderSystem.depthMask(true);
+            endDepthBias();
+        }
 
         poseStack.popPose();
+    }
+
+    private static void beginDepthBias(float units) {
+        if (units == 0.0f) return;
+        RenderSystem.enablePolygonOffset();
+        RenderSystem.polygonOffset(-1.0f, units);
+    }
+
+    private static void endDepthBias() {
+        RenderSystem.depthMask(true);
+        RenderSystem.polygonOffset(0.0f, 0.0f);
+        RenderSystem.disablePolygonOffset();
     }
 
     private static int tint(int value, float mul) {

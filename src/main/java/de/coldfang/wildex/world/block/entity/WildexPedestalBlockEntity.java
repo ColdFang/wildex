@@ -1,6 +1,7 @@
 package de.coldfang.wildex.world.block.entity;
 
 import de.coldfang.wildex.registry.ModItems;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.core.BlockPos;
@@ -250,12 +251,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(displayMobId).orElse(null);
         if (type == null) return null;
 
-        Entity created;
-        try {
-            created = type.create(level);
-        } catch (RuntimeException ignored) {
-            return null;
-        }
+        Entity created = WildexEntityFactory.tryCreate(type, level);
         if (created == null) return null;
 
         cachedClientRenderEntity = created;

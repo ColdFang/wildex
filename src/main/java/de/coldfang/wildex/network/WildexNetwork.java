@@ -443,7 +443,8 @@ public final class WildexNetwork {
                                     CommonConfig.INSTANCE.shareOffersEnabled.get(),
                                     CommonConfig.INSTANCE.shareOffersPaymentEnabled.get(),
                                     CommonConfig.INSTANCE.shareOfferCurrencyItem.get(),
-                                    Math.max(0, CommonConfig.INSTANCE.shareOfferMaxPrice.get())
+                                    Math.max(0, CommonConfig.INSTANCE.shareOfferMaxPrice.get()),
+                                    List.copyOf(CommonConfig.INSTANCE.excludedVariantMobIds.get())
                             )
                     );
                     PacketDistributor.sendToPlayer(

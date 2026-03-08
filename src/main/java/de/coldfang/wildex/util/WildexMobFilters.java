@@ -6,7 +6,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 
 import java.util.List;
-import java.util.Locale;
 
 public final class WildexMobFilters {
 
@@ -35,33 +34,6 @@ public final class WildexMobFilters {
         if (EXCLUDED_NAMESPACE_DEFAULT.equals(ns)) return false;
 
         List<? extends String> cfg = CommonConfig.INSTANCE.excludedModIds.get();
-        if (cfg.isEmpty()) return true;
-
-        String full = id.toString();
-
-        for (String raw : cfg) {
-            String ex = normalize(raw);
-            if (ex.isBlank()) continue;
-
-            if (isFullId(ex)) {
-                if (full.equals(ex)) return false;
-                continue;
-            }
-
-            if (ns.equals(ex)) return false;
-        }
-
-        return true;
-    }
-
-    private static boolean isFullId(String s) {
-        int c = s.indexOf(':');
-        if (c <= 0) return false;
-        return c == s.lastIndexOf(':') && (c + 1) < s.length();
-    }
-
-    private static String normalize(String s) {
-        if (s == null) return "";
-        return s.trim().toLowerCase(Locale.ROOT);
+        return !WildexIdFilterMatcher.matches(id, cfg);
     }
 }

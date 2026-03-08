@@ -3,15 +3,18 @@ package de.coldfang.wildex.client;
 import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
+import de.coldfang.wildex.client.data.WildexEntityVariantCatalog;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexServerConfigCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
+import de.coldfang.wildex.client.data.WildexVariantStatsCatalog;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.network.C2SRequestMobBreedingPayload;
 import de.coldfang.wildex.client.screen.WildexDiscoveryToast;
+import de.coldfang.wildex.client.screen.MobListWidget;
 import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
 import de.coldfang.wildex.network.C2SMarkMobEntryViewedPayload;
@@ -223,18 +226,25 @@ public final class WildexNetworkClient {
                 S2CServerConfigPayload.TYPE,
                 S2CServerConfigPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
-                    WildexServerConfigCache.set(
+                    boolean changed = WildexServerConfigCache.setAndCheckChanged(
                             payload.hiddenMode(),
                             payload.requireBookForKeybind(),
                             payload.debugMode(),
                             payload.shareOffersEnabled(),
                             payload.shareOffersPaymentEnabled(),
                             payload.shareOfferCurrencyItem(),
-                            payload.shareOfferMaxPrice()
+                            payload.shareOfferMaxPrice(),
+                            payload.excludedVariantMobIds()
                     );
 
+                    if (changed) {
+                        WildexEntityVariantCatalog.clearCache();
+                        WildexVariantStatsCatalog.clearCache();
+                        MobListWidget.clearVariantUiCache();
+                    }
+
                     Minecraft mc = Minecraft.getInstance();
-                    if (mc.screen instanceof WildexScreen screen) {
+                    if (changed && mc.screen instanceof WildexScreen screen) {
                         screen.onServerConfigUpdated();
                     }
                 })

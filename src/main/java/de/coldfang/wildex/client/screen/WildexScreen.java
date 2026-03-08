@@ -470,7 +470,9 @@ public final class WildexScreen extends Screen {
         if (this.shareOverlay != null) {
             this.shareOverlay.refreshVisibility();
         }
+        this.mobDataResolver.clearCache();
         updateShareWidgetsVisibility();
+        refreshMobList();
         WildexNetworkClient.requestDiscoveredMobs();
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestViewedMobEntries();

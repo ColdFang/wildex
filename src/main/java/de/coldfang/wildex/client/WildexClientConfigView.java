@@ -5,6 +5,7 @@ import de.coldfang.wildex.config.ClientConfig;
 import de.coldfang.wildex.config.CommonConfig;
 import net.minecraft.client.Minecraft;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public final class WildexClientConfigView {
@@ -40,72 +41,78 @@ public final class WildexClientConfigView {
         if (isRemoteSession() && !WildexServerConfigCache.hasServerConfig()) return true;
         return useServerValue()
                 ? WildexServerConfigCache.hiddenMode()
-                : configValue(CommonConfig.INSTANCE.hiddenMode::get, DEFAULT_HIDDEN_MODE);
+                : configValue(() -> CommonConfig.INSTANCE.hiddenMode.get(), DEFAULT_HIDDEN_MODE);
     }
 
     public static boolean requireBookForKeybind() {
         if (isRemoteSession() && !WildexServerConfigCache.hasServerConfig()) return true;
         return useServerValue()
                 ? WildexServerConfigCache.requireBookForKeybind()
-                : configValue(CommonConfig.INSTANCE.requireBookForKeybind::get, DEFAULT_REQUIRE_BOOK_FOR_KEYBIND);
+                : configValue(() -> CommonConfig.INSTANCE.requireBookForKeybind.get(), DEFAULT_REQUIRE_BOOK_FOR_KEYBIND);
     }
 
     public static boolean debugMode() {
         if (isRemoteSession() && !WildexServerConfigCache.hasServerConfig()) return false;
         return useServerValue()
                 ? WildexServerConfigCache.debugMode()
-                : configValue(CommonConfig.INSTANCE.debugMode::get, DEFAULT_DEBUG_MODE);
+                : configValue(() -> CommonConfig.INSTANCE.debugMode.get(), DEFAULT_DEBUG_MODE);
     }
 
     public static boolean shareOffersEnabled() {
         return useServerValue()
                 ? WildexServerConfigCache.shareOffersEnabled()
-                : configValue(CommonConfig.INSTANCE.shareOffersEnabled::get, DEFAULT_SHARE_OFFERS_ENABLED);
+                : configValue(() -> CommonConfig.INSTANCE.shareOffersEnabled.get(), DEFAULT_SHARE_OFFERS_ENABLED);
     }
 
     public static boolean shareOffersPaymentEnabled() {
         return useServerValue()
                 ? WildexServerConfigCache.shareOffersPaymentEnabled()
-                : configValue(CommonConfig.INSTANCE.shareOffersPaymentEnabled::get, DEFAULT_SHARE_OFFERS_PAYMENT_ENABLED);
+                : configValue(() -> CommonConfig.INSTANCE.shareOffersPaymentEnabled.get(), DEFAULT_SHARE_OFFERS_PAYMENT_ENABLED);
     }
 
     public static String shareOfferCurrencyItem() {
         return useServerValue()
                 ? WildexServerConfigCache.shareOfferCurrencyItem()
-                : configValue(CommonConfig.INSTANCE.shareOfferCurrencyItem::get, DEFAULT_SHARE_OFFER_CURRENCY_ITEM);
+                : configValue(() -> CommonConfig.INSTANCE.shareOfferCurrencyItem.get(), DEFAULT_SHARE_OFFER_CURRENCY_ITEM);
     }
 
     public static int shareOfferMaxPrice() {
         return useServerValue()
                 ? WildexServerConfigCache.shareOfferMaxPrice()
-                : configValue(CommonConfig.INSTANCE.shareOfferMaxPrice::get, DEFAULT_SHARE_OFFER_MAX_PRICE);
+                : configValue(() -> CommonConfig.INSTANCE.shareOfferMaxPrice.get(), DEFAULT_SHARE_OFFER_MAX_PRICE);
+    }
+
+    public static List<String> excludedVariantMobIds() {
+        return useServerValue()
+                ? WildexServerConfigCache.excludedVariantMobIds()
+                : configValue(() -> List.copyOf(CommonConfig.INSTANCE.excludedVariantMobIds.get()), List.of());
     }
 
     public static boolean hideGuiScaleSlider() {
-        return configValue(ClientConfig.INSTANCE.hideGuiScaleSlider::get, DEFAULT_HIDE_GUI_SCALE_SLIDER);
+        return configValue(() -> ClientConfig.INSTANCE.hideGuiScaleSlider.get(), DEFAULT_HIDE_GUI_SCALE_SLIDER);
     }
 
     public static boolean showMobVariants() {
-        return configValue(ClientConfig.INSTANCE.showMobVariants::get, DEFAULT_SHOW_MOB_VARIANTS);
+        return configValue(() -> ClientConfig.INSTANCE.showMobVariants.get(), DEFAULT_SHOW_MOB_VARIANTS);
     }
 
     public static boolean backgroundMobVariantProbe() {
-        return configValue(ClientConfig.INSTANCE.backgroundMobVariantProbe::get, DEFAULT_BACKGROUND_MOB_VARIANT_PROBE);
+        return configValue(() -> ClientConfig.INSTANCE.backgroundMobVariantProbe.get(), DEFAULT_BACKGROUND_MOB_VARIANT_PROBE);
     }
 
     public static ClientConfig.DesignStyle designStyle() {
-        return configValue(ClientConfig.INSTANCE.designStyle::get, DEFAULT_DESIGN_STYLE);
+        return configValue(() -> ClientConfig.INSTANCE.designStyle.get(), DEFAULT_DESIGN_STYLE);
     }
 
     public static boolean showDiscoveredSpyglassOverlay() {
         return configValue(
-                ClientConfig.INSTANCE.showDiscoveredSpyglassOverlay::get,
+                () -> ClientConfig.INSTANCE.showDiscoveredSpyglassOverlay.get(),
                 DEFAULT_SHOW_DISCOVERED_SPYGLASS_OVERLAY
         );
     }
 
     public static double wildexUiScale() {
-        return configValue(ClientConfig.INSTANCE.wildexUiScale::get, DEFAULT_WILDEX_UI_SCALE);
+        return configValue(() -> ClientConfig.INSTANCE.wildexUiScale.get(), DEFAULT_WILDEX_UI_SCALE);
     }
 
     private static <T> T configValue(Supplier<T> supplier, T fallback) {

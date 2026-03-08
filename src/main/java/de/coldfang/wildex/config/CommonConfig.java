@@ -1,6 +1,7 @@
 package de.coldfang.wildex.config;
 
 import de.coldfang.wildex.Wildex;
+import de.coldfang.wildex.util.WildexIdFilterMatcher;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
@@ -52,6 +53,7 @@ public final class CommonConfig {
     public final ModConfigSpec.IntValue spyglassDiscoveryChargeTicks;
 
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedModIds;
+    public final ModConfigSpec.ConfigValue<List<? extends String>> excludedVariantMobIds;
 
     private CommonConfig(ModConfigSpec.Builder builder) {
         builder.push("general");
@@ -100,6 +102,36 @@ public final class CommonConfig {
                         """)
                 .defineListAllowEmpty(
                         "excludedModIds",
+                        List.of(),
+                        () -> "minecraft:zombie",
+                        o -> {
+                            if (!(o instanceof String s)) return false;
+                            String v = s.trim();
+                            if (v.isEmpty()) return false;
+
+                            int colon = v.indexOf(':');
+                            if (colon < 0) {
+                                return isValidNamespace(v);
+                            }
+
+                            if (colon != v.lastIndexOf(':')) return false;
+
+                            String ns = v.substring(0, colon).trim();
+                            String path = v.substring(colon + 1).trim();
+                            if (!isValidNamespace(ns)) return false;
+                            return isValidPath(path);
+                        }
+                );
+
+        excludedVariantMobIds = builder
+                .comment("""
+                        Entries to exclude from Wildex variant detection.
+                        - Use a namespace to exclude an entire mod (e.g. "alexsmobs").
+                        - Use a full entity id to exclude a specific mob (e.g. "alexsmobs:grizzly_bear").
+                        Applies only to variant probing/subentries and does not remove the mob from Wildex itself.
+                        """)
+                .defineListAllowEmpty(
+                        "excludedVariantMobIds",
                         List.of(),
                         () -> "minecraft:zombie",
                         o -> {
@@ -222,15 +254,8 @@ public final class CommonConfig {
 
     private static void migrateExcludedMobIdsV130() {
         List<? extends String> current = INSTANCE.excludedModIds.get();
-        ArrayList<String> merged = new ArrayList<>();
-        java.util.HashSet<String> seen = new java.util.HashSet<>();
-
-        for (String s : current) {
-            if (s == null) continue;
-            String n = s.trim().toLowerCase(Locale.ROOT);
-            if (n.isBlank() || !seen.add(n)) continue;
-            merged.add(n);
-        }
+        ArrayList<String> merged = new ArrayList<>(WildexIdFilterMatcher.normalizeEntries(current));
+        java.util.HashSet<String> seen = new java.util.HashSet<>(merged);
         for (String required : DEFAULT_EXCLUDED_MOB_IDS) {
             String n = required.trim().toLowerCase(Locale.ROOT);
             if (n.isBlank() || !seen.add(n)) continue;
@@ -275,16 +300,13 @@ public final class CommonConfig {
         Object old = getPathValue(loaded, "general", "excludedModIds");
         if (!(old instanceof List<?> oldList)) return;
 
-        ArrayList<String> normalized = new ArrayList<>();
-        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        ArrayList<String> raw = new ArrayList<>();
         for (Object entry : oldList) {
             if (!(entry instanceof String s)) continue;
-            String n = s.trim().toLowerCase(Locale.ROOT);
-            if (n.isBlank() || !seen.add(n)) continue;
-            normalized.add(n);
+            raw.add(s);
         }
 
-        List<String> next = List.copyOf(normalized);
+        List<String> next = WildexIdFilterMatcher.normalizeEntries(raw);
         if (next.equals(INSTANCE.excludedModIds.get())) return;
         INSTANCE.excludedModIds.set(next);
     }

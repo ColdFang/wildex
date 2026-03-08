@@ -1,6 +1,9 @@
 package de.coldfang.wildex.client.data;
 
+import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
+import de.coldfang.wildex.integration.vanillabackport.WildexVanillaBackportBridge;
+import de.coldfang.wildex.util.WildexIdFilterMatcher;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -69,7 +72,15 @@ public final class WildexEntityVariantProbe {
     private static boolean isVariantProbeExcluded(Entity entity) {
         if (entity == null) return true;
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        return id != null && VARIANT_PROBE_EXCLUDED_ENTITY_IDS.contains(id);
+        if (id == null) return true;
+        return VARIANT_PROBE_EXCLUDED_ENTITY_IDS.contains(id)
+                || WildexIdFilterMatcher.matches(id, WildexClientConfigView.excludedVariantMobIds());
+    }
+
+    public static boolean isVariantProbeExcluded(ResourceLocation id) {
+        if (id == null) return true;
+        return VARIANT_PROBE_EXCLUDED_ENTITY_IDS.contains(id)
+                || WildexIdFilterMatcher.matches(id, WildexClientConfigView.excludedVariantMobIds());
     }
 
     @SuppressWarnings("unused")
@@ -123,6 +134,10 @@ public final class WildexEntityVariantProbe {
         if (!bridged.isEmpty()) {
             return bridged;
         }
+        bridged = WildexVanillaBackportBridge.discoverVariantOptions(entity, cap);
+        if (!bridged.isEmpty()) {
+            return bridged;
+        }
 
         List<Accessor> accessors = resolveAccessors(mob.getClass());
         if (accessors.isEmpty()) return List.of();
@@ -155,6 +170,9 @@ public final class WildexEntityVariantProbe {
         if (optionId == null || optionId.isBlank()) return false;
 
         if (WildexCobblemonBridge.applyVariantOption(entity, optionId)) {
+            return true;
+        }
+        if (WildexVanillaBackportBridge.applyVariantOption(entity, optionId)) {
             return true;
         }
 
@@ -740,6 +758,7 @@ public final class WildexEntityVariantProbe {
 
         Object current = read(accessor.getter(), entity);
         addCandidate(out, current);
+        discoverValueTypeCandidates(accessor, out);
 
         if (current instanceof Holder<?> holder) {
             discoverHolderCandidates(setterType, holder, entity.level(), out);
@@ -775,6 +794,52 @@ public final class WildexEntityVariantProbe {
         }
 
         return new ArrayList<>(out.values());
+    }
+
+    private static void discoverValueTypeCandidates(Accessor accessor, Map<String, Object> out) {
+        if (accessor == null || out == null) return;
+
+        Class<?> setterType = accessor.setter().getParameterTypes()[0];
+        addStaticCandidatesFromClass(accessor.valueType(), setterType, out);
+        if (setterType != accessor.valueType()) {
+            addStaticCandidatesFromClass(setterType, setterType, out);
+        }
+    }
+
+    private static void addStaticCandidatesFromClass(Class<?> sourceClass, Class<?> setterType, Map<String, Object> out) {
+        if (sourceClass == null || setterType == null || out == null) return;
+        if (sourceClass.isPrimitive()) return;
+        if (sourceClass.getName().startsWith("java.")) return;
+
+        for (Field field : sourceClass.getFields()) {
+            if (!Modifier.isStatic(field.getModifiers())) continue;
+
+            Object value = readStaticField(field);
+            addCandidateIfAssignable(setterType, value, out);
+            if (out.size() >= RESOURCE_KEY_SCAN_CAP) return;
+        }
+
+        for (Method method : sourceClass.getMethods()) {
+            if (!isLikelyVariantRegistryMethod(method, setterType)) continue;
+
+            Object result = read(method, null);
+            if (result == null) continue;
+
+            addCandidateIfAssignable(setterType, result, out);
+            if (out.size() >= RESOURCE_KEY_SCAN_CAP) return;
+
+            for (Object element : extractElements(result)) {
+                addCandidateIfAssignable(setterType, element, out);
+                if (out.size() >= RESOURCE_KEY_SCAN_CAP) return;
+            }
+        }
+    }
+
+    private static void addCandidateIfAssignable(Class<?> setterType, Object value, Map<String, Object> out) {
+        if (setterType == null || value == null || out == null) return;
+        if (setterType.isInstance(value)) {
+            addCandidate(out, value);
+        }
     }
 
     private static void discoverHolderCandidates(Class<?> setterType, Holder<?> holder, Level level, Map<String, Object> out) {
@@ -1043,6 +1108,7 @@ public final class WildexEntityVariantProbe {
         return false;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private static boolean isLikelyVariantRegistryMethod(Method method, Class<?> setterType) {
         if (method == null || setterType == null) return false;
         if (!Modifier.isStatic(method.getModifiers())) return false;

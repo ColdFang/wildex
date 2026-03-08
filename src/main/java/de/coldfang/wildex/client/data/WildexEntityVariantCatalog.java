@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client.data;
 
 import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
+import de.coldfang.wildex.integration.vanillabackport.WildexVanillaBackportBridge;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -39,8 +40,7 @@ public final class WildexEntityVariantCatalog {
             return;
         }
 
-        Minecraft mc = Minecraft.getInstance();
-        Level level = mc == null ? null : mc.level;
+        Level level = Minecraft.getInstance().level;
         if (level == null) return;
 
         clientTickCounter++;
@@ -85,6 +85,7 @@ public final class WildexEntityVariantCatalog {
     public static SupportState requestSupport(EntityType<?> type) {
         ResourceLocation id = idOf(type);
         if (id == null) return SupportState.UNSUPPORTED;
+        if (WildexEntityVariantProbe.isVariantProbeExcluded(id)) return SupportState.UNSUPPORTED;
 
         List<WildexEntityVariantProbe.VariantOption> cachedOptions = OPTIONS_CACHE.get(id);
         if (cachedOptions != null) {
@@ -109,6 +110,7 @@ public final class WildexEntityVariantCatalog {
     public static ProbeState requestOptions(EntityType<?> type) {
         ResourceLocation id = idOf(type);
         if (id == null) return ProbeState.UNSUPPORTED;
+        if (WildexEntityVariantProbe.isVariantProbeExcluded(id)) return ProbeState.UNSUPPORTED;
 
         List<WildexEntityVariantProbe.VariantOption> cached = OPTIONS_CACHE.get(id);
         if (cached != null) {
@@ -134,6 +136,7 @@ public final class WildexEntityVariantCatalog {
     public static List<WildexEntityVariantProbe.VariantOption> cachedOptions(EntityType<?> type) {
         ResourceLocation id = idOf(type);
         if (id == null) return List.of();
+        if (WildexEntityVariantProbe.isVariantProbeExcluded(id)) return List.of();
         List<WildexEntityVariantProbe.VariantOption> cached = OPTIONS_CACHE.get(id);
         return cached == null ? List.of() : cached;
     }
@@ -142,21 +145,10 @@ public final class WildexEntityVariantCatalog {
         return CACHE_REVISION.get();
     }
 
-    public static boolean hasVariants(EntityType<?> type, Level level) {
-        ResourceLocation id = idOf(type);
-        if (id == null) return false;
-
-        Boolean cached = SUPPORT_CACHE.get(id);
-        if (cached != null) return cached;
-
-        boolean supported = probeSupport(type, level);
-        SUPPORT_CACHE.put(id, supported);
-        return supported;
-    }
-
     public static List<WildexEntityVariantProbe.VariantOption> options(EntityType<?> type, Level level) {
         ResourceLocation id = idOf(type);
         if (id == null) return List.of();
+        if (WildexEntityVariantProbe.isVariantProbeExcluded(id)) return List.of();
 
         List<WildexEntityVariantProbe.VariantOption> cached = OPTIONS_CACHE.get(id);
         if (cached != null) return cached;
@@ -172,6 +164,7 @@ public final class WildexEntityVariantCatalog {
         SUPPORT_CACHE.clear();
         OPTIONS_CACHE.clear();
         WildexCobblemonBridge.clearCache();
+        WildexVanillaBackportBridge.clearCache();
         CACHE_REVISION.incrementAndGet();
         clientTickCounter = 0;
     }

@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.6.1 - 2026-03-08
+
+### Added
+- Added a new common config option `excludedVariantMobIds`
+  - only affects Wildex variant probing/subentries and does not hide the mob itself from Wildex
+- Added client/server sync for `excludedVariantMobIds` so variant exclusions stay server-authoritative in multiplayer.
+
+### Changed
+- Reworked Pedestal hologram rendering for better compatibility with complex modded renderers.
+- AzureLib-based mobs now use a dedicated compatibility path instead of the old generic vertex-wrapping approach.
+- Preview/Pedestal entity creation now normalizes more display-only entity state before rendering, improving presentation for some modded mobs.
+- Variant exclusion matching now uses the same normalized ID filter logic as other Wildex mob filters.
+
+### Fixed
+- Fixed a client crash caused by rendering certain modded mobs as Pedestal holograms:
+  - affected stacks included combinations such as AzureLib / TravelersLib / Sodium / Iris
+  - the crash was caused by the old vertex-consumer wrapping approach in the hologram renderer
+- Fixed multiple Pedestal hologram rendering issues:
+  - reduced Z-fighting between hologram passes
+  - reduced unstable color flicker between blue hologram layers
+  - stopped hologram-only idle animation playback for displayed mobs
+  - improved hologram cone visibility
+- Fixed AzureLib hologram side/transparency artifacts where large body surfaces could appear partially see-through.
+- Fixed Jurassic Saga and similar growth-driven mobs rendering too small in Wildex/preview creation paths by preparing display entities in a stable adult/render-ready state.
+- Fixed repeated variant cache invalidation when reopening Wildex:
+  - server config sync now only clears variant caches when synced values actually changed
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Multiplayer-safe:
+  - discovery/progress flow remains server-authoritative
+  - new variant exclusion config is synced from the server to clients
+- Safe update path from `2.6.0`.
+
 ## 2.6.0 - 2026-03-05
 At this point, I have implemented all features I wanted to see in Wildex for now, so I am starting the port to newer versions (1.21.11) to be better prepared for the next update drop.  
 If issues appear, the 1.21.1 version will of course still receive bug-fix updates.
