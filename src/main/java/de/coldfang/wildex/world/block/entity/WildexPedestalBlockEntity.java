@@ -378,7 +378,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
 
     private void clearClientRenderEntity() {
         if (cachedClientRenderEntity != null) {
-            cachedClientRenderEntity.discard();
+            WildexEntityFactory.discardQuietly(cachedClientRenderEntity);
         }
         cachedClientRenderEntity = null;
         cachedClientRenderEntityId = null;
@@ -420,7 +420,7 @@ public final class WildexPedestalBlockEntity extends BlockEntity {
         }
 
         boolean mob = e instanceof Mob;
-        e.discard();
+        WildexEntityFactory.discardQuietly(e);
         if (mob) {
             MOB_TYPE_VALIDATION_CACHE.put(id, new MobTypeCacheEntry(true, Long.MAX_VALUE));
         } else {

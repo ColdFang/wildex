@@ -2,6 +2,7 @@ package de.coldfang.wildex.server;
 
 import de.coldfang.wildex.network.S2CWildexCompletePayload;
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.util.WildexEntityFactory;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -26,12 +27,6 @@ public final class WildexCompletionHelper {
     private static volatile String cachedConfigSignature = "";
 
     private WildexCompletionHelper() {
-    }
-
-    public static void onMobDiscovered(ServerLevel level, ServerPlayer sp) {
-        if (markCompleteIfEligible(level, sp)) {
-            notifyCompleted(sp);
-        }
     }
 
     public static boolean markCompleteIfEligible(ServerLevel level, ServerPlayer sp) {
@@ -109,7 +104,7 @@ public final class WildexCompletionHelper {
             if (e == null) continue;
 
             boolean isMob = e instanceof Mob;
-            e.discard();
+            WildexEntityFactory.discardQuietly(e);
             if (!isMob) continue;
 
             total++;

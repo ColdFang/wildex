@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.6.2 - 2026-03-09
+
+### Fixed
+- Fixed a multiplayer/login crash caused by third-party mod interactions during Wildex mob-count/probe entity cleanup.
+- Wildex now uses a safer cleanup path for temporary probe/display entities so faulty discard hooks from other mods no longer break login, completion checks, or related preview logic.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.6.1`.
+
 ## 2.6.1 - 2026-03-08
 
 ### Added

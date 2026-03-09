@@ -25,6 +25,15 @@ public final class WildexEntityFactory {
         }
     }
 
+    public static void discardQuietly(@Nullable Entity entity) {
+        if (entity == null) return;
+        try {
+            entity.discard();
+        } catch (Throwable ignored) {
+            // Some third-party mods hook entity discard in ways that can fail on probe entities.
+        }
+    }
+
     private static void normalizeDisplayEntity(@Nullable Entity entity) {
         if (entity == null) return;
 

@@ -23,7 +23,7 @@ public final class HeaderExtractor {
             Entity e = WildexEntityFactory.tryCreate(type, level);
             if (e != null) {
                 aggression = classify(type, e);
-                e.discard();
+                WildexEntityFactory.discardQuietly(e);
             }
         }
 

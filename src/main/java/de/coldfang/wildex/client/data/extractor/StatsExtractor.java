@@ -25,7 +25,7 @@ public final class StatsExtractor {
         try {
             return readFromLiving(living);
         } finally {
-            living.discard();
+            WildexEntityFactory.discardQuietly(living);
         }
     }
 
@@ -42,7 +42,7 @@ public final class StatsExtractor {
             }
             return Result.ready(readFromLiving(living));
         } finally {
-            living.discard();
+            WildexEntityFactory.discardQuietly(living);
         }
     }
 

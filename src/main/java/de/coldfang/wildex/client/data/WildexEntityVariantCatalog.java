@@ -172,28 +172,28 @@ public final class WildexEntityVariantCatalog {
     private static boolean probeSupport(EntityType<?> type, Level level) {
         Entity entity = WildexEntityFactory.tryCreate(type, level);
         if (!(entity instanceof Mob)) {
-            if (entity != null) entity.discard();
+            WildexEntityFactory.discardQuietly(entity);
             return false;
         }
 
         try {
             return WildexEntityVariantProbe.supportsVariants(entity);
         } finally {
-            entity.discard();
+            WildexEntityFactory.discardQuietly(entity);
         }
     }
 
     private static List<WildexEntityVariantProbe.VariantOption> discoverOptions(EntityType<?> type, Level level) {
         Entity entity = WildexEntityFactory.tryCreate(type, level);
         if (!(entity instanceof Mob)) {
-            if (entity != null) entity.discard();
+            WildexEntityFactory.discardQuietly(entity);
             return List.of();
         }
 
         try {
             return WildexEntityVariantProbe.discoverOptions(entity, Integer.MAX_VALUE);
         } finally {
-            entity.discard();
+            WildexEntityFactory.discardQuietly(entity);
         }
     }
 

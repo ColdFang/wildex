@@ -89,7 +89,7 @@ public final class WildexMobIndexModel {
         if (e == null) return false;
 
         boolean ok = e instanceof Mob;
-        e.discard();
+        WildexEntityFactory.discardQuietly(e);
         return ok;
     }
 
