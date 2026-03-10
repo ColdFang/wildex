@@ -2,7 +2,6 @@ package de.coldfang.wildex.client.screen;
 
 import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.WildexNetworkClient;
-import de.coldfang.wildex.config.ClientConfig.DesignStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -161,8 +160,13 @@ public final class WildexShareOverlayController {
                     this.host.setFocused(null);
                 },
                 null,
-                WildexShareOverlayController::shareButtonBgTexture,
-                () -> SHARE_PEEK_SYMBOL
+                null,
+                () -> SHARE_PEEK_SYMBOL,
+                1.0f,
+                WildexShareOverlayController::shareEntryButtonBackgroundColor,
+                true,
+                null,
+                null
         );
         this.host.addShareWidget(this.shareEntryButton);
         this.shareEntryButton.setFrameThickness(1, 1);
@@ -176,7 +180,13 @@ public final class WildexShareOverlayController {
                 SHARE_CLAIM_PAYOUTS_LABEL,
                 WildexNetworkClient::claimSharePayouts,
                 () -> new ItemStack(resolveShareCurrencyItem()),
-                WildexShareOverlayController::shareButtonBgTexture
+                null,
+                null,
+                1.0f,
+                WildexShareOverlayController::shareClaimButtonBackgroundColor,
+                true,
+                null,
+                null
         );
         this.host.addShareWidget(this.shareClaimPayoutsButton);
         this.shareClaimPayoutsButton.setFrameThickness(1, 1);
@@ -768,18 +778,12 @@ public final class WildexShareOverlayController {
         return 1.50f;
     }
 
-    private static ResourceLocation shareButtonBgTexture() {
-        DesignStyle style = WildexThemes.current().layoutProfile();
-        if (style == null) {
-            return ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_red.png");
-        }
-        return switch (style) {
-            case MODERN -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_modern.png");
-            case JUNGLE -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_jungle.png");
-            case RUNES -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_runes.png");
-            case STEAMPUNK -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_steampunk.png");
-            case VINTAGE -> ResourceLocation.fromNamespaceAndPath("wildex", "textures/gui/trophy_bg_red.png");
-        };
+    private static int shareEntryButtonBackgroundColor() {
+        return WildexUiTheme.buttonBackground();
+    }
+
+    private static int shareClaimButtonBackgroundColor() {
+        return WildexUiTheme.buttonBackground();
     }
 
     private static int scaledAtLeast(float scaleNorm, int basePx, int minPx) {

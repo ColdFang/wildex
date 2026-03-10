@@ -1,5 +1,7 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.config.ClientConfig.DesignStyle;
+
 public final class WildexUiTheme {
 
     private static final Palette VINTAGE = new Palette(
@@ -71,6 +73,18 @@ public final class WildexUiTheme {
 
     static Palette modernPalette() {
         return MODERN;
+    }
+
+    public static int buttonBackground() {
+        DesignStyle style = WildexThemes.current().layoutProfile();
+        if (style == null) style = DesignStyle.VINTAGE;
+        return switch (style) {
+            case MODERN -> 0xFFC7E7E4;
+            case JUNGLE -> 0xFFD6E2B7;
+            case RUNES -> 0xFFDDD3EC;
+            case STEAMPUNK -> 0xFFE8D7BB;
+            case VINTAGE -> 0xFFE8D4C3;
+        };
     }
 
     public record Palette(

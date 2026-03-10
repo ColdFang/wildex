@@ -137,13 +137,10 @@ public final class WildexStyleButton extends Button {
         int iy1 = y1 - fillInset;
 
         ResourceLocation bg = this.backgroundTextureSupplier == null ? null : this.backgroundTextureSupplier.get();
-        Integer bgColor = this.backgroundColorSupplier == null ? null : this.backgroundColorSupplier.get();
-        if (bgColor != null && ix1 > ix0 && iy1 > iy0) {
-            graphics.fill(ix0, iy0, ix1, iy1, bgColor);
-            int overlay = !this.active
-                    ? 0x66000000
-                    : (this.isHovered() ? 0x22000000 : 0x11000000);
-            graphics.fill(ix0, iy0, ix1, iy1, overlay);
+        Integer baseBgColor = this.backgroundColorSupplier == null ? null : this.backgroundColorSupplier.get();
+        Integer resolvedBgColor = baseBgColor == null ? null : resolveSolidBackgroundColor(baseBgColor, this.active, this.isHovered());
+        if (resolvedBgColor != null && ix1 > ix0 && iy1 > iy0) {
+            graphics.fill(ix0, iy0, ix1, iy1, resolvedBgColor);
         } else if (bg != null && ix1 > ix0 && iy1 > iy0) {
             graphics.blit(
                     bg,
@@ -165,7 +162,9 @@ public final class WildexStyleButton extends Button {
         drawFrame(graphics, x0, y0, x1, y1);
 
         var font = Minecraft.getInstance().font;
-        int color = this.active ? INK : INK_DISABLED;
+        int color = resolvedBgColor == null
+                ? (this.active ? INK : INK_DISABLED)
+                : resolveInkColor(resolvedBgColor, this.active);
         ItemStack trailing = this.trailingItemSupplier == null ? ItemStack.EMPTY : this.trailingItemSupplier.get();
         boolean hasTrailing = trailing != null && !trailing.isEmpty();
         String trailingSymbol = this.trailingSymbolSupplier == null ? "" : this.trailingSymbolSupplier.get();
@@ -289,6 +288,51 @@ public final class WildexStyleButton extends Button {
             return Math.max(2, this.customFillInset);
         }
         return 2;
+    }
+
+    private static int resolveSolidBackgroundColor(int baseColor, boolean active, boolean hovered) {
+        int color = forceOpaque(baseColor);
+        if (!active) {
+            return mixOpaque(color, 0xFF8E847A, 0.40f);
+        }
+        if (hovered) {
+            return mixOpaque(color, 0xFFFFFFFF, 0.14f);
+        }
+        return color;
+    }
+
+    private static int resolveInkColor(int backgroundColor, boolean active) {
+        int activeInk = luminance(backgroundColor) >= 0.62f ? 0xFF261910 : 0xFFF8F4EC;
+        if (active) return activeInk;
+        return mixOpaque(activeInk, backgroundColor, 0.45f);
+    }
+
+    private static int forceOpaque(int color) {
+        return 0xFF000000 | (color & 0x00FFFFFF);
+    }
+
+    private static int mixOpaque(int fromColor, int toColor, float t) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, t));
+        int from = forceOpaque(fromColor);
+        int to = forceOpaque(toColor);
+        int fr = (from >> 16) & 0xFF;
+        int fg = (from >> 8) & 0xFF;
+        int fb = from & 0xFF;
+        int tr = (to >> 16) & 0xFF;
+        int tg = (to >> 8) & 0xFF;
+        int tb = to & 0xFF;
+        int r = Math.round(fr + ((tr - fr) * clamped));
+        int g = Math.round(fg + ((tg - fg) * clamped));
+        int b = Math.round(fb + ((tb - fb) * clamped));
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
+    private static float luminance(int color) {
+        int opaque = forceOpaque(color);
+        float r = ((opaque >> 16) & 0xFF) / 255.0f;
+        float g = ((opaque >> 8) & 0xFF) / 255.0f;
+        float b = (opaque & 0xFF) / 255.0f;
+        return (0.2126f * r) + (0.7152f * g) + (0.0722f * b);
     }
 
     private static void drawScaledItem(GuiGraphics graphics, ItemStack stack, int x, int y, int size) {

@@ -362,7 +362,7 @@ public final class WildexScreen extends Screen {
                     this.topMenuAnimLastNanos = System.nanoTime();
                 },
                 null,
-                this::topButtonBackgroundTexture,
+                null,
                 () -> this.topMenuExpanded ? "-" : "+",
                 1.45f,
                 this::menuButtonBackgroundColor,
@@ -388,7 +388,13 @@ public final class WildexScreen extends Screen {
                     }
                 },
                 null,
-                this::topButtonBackgroundTexture
+                null,
+                null,
+                1.0f,
+                this::guiScaleButtonBackgroundColor,
+                true,
+                null,
+                null
         ));
         this.guiScaleToggleButton.setFrameThickness(1, 1);
 
@@ -410,7 +416,13 @@ public final class WildexScreen extends Screen {
                     }
                 },
                 null,
-                this::topButtonBackgroundTexture
+                null,
+                null,
+                1.0f,
+                this::themeButtonBackgroundColor,
+                true,
+                null,
+                null
         ));
         this.styleButton.setFrameThickness(1, 1);
         updateTopMenuButtonsVisibility();
@@ -1758,7 +1770,15 @@ public final class WildexScreen extends Screen {
     }
 
     private Integer menuButtonBackgroundColor() {
-        return WildexThemes.isModernLayout() ? MODERN_MENU_SLIDER_BG : null;
+        return WildexUiTheme.buttonBackground();
+    }
+
+    private Integer guiScaleButtonBackgroundColor() {
+        return WildexUiTheme.buttonBackground();
+    }
+
+    private Integer themeButtonBackgroundColor() {
+        return WildexUiTheme.buttonBackground();
     }
 
     private Integer menuButtonOuterFrameColor() {
