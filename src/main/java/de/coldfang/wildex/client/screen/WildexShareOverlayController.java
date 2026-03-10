@@ -169,7 +169,8 @@ public final class WildexShareOverlayController {
                 null
         );
         this.host.addShareWidget(this.shareEntryButton);
-        this.shareEntryButton.setFrameThickness(1, 1);
+        this.shareEntryButton.setFrameThickness(2, 1);
+        this.shareEntryButton.setFillInset(3);
         this.shareEntryButton.setTrailingOffsetX(SHARE_PEEK_SYMBOL_NUDGE_X);
 
         this.shareClaimPayoutsButton = new WildexStyleButton(
@@ -189,7 +190,8 @@ public final class WildexShareOverlayController {
                 null
         );
         this.host.addShareWidget(this.shareClaimPayoutsButton);
-        this.shareClaimPayoutsButton.setFrameThickness(1, 1);
+        this.shareClaimPayoutsButton.setFrameThickness(2, 1);
+        this.shareClaimPayoutsButton.setFillInset(3);
         this.shareClaimPayoutsButton.setTrailingOffsetX(CLAIM_PEEK_ITEM_NUDGE_X);
         configureShareDock(layout, true);
         configureClaimDock(layout, true);

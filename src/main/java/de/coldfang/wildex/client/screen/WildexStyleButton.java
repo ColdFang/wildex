@@ -13,15 +13,9 @@ import java.util.function.Supplier;
 
 public final class WildexStyleButton extends Button {
 
-    private static final int FRAME_OUTER = 0x99D6B89C;
-    private static final int FRAME_INNER = 0x77FFFFFF;
-
     private static final int FILL_IDLE = 0x33140E0A;
     private static final int FILL_HOVER = 0x55231811;
     private static final int FILL_DISABLED = 0x16000000;
-
-    private static final int INK = 0xFFEFDCC7;
-    private static final int INK_DISABLED = 0x99C8B8A7;
     private static final int TEXT_Y_OFFSET = 1;
     private static final int ITEM_BASE_SIZE = 16;
     private static final int BG_TEX_SIZE = 128;
@@ -41,6 +35,7 @@ public final class WildexStyleButton extends Button {
     private Integer clipLeftX = null;
     private int trailingOffsetX = 0;
 
+    @SuppressWarnings("unused")
     public WildexStyleButton(
             int x,
             int y,
@@ -54,6 +49,7 @@ public final class WildexStyleButton extends Button {
         this(x, y, w, h, label, action, trailingItemSupplier, backgroundTextureSupplier, null, 1.0f, null, true, null, null);
     }
 
+    @SuppressWarnings("unused")
     public WildexStyleButton(
             int x,
             int y,
@@ -139,32 +135,14 @@ public final class WildexStyleButton extends Button {
         ResourceLocation bg = this.backgroundTextureSupplier == null ? null : this.backgroundTextureSupplier.get();
         Integer baseBgColor = this.backgroundColorSupplier == null ? null : this.backgroundColorSupplier.get();
         Integer resolvedBgColor = baseBgColor == null ? null : resolveSolidBackgroundColor(baseBgColor, this.active, this.isHovered());
-        if (resolvedBgColor != null && ix1 > ix0 && iy1 > iy0) {
-            graphics.fill(ix0, iy0, ix1, iy1, resolvedBgColor);
-        } else if (bg != null && ix1 > ix0 && iy1 > iy0) {
-            graphics.blit(
-                    bg,
-                    ix0,
-                    iy0,
-                    ix1 - ix0,
-                    iy1 - iy0,
-                    0,
-                    0,
-                    BG_TEX_SIZE,
-                    BG_TEX_SIZE,
-                    BG_TEX_SIZE,
-                    BG_TEX_SIZE
-            );
-            graphics.fill(ix0, iy0, ix1, iy1, fill);
-        } else {
-            graphics.fill(ix0, iy0, ix1, iy1, fill);
-        }
-        drawFrame(graphics, x0, y0, x1, y1);
+        int surfaceColor = resolveSurfaceColor(resolvedBgColor, bg, fill, this.active, this.isHovered());
+        drawSurface(graphics, ix0, iy0, ix1, iy1, bg, resolvedBgColor, surfaceColor, fill, this.active, this.isHovered());
+        drawFrame(graphics, x0, y0, x1, y1, surfaceColor, this.active, this.isHovered());
 
         var font = Minecraft.getInstance().font;
-        int color = resolvedBgColor == null
-                ? (this.active ? INK : INK_DISABLED)
-                : resolveInkColor(resolvedBgColor, this.active);
+        int color = (resolvedBgColor == null && bg == null)
+                ? (this.active ? resolveInkColor(surfaceColor, true) : resolveInkColor(surfaceColor, false))
+                : resolveInkColor(surfaceColor, this.active);
         ItemStack trailing = this.trailingItemSupplier == null ? ItemStack.EMPTY : this.trailingItemSupplier.get();
         boolean hasTrailing = trailing != null && !trailing.isEmpty();
         String trailingSymbol = this.trailingSymbolSupplier == null ? "" : this.trailingSymbolSupplier.get();
@@ -245,9 +223,61 @@ public final class WildexStyleButton extends Button {
                 && mouseY < this.getY() + this.height;
     }
 
-    private void drawFrame(GuiGraphics g, int x0, int y0, int x1, int y1) {
-        int outerCol = this.customOuterFrameColor == null ? FRAME_OUTER : this.customOuterFrameColor;
-        int innerCol = this.customInnerFrameColor == null ? FRAME_INNER : this.customInnerFrameColor;
+    private void drawSurface(
+            GuiGraphics graphics,
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            ResourceLocation bg,
+            Integer resolvedBgColor,
+            int surfaceColor,
+            int fill,
+            boolean active,
+            boolean hovered
+    ) {
+        if (x1 <= x0 || y1 <= y0) {
+            return;
+        }
+
+        if (resolvedBgColor != null) {
+            graphics.fill(x0, y0, x1, y1, resolvedBgColor);
+        } else if (bg != null) {
+            graphics.blit(
+                    bg,
+                    x0,
+                    y0,
+                    x1 - x0,
+                    y1 - y0,
+                    0,
+                    0,
+                    BG_TEX_SIZE,
+                    BG_TEX_SIZE,
+                    BG_TEX_SIZE,
+                    BG_TEX_SIZE
+            );
+            graphics.fill(x0, y0, x1, y1, fill);
+            graphics.fill(
+                    x0,
+                    y0,
+                    x1,
+                    y1,
+                    withAlpha(mixOpaque(surfaceColor, 0xFFFFFFFF, hovered ? 0.12f : 0.05f), hovered ? 0x20 : 0x14)
+            );
+        } else {
+            graphics.fill(x0, y0, x1, y1, surfaceColor);
+        }
+
+        drawSurfacePolish(graphics, x0, y0, x1, y1, surfaceColor, active, hovered);
+    }
+
+    private void drawFrame(GuiGraphics g, int x0, int y0, int x1, int y1, int surfaceColor, boolean active, boolean hovered) {
+        int outerCol = this.customOuterFrameColor == null
+                ? resolveDefaultOuterFrameColor(surfaceColor, active, hovered)
+                : resolveCustomFrameColor(this.customOuterFrameColor, active, hovered, false);
+        int innerCol = this.customInnerFrameColor == null
+                ? resolveDefaultInnerFrameColor(surfaceColor, active, hovered)
+                : resolveCustomFrameColor(this.customInnerFrameColor, active, hovered, true);
         int outerThickness = resolveOuterThickness();
         int innerThickness = resolveInnerThickness();
 
@@ -267,11 +297,17 @@ public final class WildexStyleButton extends Button {
         }
 
         if (this.thickFrame && (outerThickness > 1 || innerThickness > 1)) {
-            int accent = 0xAAFFFFFF;
+            int accent = withAlpha(resolveFrameAccentColor(surfaceColor, active, hovered), active ? 0xCC : 0x92);
             g.fill(x0 + 1, y0 + 1, x0 + 3, y0 + 2, accent);
             g.fill(x1 - 3, y0 + 1, x1 - 1, y0 + 2, accent);
             g.fill(x0 + 1, y1 - 2, x0 + 3, y1 - 1, accent);
             g.fill(x1 - 3, y1 - 2, x1 - 1, y1 - 1, accent);
+        }
+
+        if (active && hovered && x1 - x0 >= 12 && y1 - y0 >= 8) {
+            int hoverLine = withAlpha(resolveFrameAccentColor(surfaceColor, true, true), 0x70);
+            g.fill(x0 + 2, y0 + 2, x1 - 2, y0 + 3, hoverLine);
+            g.fill(x0 + 2, y1 - 3, x1 - 2, y1 - 2, withAlpha(mixOpaque(surfaceColor, 0xFF000000, 0.60f), 0x38));
         }
     }
 
@@ -288,6 +324,88 @@ public final class WildexStyleButton extends Button {
             return Math.max(2, this.customFillInset);
         }
         return 2;
+    }
+
+    private static int resolveSurfaceColor(Integer resolvedBgColor, ResourceLocation bg, int fill, boolean active, boolean hovered) {
+        if (resolvedBgColor != null) {
+            return forceOpaque(resolvedBgColor);
+        }
+
+        int themeBase = forceOpaque(WildexUiTheme.buttonBackground());
+        if (bg != null) {
+            int textured = hovered ? mixOpaque(themeBase, 0xFFFFFFFF, 0.08f) : themeBase;
+            return active ? textured : mixOpaque(textured, 0xFF8E847A, 0.36f);
+        }
+
+        int overlayBase = forceOpaque(fill);
+        int mixed = mixOpaque(themeBase, overlayBase, active ? 0.34f : 0.20f);
+        if (hovered && active) {
+            mixed = mixOpaque(mixed, 0xFFFFFFFF, 0.06f);
+        }
+        return mixed;
+    }
+
+    private static void drawSurfacePolish(GuiGraphics graphics, int x0, int y0, int x1, int y1, int surfaceColor, boolean active, boolean hovered) {
+        int width = x1 - x0;
+        int height = y1 - y0;
+        if (width <= 2 || height <= 2) {
+            return;
+        }
+
+        int topBandH = Math.max(1, Math.min(4, height / 3));
+        int bottomBandH = Math.max(1, Math.min(4, height / 4));
+        int leftBandW = Math.max(1, Math.min(2, width / 12));
+        int rightBandW = Math.max(1, Math.min(2, width / 12));
+
+        int topGlow = withAlpha(mixOpaque(surfaceColor, 0xFFFFFFFF, hovered ? 0.64f : 0.50f), active ? (hovered ? 0x82 : 0x66) : 0x38);
+        graphics.fill(x0, y0, x1, Math.min(y1, y0 + topBandH), topGlow);
+
+        int sheenY = y0 + topBandH;
+        if (sheenY < y1 - 1) {
+            graphics.fill(
+                    x0 + 1,
+                    sheenY,
+                    x1 - 1,
+                    sheenY + 1,
+                    withAlpha(mixOpaque(surfaceColor, 0xFFFFFFFF, 0.82f), active ? (hovered ? 0x68 : 0x44) : 0x24)
+            );
+        }
+
+        graphics.fill(
+                x0,
+                Math.max(y0, y1 - bottomBandH),
+                x1,
+                y1,
+                withAlpha(mixOpaque(surfaceColor, 0xFF000000, hovered ? 0.28f : 0.38f), active ? 0x74 : 0x46)
+        );
+
+        if (height >= 8) {
+            graphics.fill(
+                    x0,
+                    y0 + 1,
+                    x0 + leftBandW,
+                    y1 - 1,
+                    withAlpha(mixOpaque(surfaceColor, 0xFFFFFFFF, 0.66f), active ? (hovered ? 0x5C : 0x40) : 0x22)
+            );
+            graphics.fill(
+                    x1 - rightBandW,
+                    y0 + 1,
+                    x1,
+                    y1 - 1,
+                    withAlpha(mixOpaque(surfaceColor, 0xFF000000, 0.52f), active ? 0x34 : 0x20)
+            );
+        }
+
+        if (width >= 18 && height >= 10) {
+            int centerY = y0 + Math.max(2, height / 2);
+            graphics.fill(
+                    x0 + 3,
+                    centerY,
+                    x1 - 3,
+                    centerY + 1,
+                    withAlpha(mixOpaque(surfaceColor, 0xFFFFFFFF, 0.74f), hovered ? 0x22 : 0x14)
+            );
+        }
     }
 
     private static int resolveSolidBackgroundColor(int baseColor, boolean active, boolean hovered) {
@@ -307,8 +425,46 @@ public final class WildexStyleButton extends Button {
         return mixOpaque(activeInk, backgroundColor, 0.45f);
     }
 
+    private static int resolveDefaultOuterFrameColor(int surfaceColor, boolean active, boolean hovered) {
+        float blend = WildexThemes.isModernLayout() ? 0.66f : 0.58f;
+        int base = mixOpaque(surfaceColor, 0xFF130C08, blend);
+        if (!active) {
+            return mixOpaque(base, 0xFF82786F, 0.35f);
+        }
+        return hovered ? mixOpaque(base, 0xFFFFFFFF, 0.08f) : base;
+    }
+
+    private static int resolveDefaultInnerFrameColor(int surfaceColor, boolean active, boolean hovered) {
+        float blend = WildexThemes.isModernLayout() ? 0.46f : 0.36f;
+        int base = mixOpaque(surfaceColor, 0xFFFFFFFF, blend);
+        if (!active) {
+            return mixOpaque(base, surfaceColor, 0.32f);
+        }
+        return hovered ? mixOpaque(base, 0xFFFFFFFF, 0.14f) : base;
+    }
+
+    private static int resolveCustomFrameColor(int frameColor, boolean active, boolean hovered, boolean inner) {
+        int base = forceOpaque(frameColor);
+        if (!active) {
+            return mixOpaque(base, 0xFF8E847A, inner ? 0.26f : 0.32f);
+        }
+        return hovered ? mixOpaque(base, 0xFFFFFFFF, inner ? 0.18f : 0.10f) : base;
+    }
+
+    private static int resolveFrameAccentColor(int surfaceColor, boolean active, boolean hovered) {
+        int accent = mixOpaque(surfaceColor, 0xFFFFFFFF, hovered ? 0.84f : 0.72f);
+        if (!active) {
+            return mixOpaque(accent, surfaceColor, 0.38f);
+        }
+        return accent;
+    }
+
     private static int forceOpaque(int color) {
         return 0xFF000000 | (color & 0x00FFFFFF);
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return ((alpha & 0xFF) << 24) | (color & 0x00FFFFFF);
     }
 
     private static int mixOpaque(int fromColor, int toColor, float t) {

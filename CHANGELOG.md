@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.7.1 - 2026-03-11
+
+### Changed
+- Refined the visual styling of the top/right utility buttons for a more premium, higher-contrast look:
+  - `Menu`
+  - `Theme`
+  - `GUI Scale`
+  - `Share`
+  - `Claim`
+- Reworked shared Wildex style-button rendering with stronger surface depth, cleaner theme-aware framing, and improved hover highlights.
+- Tightened button frame/inset proportions so compact utility buttons read more clearly across Wildex themes.
+- Improved Accessorify compatibility lookup/fallback handling so Wildex can better detect accessory spyglass state across differing Accessorify helper/class layouts.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.7.0`.
+
 ## 2.7.0 - 2026-03-10
 
 ### Added

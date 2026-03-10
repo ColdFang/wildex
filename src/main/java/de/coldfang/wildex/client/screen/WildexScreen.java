@@ -396,7 +396,8 @@ public final class WildexScreen extends Screen {
                 null,
                 null
         ));
-        this.guiScaleToggleButton.setFrameThickness(1, 1);
+        this.guiScaleToggleButton.setFrameThickness(2, 1);
+        this.guiScaleToggleButton.setFillInset(3);
 
         this.styleButton = this.addRenderableWidget(new WildexStyleButton(
                 styleButtonArea.x(),
@@ -424,7 +425,8 @@ public final class WildexScreen extends Screen {
                 null,
                 null
         ));
-        this.styleButton.setFrameThickness(1, 1);
+        this.styleButton.setFrameThickness(2, 1);
+        this.styleButton.setFillInset(3);
         updateTopMenuButtonsVisibility();
         WildexNetworkClient.requestDiscoveredMobs();
 
