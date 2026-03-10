@@ -1,6 +1,8 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.integration.accessorify.WildexAccessorifySpyglassState;
+import de.coldfang.wildex.integration.accessorify.WildexSpyglassUseHelper;
 import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
@@ -11,7 +13,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -50,7 +51,7 @@ public final class WildexSpyglassDiscoveryEvents {
             return;
         }
 
-        if (!sp.isUsingItem() || !sp.getUseItem().is(Items.SPYGLASS)) {
+        if (!WildexSpyglassUseHelper.isServerSpyglassActive(sp)) {
             CHARGE.remove(sp.getUUID());
             return;
         }
@@ -117,6 +118,7 @@ public final class WildexSpyglassDiscoveryEvents {
         if (event == null) return;
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         CHARGE.remove(sp.getUUID());
+        WildexAccessorifySpyglassState.clear(sp.getUUID());
     }
 
     private static void spawnChargeParticlesForPlayer(ServerLevel level, ServerPlayer sp, Entity target) {

@@ -19,6 +19,7 @@ public final class WildexClientBootstrap {
         modEventBus.addListener(WildexClientBootstrap::onClientSetup);
         WildexClientItemProperties.register(modEventBus);
         WildexPedestalRendererRegistry.register(modEventBus);
+        NeoForge.EVENT_BUS.register(WildexAccessorifyClientEvents.class);
         NeoForge.EVENT_BUS.register(WildexSpyglassPulseEvents.class);
         NeoForge.EVENT_BUS.register(WildexClientSessionEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionClientEvents.class);

@@ -1,5 +1,7 @@
 package de.coldfang.wildex.client.data;
 
+import de.coldfang.wildex.client.data.extractor.HeaderExtractor;
+import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.util.WildexEntityFactory;
 import net.minecraft.client.Minecraft;
@@ -8,6 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.level.Level;
 import net.neoforged.fml.ModList;
 
@@ -23,6 +26,8 @@ public final class WildexMobIndexModel {
 
     private static final ConcurrentMap<String, String> MOD_DISPLAY_NAME_CACHE = new ConcurrentHashMap<>();
     private static final ConcurrentMap<ResourceLocation, String> NORMALIZED_NAME_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ResourceLocation, WildexAggression> AGGRESSION_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ResourceLocation, Boolean> TAMEABLE_CACHE = new ConcurrentHashMap<>();
     private static volatile String NAME_CACHE_LANGUAGE = "";
 
     private final List<EntityType<?>> all;
@@ -55,7 +60,43 @@ public final class WildexMobIndexModel {
     public static void clearCaches() {
         MOD_DISPLAY_NAME_CACHE.clear();
         NORMALIZED_NAME_CACHE.clear();
+        AGGRESSION_CACHE.clear();
+        TAMEABLE_CACHE.clear();
         NAME_CACHE_LANGUAGE = "";
+    }
+
+    public WildexAggression aggressionOf(EntityType<?> type) {
+        if (type == null) return WildexAggression.FRIENDLY;
+
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+
+        WildexAggression cached = AGGRESSION_CACHE.get(id);
+        if (cached != null) return cached;
+
+        Level level = Minecraft.getInstance().level;
+        WildexAggression resolved = HeaderExtractor.classify(type, level);
+        if (level != null) {
+            WildexAggression previous = AGGRESSION_CACHE.putIfAbsent(id, resolved);
+            return previous == null ? resolved : previous;
+        }
+        return resolved;
+    }
+
+    public boolean tameableOf(EntityType<?> type) {
+        if (type == null) return false;
+
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+
+        Boolean cached = TAMEABLE_CACHE.get(id);
+        if (cached != null) return cached;
+
+        Level level = Minecraft.getInstance().level;
+        boolean resolved = resolveTameable(type, level);
+        if (level != null) {
+            Boolean previous = TAMEABLE_CACHE.putIfAbsent(id, resolved);
+            return previous == null ? resolved : previous;
+        }
+        return resolved;
     }
 
     private static List<EntityType<?>> loadAll() {
@@ -91,6 +132,19 @@ public final class WildexMobIndexModel {
         boolean ok = e instanceof Mob;
         WildexEntityFactory.discardQuietly(e);
         return ok;
+    }
+
+    private static boolean resolveTameable(EntityType<?> type, Level level) {
+        if (type == null || level == null) return false;
+
+        Entity entity = WildexEntityFactory.tryCreate(type, level);
+        if (entity == null) return false;
+
+        try {
+            return entity instanceof OwnableEntity;
+        } finally {
+            WildexEntityFactory.discardQuietly(entity);
+        }
     }
 
     private static List<EntityType<?>> applyFilter(

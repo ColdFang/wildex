@@ -25,6 +25,7 @@ import de.coldfang.wildex.network.C2SRequestSharePayoutStatusPayload;
 import de.coldfang.wildex.network.C2SRequestDiscoveredMobsPayload;
 import de.coldfang.wildex.network.C2SRequestViewedMobEntriesPayload;
 import de.coldfang.wildex.network.C2SClaimSharePayoutsPayload;
+import de.coldfang.wildex.network.C2SAccessorifySpyglassStatePayload;
 import de.coldfang.wildex.network.C2SRequestMobKillsPayload;
 import de.coldfang.wildex.network.C2SRequestMobLootPayload;
 import de.coldfang.wildex.network.C2SRequestMobSpawnsPayload;
@@ -183,11 +184,27 @@ public final class WildexNetworkClient {
                 S2CPlayerUiStatePayload.TYPE,
                 S2CPlayerUiStatePayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
-                    WildexPlayerUiStateCache.set(payload.tabId(), payload.mobId());
+                    WildexPlayerUiStateCache.set(
+                            payload.tabId(),
+                            payload.mobId(),
+                            payload.discoveredOnly(),
+                            payload.friendlyEnabled(),
+                            payload.neutralEnabled(),
+                            payload.hostileEnabled(),
+                            payload.tameableEnabled()
+                    );
 
                     Minecraft mc = Minecraft.getInstance();
                     if (mc.screen instanceof WildexScreen screen) {
-                        screen.applyServerUiState(payload.tabId(), payload.mobId());
+                        screen.applyServerUiState(
+                                payload.tabId(),
+                                payload.mobId(),
+                                payload.discoveredOnly(),
+                                payload.friendlyEnabled(),
+                                payload.neutralEnabled(),
+                                payload.hostileEnabled(),
+                                payload.tameableEnabled()
+                        );
                     }
                 })
         );
@@ -320,13 +337,31 @@ public final class WildexNetworkClient {
         PacketDistributor.sendToServer(new C2SMarkMobEntryViewedPayload(mobId));
     }
 
-    public static void savePlayerUiState(String tabId, String mobId) {
+    public static void savePlayerUiState(
+            String tabId,
+            String mobId,
+            boolean discoveredOnly,
+            boolean friendlyEnabled,
+            boolean neutralEnabled,
+            boolean hostileEnabled,
+            boolean tameableEnabled
+    ) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null) return;
 
         String safeTab = tabId == null ? "" : tabId;
         String safeMob = mobId == null ? "" : mobId;
-        PacketDistributor.sendToServer(new C2SSavePlayerUiStatePayload(safeTab, safeMob));
+        PacketDistributor.sendToServer(
+                new C2SSavePlayerUiStatePayload(
+                        safeTab,
+                        safeMob,
+                        discoveredOnly,
+                        friendlyEnabled,
+                        neutralEnabled,
+                        hostileEnabled,
+                        tameableEnabled
+                )
+        );
     }
 
     public static void sendDebugDiscoverMob(ResourceLocation mobId) {
@@ -392,6 +427,12 @@ public final class WildexNetworkClient {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null) return;
         PacketDistributor.sendToServer(new C2SRequestServerConfigPayload());
+    }
+
+    public static void sendAccessorifySpyglassState(boolean active) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        PacketDistributor.sendToServer(new C2SAccessorifySpyglassStatePayload(active));
     }
 
     public record ShareCandidate(UUID playerId, String playerName) {

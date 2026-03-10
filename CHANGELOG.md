@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.7.0 - 2026-03-10
+
+### Added
+- Added a new Wildex mob-list filter menu:
+  - `Friendly`
+  - `Neutral`
+  - `Hostile`
+  - `Tameable`
+- Added per-player persistence for Wildex list filter state:
+  - stored server-side
+  - restored after closing/reopening Wildex
+  - restored after relog/server restart
+- Added per-player persistence for the `Show only discovered` toggle.
+- Added optional Accessorify compatibility for spyglass discovery/overlay behavior:
+  - Wildex now supports spyglasses equipped through Accessorify accessory slots
+  - spyglass mob labels and discovery progress can work when using Accessorify's dedicated spyglass hotkey
+- Added dedicated client/server sync for Accessorify spyglass usage state.
+- Added new localized labels/tooltips for the new filter UI in English and German.
+
+### Changed
+- Reworked the left-side mob list filtering flow so Wildex can combine:
+  - search query
+  - discovered-only toggle
+  - aggression filters
+  - tameable filter
+- Reworked the filter UI from simple inline toggles into a dedicated expandable filter control.
+- Improved filter button visuals and theme-specific presentation across Wildex themes.
+- Added aggression/tameable caching for the mob index to keep the new filters responsive.
+- Improved aggression classification reuse so index/filter logic and header extraction stay consistent.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.6.2`.
+- Multiplayer-safe:
+  - filter/discovered-only state is stored server-side per player
+  - Accessorify support remains optional and only activates when the mod is present
+- Important:
+  - client and server should run the same Wildex version for `2.7.0`, because the Wildex player UI-state packet format was expanded.
+
 ## 2.6.2 - 2026-03-09
 
 ### Fixed

@@ -1,6 +1,7 @@
 package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.integration.accessorify.WildexSpyglassUseHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.debug.DebugRenderer;
@@ -11,7 +12,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -53,7 +53,7 @@ public final class WildexSpyglassKnownMobOverlayClient {
             return;
         }
 
-        if (!mc.player.isUsingItem() || !mc.player.getUseItem().is(Items.SPYGLASS)) {
+        if (!WildexSpyglassUseHelper.isClientSpyglassActive(mc.player)) {
             fadeOutAndForget();
             return;
         }

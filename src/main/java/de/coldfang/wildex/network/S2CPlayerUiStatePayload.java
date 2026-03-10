@@ -6,7 +6,15 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 
-public record S2CPlayerUiStatePayload(String tabId, String mobId) implements CustomPacketPayload {
+public record S2CPlayerUiStatePayload(
+        String tabId,
+        String mobId,
+        boolean discoveredOnly,
+        boolean friendlyEnabled,
+        boolean neutralEnabled,
+        boolean hostileEnabled,
+        boolean tameableEnabled
+) implements CustomPacketPayload {
 
     public static final Type<S2CPlayerUiStatePayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(WildexNetwork.MOD_ID, "player_ui_state"));
@@ -16,8 +24,21 @@ public record S2CPlayerUiStatePayload(String tabId, String mobId) implements Cus
                     (buf, p) -> {
                         buf.writeUtf(p.tabId() == null ? "" : p.tabId(), 32);
                         buf.writeUtf(p.mobId() == null ? "" : p.mobId(), 256);
+                        buf.writeBoolean(p.discoveredOnly());
+                        buf.writeBoolean(p.friendlyEnabled());
+                        buf.writeBoolean(p.neutralEnabled());
+                        buf.writeBoolean(p.hostileEnabled());
+                        buf.writeBoolean(p.tameableEnabled());
                     },
-                    buf -> new S2CPlayerUiStatePayload(buf.readUtf(32), buf.readUtf(256))
+                    buf -> new S2CPlayerUiStatePayload(
+                            buf.readUtf(32),
+                            buf.readUtf(256),
+                            buf.readBoolean(),
+                            buf.readBoolean(),
+                            buf.readBoolean(),
+                            buf.readBoolean(),
+                            buf.readBoolean()
+                    )
             );
 
     @Override

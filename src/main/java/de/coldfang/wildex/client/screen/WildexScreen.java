@@ -7,6 +7,7 @@ import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
+import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
@@ -31,6 +32,7 @@ public final class WildexScreen extends Screen {
     private static final Component TITLE = Component.translatable("screen.wildex.title");
     private static final Component SEARCH_LABEL = Component.translatable("gui.wildex.search");
     private static final Component SHARE_BUTTON_LABEL = Component.translatable("gui.wildex.share.button");
+    private static final Component FILTER_MENU_LABEL = Component.translatable("gui.wildex.filter.button");
 
     private static final int LIST_GAP = 10;
     private static final int LIST_BOTTOM_CUT = 80;
@@ -40,6 +42,14 @@ public final class WildexScreen extends Screen {
     private static final Component PREVIEW_BABY_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_baby");
     private static final Component PREVIEW_ADULT_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_adult");
     private static final Component DISCOVERED_ONLY_TOOLTIP = Component.translatable("tooltip.wildex.discovered_only");
+    private static final Component FRIENDLY_FILTER_LABEL = Component.translatable("gui.wildex.aggression.friendly");
+    private static final Component NEUTRAL_FILTER_LABEL = Component.translatable("gui.wildex.aggression.neutral");
+    private static final Component HOSTILE_FILTER_LABEL = Component.translatable("gui.wildex.aggression.hostile");
+    private static final Component TAMEABLE_FILTER_LABEL = Component.translatable("gui.wildex.tameable.filter.full");
+    private static final Component FRIENDLY_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.friendly");
+    private static final Component NEUTRAL_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.neutral");
+    private static final Component HOSTILE_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.hostile");
+    private static final Component TAMEABLE_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.tameable.filter");
     private static final Component PREVIEW_CONTROLS_LABEL = Component.translatable("gui.wildex.preview_controls_hint");
     private static final List<Component> PREVIEW_CONTROLS_TOOLTIP = List.of(
             Component.translatable("tooltip.wildex.preview_controls.title"),
@@ -92,6 +102,11 @@ public final class WildexScreen extends Screen {
     private MobListWidget mobList;
     private MobPreviewResetButton previewResetButton;
     private MobPreviewResetButton previewBabyToggleButton;
+    private WildexFilterChipButton friendlyFilterButton;
+    private WildexFilterChipButton neutralFilterButton;
+    private WildexFilterChipButton hostileFilterButton;
+    private WildexFilterChipButton tameableFilterButton;
+    private WildexFilterMenuTabButton filterMenuButton;
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
     private WildexStyleButton menuButton;
     private WildexStyleButton guiScaleToggleButton;
@@ -103,6 +118,7 @@ public final class WildexScreen extends Screen {
     private boolean suppressMobSelectionCallback = false;
     private boolean suppressUiStateSync = false;
     private boolean localUiStateDirtySinceOpen = false;
+    private boolean filterMenuOpen = false;
 
     private WildexTab lastTab = WildexTab.STATS;
     private int lastDiscoveryCount = -1;
@@ -152,8 +168,114 @@ public final class WildexScreen extends Screen {
         return Math.round(GUI_SCALE_BUTTON_Y_OFFSET * WildexUiScale.get());
     }
 
+    private int aggressionFilterButtonHeight() {
+        return Math.max(10, WildexUiText.lineHeight(this.font) + 4);
+    }
+
+    private int filterMenuButtonHeight() {
+        int extra = Math.max(0, Math.round((WildexUiScale.get() - 1.0f) * 6.0f));
+        return Math.max(12, WildexUiText.lineHeight(this.font) + 8 + extra);
+    }
+
+    private int entriesTextHeight() {
+        return Math.max(1, Math.round(WildexUiText.lineHeight(this.font) * resolveEntriesTextScale()));
+    }
+
+    private int entriesTextY() {
+        if (this.layout == null) return 0;
+        WildexScreenLayout.Area entriesArea = this.layout.leftEntriesCounterArea();
+        int textH = entriesTextHeight();
+        int y = entriesArea.y() + ((entriesArea.h() - textH) / 2) + 1;
+        int maxY = this.layout.leftSearchArea().y() - textH - 1;
+        return Math.min(y, maxY);
+    }
+
+    private int aggressionFilterButtonY(int buttonHeight) {
+        if (this.layout == null) return 0;
+        int textY = entriesTextY();
+        int lineHeight = WildexUiText.lineHeight(this.font);
+        int referenceHeight = Math.max(10, lineHeight + 4);
+        int desired = textY - Math.max(0, (referenceHeight - lineHeight) / 2) - 1;
+        int maxY = this.layout.leftSearchArea().y() - buttonHeight - 1;
+        return Math.min(desired, maxY);
+    }
+
     private int scaledThemeButtonYOffset() {
         return Math.round(THEME_BUTTON_Y_OFFSET * WildexUiScale.get());
+    }
+
+    private int aggressionFilterRightInset() {
+        return WildexThemes.isModernLayout() ? Math.max(6, Math.round(8 * WildexUiScale.get())) : 0;
+    }
+
+    private int aggressionFilterModernXOffset() {
+        return 0;
+    }
+
+    private int aggressionFilterModernYOffset() {
+        return 0;
+    }
+
+    private int filterMenuButtonWidth() {
+        int indicatorW = WildexUiText.width(this.font, "(4)");
+        int iconReserve = Math.max(24, Math.round(24.0f * WildexUiScale.get()));
+        return Math.max(58, indicatorW + iconReserve + 18);
+    }
+
+    private int filterOptionButtonWidth() {
+        int friendlyW = WildexFilterChipButton.widthFor(this.font, FRIENDLY_FILTER_LABEL);
+        int neutralW = WildexFilterChipButton.widthFor(this.font, NEUTRAL_FILTER_LABEL);
+        int hostileW = WildexFilterChipButton.widthFor(this.font, HOSTILE_FILTER_LABEL);
+        int tameableW = WildexFilterChipButton.widthFor(this.font, TAMEABLE_FILTER_LABEL);
+        return Math.max(Math.max(friendlyW, neutralW), Math.max(hostileW, tameableW));
+    }
+
+    private int selectedFilterCount() {
+        int count = 0;
+        if (isFriendlyFilterEnabled()) count++;
+        if (isNeutralFilterEnabled()) count++;
+        if (isHostileFilterEnabled()) count++;
+        if (isTameableFilterEnabled()) count++;
+        return count;
+    }
+
+    private String filterMenuIndicatorText() {
+        int count = selectedFilterCount();
+        return count > 0 ? "(" + count + ")" : "";
+    }
+
+    private void setFilterMenuOpen(boolean open) {
+        this.filterMenuOpen = open;
+        updateFilterMenuVisibility();
+    }
+
+    private void updateFilterMenuVisibility() {
+        boolean optionsVisible = this.filterMenuOpen;
+        if (this.friendlyFilterButton != null) {
+            this.friendlyFilterButton.visible = optionsVisible;
+            this.friendlyFilterButton.active = optionsVisible;
+        }
+        if (this.neutralFilterButton != null) {
+            this.neutralFilterButton.visible = optionsVisible;
+            this.neutralFilterButton.active = optionsVisible;
+        }
+        if (this.hostileFilterButton != null) {
+            this.hostileFilterButton.visible = optionsVisible;
+            this.hostileFilterButton.active = optionsVisible;
+        }
+        if (this.tameableFilterButton != null) {
+            this.tameableFilterButton.visible = optionsVisible;
+            this.tameableFilterButton.active = optionsVisible;
+        }
+    }
+
+    private boolean isInsideFilterMenu(double mouseX, double mouseY) {
+        if (this.filterMenuButton != null && this.filterMenuButton.isMouseOver(mouseX, mouseY)) return true;
+        if (!this.filterMenuOpen) return false;
+        if (this.friendlyFilterButton != null && this.friendlyFilterButton.isMouseOver(mouseX, mouseY)) return true;
+        if (this.neutralFilterButton != null && this.neutralFilterButton.isMouseOver(mouseX, mouseY)) return true;
+        if (this.hostileFilterButton != null && this.hostileFilterButton.isMouseOver(mouseX, mouseY)) return true;
+        return this.tameableFilterButton != null && this.tameableFilterButton.isMouseOver(mouseX, mouseY);
     }
 
     private WildexScreenLayout.Area menuButtonArea() {
@@ -295,6 +417,79 @@ public final class WildexScreen extends Screen {
         WildexNetworkClient.requestDiscoveredMobs();
 
         WildexScreenLayout.Area search = layout.leftSearchArea();
+        WildexScreenLayout.Area filter = layout.leftFilterArea();
+
+        int filterOptionH = aggressionFilterButtonHeight();
+        int filterMenuH = filterMenuButtonHeight();
+        int filterY = aggressionFilterButtonY(filterOptionH) + aggressionFilterModernYOffset() - (filterMenuH - filterOptionH);
+        int menuButtonW = filterMenuButtonWidth();
+        int optionButtonW = filterOptionButtonWidth();
+        int filterGap = Math.max(2, Math.round(2 * layout.scale()));
+        int filterRight = (filter.x() + filter.w()) - aggressionFilterRightInset();
+        int optionX = Math.max(filter.x(), filterRight - optionButtonW) + aggressionFilterModernXOffset();
+        int menuX = Math.max(filter.x(), filterRight - menuButtonW) + aggressionFilterModernXOffset();
+
+        this.filterMenuButton = this.addRenderableWidget(new WildexFilterMenuTabButton(
+                menuX,
+                filterY,
+                menuButtonW,
+                filterMenuH,
+                FILTER_MENU_LABEL,
+                () -> setFilterMenuOpen(!this.filterMenuOpen),
+                () -> this.filterMenuOpen,
+                this::filterMenuIndicatorText,
+                true
+        ));
+
+        int optionY = filterY - filterOptionH - filterGap;
+        this.friendlyFilterButton = new WildexFilterChipButton(
+                optionX,
+                optionY,
+                optionButtonW,
+                filterOptionH,
+                FRIENDLY_FILTER_LABEL,
+                false,
+                checked -> onAggressionFilterChanged(),
+                FRIENDLY_FILTER_TOOLTIP
+        );
+        optionY -= filterOptionH + filterGap;
+        this.neutralFilterButton = new WildexFilterChipButton(
+                optionX,
+                optionY,
+                optionButtonW,
+                filterOptionH,
+                NEUTRAL_FILTER_LABEL,
+                false,
+                checked -> onAggressionFilterChanged(),
+                NEUTRAL_FILTER_TOOLTIP
+        );
+        optionY -= filterOptionH + filterGap;
+        this.hostileFilterButton = new WildexFilterChipButton(
+                optionX,
+                optionY,
+                optionButtonW,
+                filterOptionH,
+                HOSTILE_FILTER_LABEL,
+                false,
+                checked -> onAggressionFilterChanged(),
+                HOSTILE_FILTER_TOOLTIP
+        );
+        optionY -= filterOptionH + filterGap;
+        this.tameableFilterButton = new WildexFilterChipButton(
+                optionX,
+                optionY,
+                optionButtonW,
+                filterOptionH,
+                TAMEABLE_FILTER_LABEL,
+                false,
+                checked -> onAggressionFilterChanged(),
+                TAMEABLE_FILTER_TOOLTIP
+        );
+        this.addRenderableWidget(this.friendlyFilterButton);
+        this.addRenderableWidget(this.neutralFilterButton);
+        this.addRenderableWidget(this.hostileFilterButton);
+        this.addRenderableWidget(this.tameableFilterButton);
+        updateFilterMenuVisibility();
 
         this.searchBox = new WildexSearchBox(this.font, search.x(), search.y(), search.w(), search.h(), SEARCH_LABEL);
         this.searchBox.setMaxLength(64);
@@ -322,10 +517,7 @@ public final class WildexScreen extends Screen {
                     cbY,
                     size,
                     false,
-                    checked -> {
-                        applyFiltersFromUi();
-                        refreshMobList();
-                    },
+                    this::onDiscoveredOnlyChanged,
                     DISCOVERED_ONLY_TOOLTIP
             );
             this.addRenderableWidget(this.discoveredOnlyCheckbox);
@@ -418,7 +610,15 @@ public final class WildexScreen extends Screen {
 
         this.localUiStateDirtySinceOpen = false;
         if (WildexPlayerUiStateCache.hasServerState()) {
-            applyServerUiState(WildexPlayerUiStateCache.tabId(), WildexPlayerUiStateCache.mobId());
+            applyServerUiState(
+                    WildexPlayerUiStateCache.tabId(),
+                    WildexPlayerUiStateCache.mobId(),
+                    WildexPlayerUiStateCache.discoveredOnly(),
+                    WildexPlayerUiStateCache.friendlyEnabled(),
+                    WildexPlayerUiStateCache.neutralEnabled(),
+                    WildexPlayerUiStateCache.hostileEnabled(),
+                    WildexPlayerUiStateCache.tameableEnabled()
+            );
         }
         WildexNetworkClient.requestServerConfig();
         WildexNetworkClient.requestPlayerUiState();
@@ -511,19 +711,92 @@ public final class WildexScreen extends Screen {
         String q = this.searchBox == null ? "" : this.searchBox.getValue();
         this.mobIndex.setQuery(q);
 
-        boolean onlyDiscovered = this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isChecked();
-        if (!onlyDiscovered) {
-            this.visibleEntries = this.mobIndex.filtered();
-            return;
-        }
-
         List<EntityType<?>> base = this.mobIndex.filtered();
         List<EntityType<?>> out = new ArrayList<>(base.size());
         for (EntityType<?> type : base) {
             ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-            if (WildexDiscoveryCache.isDiscovered(id)) out.add(type);
+            if (isDiscoveredOnlyEnabled() && !WildexDiscoveryCache.isDiscovered(id)) continue;
+            if (!matchesAggressionFilters(type)) continue;
+            if (!matchesTameableFilter(type)) continue;
+            out.add(type);
         }
         this.visibleEntries = List.copyOf(out);
+    }
+
+    private boolean isDiscoveredOnlyEnabled() {
+        return this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isChecked();
+    }
+
+    private boolean isFriendlyFilterEnabled() {
+        return this.friendlyFilterButton != null && this.friendlyFilterButton.isChecked();
+    }
+
+    private boolean isNeutralFilterEnabled() {
+        return this.neutralFilterButton != null && this.neutralFilterButton.isChecked();
+    }
+
+    private boolean isHostileFilterEnabled() {
+        return this.hostileFilterButton != null && this.hostileFilterButton.isChecked();
+    }
+
+    private boolean isTameableFilterEnabled() {
+        return this.tameableFilterButton != null && this.tameableFilterButton.isChecked();
+    }
+
+    private boolean matchesAggressionFilters(EntityType<?> type) {
+        boolean friendly = isFriendlyFilterEnabled();
+        boolean neutral = isNeutralFilterEnabled();
+        boolean hostile = isHostileFilterEnabled();
+        if (!friendly && !neutral && !hostile) return true;
+
+        WildexAggression aggression = this.mobIndex.aggressionOf(type);
+        return switch (aggression) {
+            case FRIENDLY -> friendly;
+            case NEUTRAL -> neutral;
+            case HOSTILE -> hostile;
+        };
+    }
+
+    private boolean matchesTameableFilter(EntityType<?> type) {
+        if (!isTameableFilterEnabled()) return true;
+        return this.mobIndex.tameableOf(type);
+    }
+
+    private void onDiscoveredOnlyChanged(boolean checked) {
+        onListFiltersChanged();
+    }
+
+    private void onAggressionFilterChanged() {
+        onListFiltersChanged();
+    }
+
+    private void onListFiltersChanged() {
+        String previousMobId = this.state.selectedMobId();
+
+        applyFiltersFromUi();
+        refreshMobList();
+
+        if (this.mobList != null) {
+            ResourceLocation selected = this.mobList.selectedId();
+            this.state.setSelectedMobId(selected == null ? "" : selected.toString());
+            this.selectedVariantOptionId = this.mobList.selectedVariantOptionId();
+            this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
+        }
+
+        if (!this.state.selectedMobId().equals(previousMobId)) {
+            closeShareOverlayIfOpen();
+            this.mobPreviewRenderer.setBabyPreviewEnabled(false);
+            this.rightInfoRenderer.resetSpawnScroll();
+            this.rightInfoRenderer.resetStatsScroll();
+            this.rightInfoRenderer.resetLootScroll();
+            this.rightInfoRenderer.resetMiscScroll();
+            requestAllForSelected(this.state.selectedMobId());
+        }
+
+        updatePreviewBabyToggleButtonState();
+        if (this.shareOverlay != null) this.shareOverlay.onSelectionChanged();
+        updateShareWidgetsVisibility();
+        saveUiStateToServer();
     }
 
     private void refreshMobList() {
@@ -685,6 +958,10 @@ public final class WildexScreen extends Screen {
             this.trophyCollapsed = !this.trophyCollapsed;
             rememberedTrophyCollapsed = this.trophyCollapsed;
             return true;
+        }
+
+        if (button == 0 && this.filterMenuOpen && !isInsideFilterMenu(mxD, myD)) {
+            setFilterMenuOpen(false);
         }
 
         if (!WildexClientConfigView.hideGuiScaleSlider() && button == 0 && isOnUiScaleSlider(mx, my)) {
@@ -867,14 +1144,10 @@ public final class WildexScreen extends Screen {
 
         renderer.render(graphics, this.layout, state, physicalMouseX, physicalMouseY, partialTick);
 
-        WildexScreenLayout.Area entriesArea = this.layout.leftEntriesCounterArea();
         Component entriesText = Component.translatable("gui.wildex.entries_count", (this.visibleEntries == null ? 0 : this.visibleEntries.size()));
         float entriesScale = resolveEntriesTextScale();
-        int textH = Math.max(1, Math.round(WildexUiText.lineHeight(font) * entriesScale));
         int entriesX = this.layout.leftSearchArea().x();
-        int entriesY = entriesArea.y() + ((entriesArea.h() - textH) / 2) + 1;
-        int maxEntriesY = this.layout.leftSearchArea().y() - textH - 1;
-        entriesY = Math.min(entriesY, maxEntriesY);
+        int entriesY = entriesTextY();
         WildexUiRenderUtil.drawScaledText(graphics, this.font, entriesText, entriesX, entriesY, entriesScale, theme.ink());
 
         if (WildexClientConfigView.hiddenMode()) {
@@ -977,6 +1250,22 @@ public final class WildexScreen extends Screen {
         if (this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isHovered()) {
             Component tip = this.discoveredOnlyCheckbox.tooltip();
             if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.friendlyFilterButton != null && this.friendlyFilterButton.isHovered()) {
+            Component tip = this.friendlyFilterButton.tooltip();
+            if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.neutralFilterButton != null && this.neutralFilterButton.isHovered()) {
+            Component tip = this.neutralFilterButton.tooltip();
+            if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.hostileFilterButton != null && this.hostileFilterButton.isHovered()) {
+            Component tip = this.hostileFilterButton.tooltip();
+            if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.filterMenuButton != null && this.filterMenuButton.isHovered()) {
+            Component tip = this.filterMenuButton.tooltip();
+            WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
 
         if (this.trophyRenderState != null
@@ -1226,6 +1515,51 @@ public final class WildexScreen extends Screen {
             this.searchBox.setY(a.y());
             this.searchBox.setWidth(a.w());
             this.searchBox.setHeight(a.h());
+        }
+
+        WildexScreenLayout.Area filterArea = this.layout.leftFilterArea();
+        int filterOptionH = aggressionFilterButtonHeight();
+        int filterMenuH = filterMenuButtonHeight();
+        int filterY = aggressionFilterButtonY(filterOptionH) + aggressionFilterModernYOffset() - (filterMenuH - filterOptionH);
+        int filterGap = Math.max(2, Math.round(2 * this.layout.scale()));
+        int menuButtonW = filterMenuButtonWidth();
+        int optionButtonW = filterOptionButtonWidth();
+        int filterRight = (filterArea.x() + filterArea.w()) - aggressionFilterRightInset();
+        int optionX = Math.max(filterArea.x(), filterRight - optionButtonW) + aggressionFilterModernXOffset();
+        int menuX = Math.max(filterArea.x(), filterRight - menuButtonW) + aggressionFilterModernXOffset();
+        if (this.filterMenuButton != null) {
+            this.filterMenuButton.setX(menuX);
+            this.filterMenuButton.setY(filterY);
+            this.filterMenuButton.setWidth(menuButtonW);
+            this.filterMenuButton.setHeight(filterMenuH);
+        }
+        int optionY = filterY - filterOptionH - filterGap;
+        if (this.friendlyFilterButton != null) {
+            this.friendlyFilterButton.setX(optionX);
+            this.friendlyFilterButton.setY(optionY);
+            this.friendlyFilterButton.setWidth(optionButtonW);
+            this.friendlyFilterButton.setHeight(filterOptionH);
+            optionY -= filterOptionH + filterGap;
+        }
+        if (this.neutralFilterButton != null) {
+            this.neutralFilterButton.setX(optionX);
+            this.neutralFilterButton.setY(optionY);
+            this.neutralFilterButton.setWidth(optionButtonW);
+            this.neutralFilterButton.setHeight(filterOptionH);
+            optionY -= filterOptionH + filterGap;
+        }
+        if (this.hostileFilterButton != null) {
+            this.hostileFilterButton.setX(optionX);
+            this.hostileFilterButton.setY(optionY);
+            this.hostileFilterButton.setWidth(optionButtonW);
+            this.hostileFilterButton.setHeight(filterOptionH);
+            optionY -= filterOptionH + filterGap;
+        }
+        if (this.tameableFilterButton != null) {
+            this.tameableFilterButton.setX(optionX);
+            this.tameableFilterButton.setY(optionY);
+            this.tameableFilterButton.setWidth(optionButtonW);
+            this.tameableFilterButton.setHeight(filterOptionH);
         }
 
         if (this.discoveredOnlyCheckbox != null) {
@@ -1500,7 +1834,15 @@ public final class WildexScreen extends Screen {
         }
     }
 
-    public void applyServerUiState(String tabId, String mobId) {
+    public void applyServerUiState(
+            String tabId,
+            String mobId,
+            boolean discoveredOnly,
+            boolean friendlyEnabled,
+            boolean neutralEnabled,
+            boolean hostileEnabled,
+            boolean tameableEnabled
+    ) {
         if (localUiStateDirtySinceOpen) return;
 
         WildexTab tab = parseTabOrDefault(tabId);
@@ -1510,13 +1852,27 @@ public final class WildexScreen extends Screen {
         suppressMobSelectionCallback = true;
         suppressUiStateSync = true;
         try {
+            if (this.friendlyFilterButton != null) {
+                this.friendlyFilterButton.setChecked(friendlyEnabled, false);
+            }
+            if (this.neutralFilterButton != null) {
+                this.neutralFilterButton.setChecked(neutralEnabled, false);
+            }
+            if (this.hostileFilterButton != null) {
+                this.hostileFilterButton.setChecked(hostileEnabled, false);
+            }
+            if (this.tameableFilterButton != null) {
+                this.tameableFilterButton.setChecked(tameableEnabled, false);
+            }
+            if (this.discoveredOnlyCheckbox != null) {
+                this.discoveredOnlyCheckbox.setChecked(discoveredOnly, false);
+            }
+            applyFiltersFromUi();
             this.state.setSelectedTab(useDefaultSelection ? WildexTab.STATS : tab);
 
             if (this.mobList != null) {
-                if (useDefaultSelection) {
-                    // No persisted mob for this world/player: fall back to default first entry.
-                    this.mobList.setEntries(this.visibleEntries);
-                } else {
+                this.mobList.setEntries(this.visibleEntries);
+                if (!useDefaultSelection) {
                     this.mobList.setSelectedSelection(targetMob, "");
                 }
             }
@@ -1535,6 +1891,7 @@ public final class WildexScreen extends Screen {
         }
 
         this.lastTab = this.state.selectedTab();
+        setFilterMenuOpen(false);
         this.mobPreviewRenderer.setBabyPreviewEnabled(false);
         this.selectedVariantOptionId = this.mobList == null ? "" : this.mobList.selectedVariantOptionId();
         this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
@@ -1571,7 +1928,12 @@ public final class WildexScreen extends Screen {
         localUiStateDirtySinceOpen = true;
         WildexNetworkClient.savePlayerUiState(
                 (tab == null ? WildexTab.STATS : tab).name(),
-                safeMob == null ? "" : safeMob.toString()
+                safeMob == null ? "" : safeMob.toString(),
+                isDiscoveredOnlyEnabled(),
+                isFriendlyFilterEnabled(),
+                isNeutralFilterEnabled(),
+                isHostileFilterEnabled(),
+                isTameableFilterEnabled()
         );
     }
 

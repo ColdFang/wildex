@@ -17,20 +17,29 @@ public final class HeaderExtractor {
         if (type == null) return WildexHeaderData.empty();
 
         Component name = WildexEntityDisplayNameResolver.resolve(type);
-        WildexAggression aggression = classify(type, null);
-
-        if (level != null) {
-            Entity e = WildexEntityFactory.tryCreate(type, level);
-            if (e != null) {
-                aggression = classify(type, e);
-                WildexEntityFactory.discardQuietly(e);
-            }
-        }
+        WildexAggression aggression = classify(type, level);
 
         return new WildexHeaderData(name, aggression);
     }
 
-    private static WildexAggression classify(EntityType<?> type, Entity e) {
+    public static WildexAggression classify(EntityType<?> type, Level level) {
+        if (type == null) return WildexAggression.FRIENDLY;
+
+        WildexAggression base = classifyInternal(type, null);
+        if (level == null || base != WildexAggression.FRIENDLY) {
+            return base;
+        }
+
+        Entity e = WildexEntityFactory.tryCreate(type, level);
+        if (e == null) return base;
+        try {
+            return classifyInternal(type, e);
+        } finally {
+            WildexEntityFactory.discardQuietly(e);
+        }
+    }
+
+    private static WildexAggression classifyInternal(EntityType<?> type, Entity e) {
         if (type.getCategory() == MobCategory.MONSTER) return WildexAggression.HOSTILE;
         if (e instanceof NeutralMob) return WildexAggression.NEUTRAL;
         return WildexAggression.FRIENDLY;

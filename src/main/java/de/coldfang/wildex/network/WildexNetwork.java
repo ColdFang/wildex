@@ -1,6 +1,7 @@
 package de.coldfang.wildex.network;
 
 import de.coldfang.wildex.config.CommonConfig;
+import de.coldfang.wildex.integration.accessorify.WildexAccessorifySpyglassState;
 import de.coldfang.wildex.server.WildexCompletionHelper;
 import de.coldfang.wildex.server.WildexDiscoveryService;
 import de.coldfang.wildex.server.breeding.WildexBreedingExtractor;
@@ -107,6 +108,15 @@ public final class WildexNetwork {
             r.playToClient(S2CServerConfigPayload.TYPE, S2CServerConfigPayload.STREAM_CODEC, (payload, ctx) -> {
             });
         }
+
+        r.playToServer(
+                C2SAccessorifySpyglassStatePayload.TYPE,
+                C2SAccessorifySpyglassStatePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    WildexAccessorifySpyglassState.update(sp, payload.active());
+                })
+        );
 
         r.playToServer(
                 C2SSpyglassPulsePayload.TYPE,
@@ -424,7 +434,18 @@ public final class WildexNetwork {
                             .get(serverLevel)
                             .getState(sp.getUUID());
 
-                    PacketDistributor.sendToPlayer(sp, new S2CPlayerUiStatePayload(state.tabId(), state.mobId()));
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            new S2CPlayerUiStatePayload(
+                                    state.tabId(),
+                                    state.mobId(),
+                                    state.discoveredOnly(),
+                                    state.friendlyEnabled(),
+                                    state.neutralEnabled(),
+                                    state.hostileEnabled(),
+                                    state.tameableEnabled()
+                            )
+                    );
                 })
         );
 
@@ -523,7 +544,17 @@ public final class WildexNetwork {
                     String tabId = sanitizeTab(payload.tabId());
                     String mobId = sanitizeMob(payload.mobId());
 
-                    WildexWorldPlayerUiStateData.get(serverLevel).setState(sp.getUUID(), tabId, mobId);
+                    WildexWorldPlayerUiStateData.get(serverLevel)
+                            .setState(
+                                    sp.getUUID(),
+                                    tabId,
+                                    mobId,
+                                    payload.discoveredOnly(),
+                                    payload.friendlyEnabled(),
+                                    payload.neutralEnabled(),
+                                    payload.hostileEnabled(),
+                                    payload.tameableEnabled()
+                            );
                 })
         );
     }

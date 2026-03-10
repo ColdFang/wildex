@@ -57,13 +57,13 @@ public final class WildexScreenLayout {
     private static final Metrics STEAMPUNK = VINTAGE;
 
     private final int screenWidth;
-    private final int screenHeight;
     private final WildexTheme theme;
     private final float scale;
     private final float x;
     private final float y;
 
     private final Area leftContentArea;
+    private final Area leftFilterArea;
     private final Area leftSearchArea;
     private final Area leftActionArea;
 
@@ -81,12 +81,12 @@ public final class WildexScreenLayout {
 
     private WildexScreenLayout(
             int screenWidth,
-            int screenHeight,
             WildexTheme theme,
             float scale,
             float x,
             float y,
             Area leftContentArea,
+            Area leftFilterArea,
             Area leftSearchArea,
             Area leftActionArea,
             Area rightHeaderArea,
@@ -100,13 +100,13 @@ public final class WildexScreenLayout {
             PreviewControlsHintAnchor previewControlsHintAnchor
     ) {
         this.screenWidth = screenWidth;
-        this.screenHeight = screenHeight;
         this.theme = theme;
         this.scale = scale;
         this.x = x;
         this.y = y;
 
         this.leftContentArea = leftContentArea;
+        this.leftFilterArea = leftFilterArea;
         this.leftSearchArea = leftSearchArea;
         this.leftActionArea = leftActionArea;
 
@@ -218,6 +218,7 @@ public final class WildexScreenLayout {
             int entriesY = Math.max(leftContentY, searchArea.y() - lineH - 2);
             entriesCounterArea = new Area(leftContentX, entriesY, leftContentW, lineH);
         }
+        Area filterArea = entriesCounterArea;
 
         int discoveredGap = Math.max(0, Math.round(4 * scale));
         int discoveredY = searchArea.y() + searchArea.h() + discoveredGap;
@@ -302,9 +303,9 @@ public final class WildexScreenLayout {
         PreviewControlsHintAnchor previewHintAnchor = computePreviewControlsHintAnchor(profile, preview, previewReset);
 
         return new WildexScreenLayout(
-                screenW, screenH, theme,
+                screenW, theme,
                 scale, x, y,
-                leftContent, searchArea, actionArea,
+                leftContent, filterArea, searchArea, actionArea,
                 headerArea, tabsArea, infoArea,
                 discoveredCounterArea, entriesCounterArea,
                 preview, previewReset,
@@ -371,7 +372,7 @@ public final class WildexScreenLayout {
     private static int leftTopClusterShiftPx(DesignStyle profile) {
         if (profile == null) return 0;
         return switch (profile) {
-            case JUNGLE, RUNES, STEAMPUNK -> 5;
+            case VINTAGE, JUNGLE, RUNES, STEAMPUNK -> 5;
             default -> 0;
         };
     }
@@ -430,6 +431,10 @@ public final class WildexScreenLayout {
 
     public Area leftContentArea() {
         return leftContentArea;
+    }
+
+    public Area leftFilterArea() {
+        return leftFilterArea;
     }
 
     public Area leftSearchArea() {
