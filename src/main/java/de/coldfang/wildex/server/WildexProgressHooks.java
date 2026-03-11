@@ -17,9 +17,8 @@ public final class WildexProgressHooks {
     public static void onDiscoveryChanged(ServerPlayer player, ResourceLocation mobId) {
         if (player == null || mobId == null) return;
 
-        WildexScoreboardBridge.syncPlayer(player);
-
         WildexProgressService.ProgressSnapshot s = WildexProgressService.getSnapshot(player);
+        WildexScoreboardBridge.syncPlayer(player, s);
         NeoForge.EVENT_BUS.post(new WildexDiscoveryChangedEvent(
                 player,
                 mobId,
@@ -38,9 +37,8 @@ public final class WildexProgressHooks {
     public static void onCompleted(ServerPlayer player) {
         if (player == null) return;
 
-        WildexScoreboardBridge.syncPlayer(player);
-
         WildexProgressService.ProgressSnapshot s = WildexProgressService.getSnapshot(player);
+        WildexScoreboardBridge.syncPlayer(player, s);
         NeoForge.EVENT_BUS.post(new WildexCompletedEvent(
                 player,
                 s.discoveredCount(),

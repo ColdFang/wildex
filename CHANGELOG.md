@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.7.2 - 2026-03-11
+
+### Changed
+- Reworked Wildex right-panel data loading so expensive server-side info is now requested strictly on demand per active tab.
+- Loot, Spawn, and Info/Misc data are no longer preloaded implicitly while just opening Wildex or rapidly cycling through mob entries.
+- Added explicit loading states for lazy-loaded right-panel tabs so users can see that data is still being fetched.
+- Added client-side retry windows for lazy-loaded tab requests so dropped/throttled requests do not leave tabs stuck in a permanent loading state.
+- Reduced repeated progress/completion snapshot work in the server-side discovery flow to lower short hitch risk when many entries are unlocked in quick succession.
+
+### Fixed
+- Fixed noticeable server/world lag spikes when opening Wildex for the first time in a fresh world and quickly switching through many mob entries.
+- Fixed unnecessary breeding/taming extraction work being triggered just by selecting mobs, even when the `Info` tab was not open.
+- Fixed cases where the `Loot` tab could remain on `Loading loot data...` indefinitely after rapid navigation.
+- Reduced short TPS/world lag spikes when multiple Wildex entries are discovered in rapid succession.
+- Fixed Cobblemon variant labels in the Wildex mob list so Pokemon species/forms are shown with their proper names again instead of collapsing to generic tokens like `Normal`.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.7.1`.
+- Multiplayer-safe:
+  - discovery/progress flow remains server-authoritative
+  - lazy-loaded Wildex tab data is still requested and validated through the server
+
 ## 2.7.1 - 2026-03-11
 
 ### Changed

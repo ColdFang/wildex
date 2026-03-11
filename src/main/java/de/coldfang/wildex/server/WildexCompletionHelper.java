@@ -6,7 +6,6 @@ import de.coldfang.wildex.util.WildexEntityFactory;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -18,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 public final class WildexCompletionHelper {
@@ -40,7 +38,7 @@ public final class WildexCompletionHelper {
         int total = getTotalMobCount(level);
         if (total <= 0) return false;
 
-        int discovered = getFilteredDiscoveredCount(data.getDiscovered(playerId));
+        int discovered = data.getFilteredDiscoveredCount(playerId);
         if (discovered < total) return false;
 
         if (!data.isComplete(playerId)) {
@@ -72,15 +70,6 @@ public final class WildexCompletionHelper {
 
     private static boolean keepCompletionAfterNewMobs() {
         return CommonConfig.INSTANCE.keepCompletionAfterNewMobs.get();
-    }
-
-    private static int getFilteredDiscoveredCount(Set<ResourceLocation> discovered) {
-        if (discovered == null || discovered.isEmpty()) return 0;
-        int c = 0;
-        for (ResourceLocation id : discovered) {
-            if (WildexMobFilters.isTrackable(id)) c++;
-        }
-        return c;
     }
 
     public static int getTotalMobCount(ServerLevel level) {

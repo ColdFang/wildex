@@ -17,11 +17,11 @@ public final class WildexScoreboardBridge {
     private WildexScoreboardBridge() {
     }
 
-    public static void syncPlayer(ServerPlayer player) {
+    public static void syncPlayer(ServerPlayer player, WildexProgressService.ProgressSnapshot snapshot) {
         if (player == null) return;
         if (player.getServer() == null) return;
+        if (snapshot == null) return;
 
-        WildexProgressService.ProgressSnapshot s = WildexProgressService.getSnapshot(player);
         Scoreboard scoreboard = player.getServer().getScoreboard();
 
         Objective discoveredObj = ensureObjective(scoreboard, OBJ_DISCOVERED, Component.translatable("scoreboard.wildex.discovered"));
@@ -29,10 +29,10 @@ public final class WildexScoreboardBridge {
         Objective percentObj = ensureObjective(scoreboard, OBJ_PERCENT, Component.translatable("scoreboard.wildex.percent_scaled"));
         Objective completeObj = ensureObjective(scoreboard, OBJ_COMPLETE, Component.translatable("scoreboard.wildex.complete"));
 
-        setScore(scoreboard, player, discoveredObj, s.discoveredCount());
-        setScore(scoreboard, player, totalObj, s.totalCount());
-        setScore(scoreboard, player, percentObj, s.completionPercentScaled());
-        setScore(scoreboard, player, completeObj, s.complete() ? 1 : 0);
+        setScore(scoreboard, player, discoveredObj, snapshot.discoveredCount());
+        setScore(scoreboard, player, totalObj, snapshot.totalCount());
+        setScore(scoreboard, player, percentObj, snapshot.completionPercentScaled());
+        setScore(scoreboard, player, completeObj, snapshot.complete() ? 1 : 0);
     }
 
     private static Objective ensureObjective(Scoreboard scoreboard, String name, Component displayName) {

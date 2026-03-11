@@ -5,7 +5,10 @@ import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
+import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
+import de.coldfang.wildex.client.data.WildexLootCache;
+import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.client.data.model.WildexAggression;
 import de.coldfang.wildex.client.data.model.WildexMobData;
@@ -639,7 +642,8 @@ public final class WildexScreen extends Screen {
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestViewedMobEntries();
         }
-        requestAllForSelected(this.state.selectedMobId());
+        requestImmediateDataForSelected(this.state.selectedMobId());
+        ensureSelectedTabDataRequested();
     }
 
     private void initShareWidgets() {
@@ -714,11 +718,33 @@ public final class WildexScreen extends Screen {
         }
     }
 
-    private void requestAllForSelected(String mobId) {
+    private void requestImmediateDataForSelected(String mobId) {
         if (mobId == null || mobId.isBlank()) return;
         WildexNetworkClient.requestKillsForSelected(mobId);
-        WildexNetworkClient.requestLootForSelected(mobId);
-        WildexNetworkClient.requestSpawnsForSelected(mobId);
+    }
+
+    private void ensureSelectedTabDataRequested() {
+        String mobId = this.state.selectedMobId();
+        if (mobId == null || mobId.isBlank()) return;
+        ResourceLocation rl = ResourceLocation.tryParse(mobId);
+        if (rl == null) return;
+
+        WildexTab tab = this.state.selectedTab();
+        if (tab == null) return;
+
+        switch (tab) {
+            case LOOT -> WildexLootCache.getOrRequest(rl);
+            case MISC -> WildexMiscCache.getOrRequest(rl);
+            case SPAWNS -> WildexSpawnCache.getOrRequest(rl);
+            default -> {
+            }
+        }
+    }
+
+    private void fallbackInfoTabToStatsOnMobChange() {
+        if (this.state.selectedTab() != WildexTab.MISC) return;
+        this.state.setSelectedTab(WildexTab.STATS);
+        this.lastTab = WildexTab.STATS;
     }
 
     private void applyFiltersFromUi() {
@@ -799,12 +825,14 @@ public final class WildexScreen extends Screen {
 
         if (!this.state.selectedMobId().equals(previousMobId)) {
             closeShareOverlayIfOpen();
+            fallbackInfoTabToStatsOnMobChange();
             this.mobPreviewRenderer.setBabyPreviewEnabled(false);
             this.rightInfoRenderer.resetSpawnScroll();
             this.rightInfoRenderer.resetStatsScroll();
             this.rightInfoRenderer.resetLootScroll();
             this.rightInfoRenderer.resetMiscScroll();
-            requestAllForSelected(this.state.selectedMobId());
+            requestImmediateDataForSelected(this.state.selectedMobId());
+            ensureSelectedTabDataRequested();
         }
 
         updatePreviewBabyToggleButtonState();
@@ -849,7 +877,7 @@ public final class WildexScreen extends Screen {
         if (tabNow != this.lastTab) {
             this.lastTab = tabNow;
             saveUiStateToServer();
-            requestAllForSelected(this.state.selectedMobId());
+            ensureSelectedTabDataRequested();
         }
 
         if (this.mobList == null) return;
@@ -861,13 +889,15 @@ public final class WildexScreen extends Screen {
             closeShareOverlayIfOpen();
             this.state.setSelectedMobId(next);
             this.selectedVariantOptionId = "";
+            fallbackInfoTabToStatsOnMobChange();
             this.mobPreviewRenderer.setBabyPreviewEnabled(false);
             rightInfoRenderer.resetSpawnScroll();
             rightInfoRenderer.resetStatsScroll();
             rightInfoRenderer.resetLootScroll();
             rightInfoRenderer.resetMiscScroll();
             saveUiStateToServer();
-            requestAllForSelected(next);
+            requestImmediateDataForSelected(next);
+            ensureSelectedTabDataRequested();
         }
     }
 
@@ -889,12 +919,14 @@ public final class WildexScreen extends Screen {
             return;
         }
 
+        fallbackInfoTabToStatsOnMobChange();
         this.mobPreviewRenderer.setBabyPreviewEnabled(false);
         rightInfoRenderer.resetSpawnScroll();
         rightInfoRenderer.resetStatsScroll();
         rightInfoRenderer.resetMiscScroll();
         saveUiStateToServer();
-        requestAllForSelected(next);
+        requestImmediateDataForSelected(next);
+        ensureSelectedTabDataRequested();
         onMobEntryClicked(id);
     }
 
@@ -1919,7 +1951,8 @@ public final class WildexScreen extends Screen {
         this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
         this.rightInfoRenderer.resetSpawnScroll();
         this.rightInfoRenderer.resetStatsScroll();
-        requestAllForSelected(this.state.selectedMobId());
+        requestImmediateDataForSelected(this.state.selectedMobId());
+        ensureSelectedTabDataRequested();
     }
 
     private void updatePreviewBabyToggleButtonState() {

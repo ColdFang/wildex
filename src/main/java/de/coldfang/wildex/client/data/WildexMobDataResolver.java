@@ -46,7 +46,7 @@ public final class WildexMobDataResolver {
 
         WildexStatsData stats = resolveStats(type, variantOptionId, base.stats());
         ResourceLocation rl = BuiltInRegistries.ENTITY_TYPE.getKey(type);
-        WildexMiscData misc = WildexMiscCache.getOrRequest(rl);
+        WildexMiscData misc = WildexMiscCache.get(rl);
         return new WildexMobData(stats, base.header(), misc);
     }
 
@@ -73,8 +73,7 @@ public final class WildexMobDataResolver {
         if (state != QueryState.READY) {
             return fallback;
         }
-        WildexStatsData variantStats = WildexVariantStatsCatalog.cached(type, variantOptionId);
-        return variantStats;
+        return WildexVariantStatsCatalog.cached(type, variantOptionId);
     }
 
     private record BaseData(WildexStatsData stats, WildexHeaderData header) {

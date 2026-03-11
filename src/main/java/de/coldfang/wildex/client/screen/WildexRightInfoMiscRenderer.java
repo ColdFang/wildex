@@ -31,6 +31,7 @@ final class WildexRightInfoMiscRenderer {
     private static final String BREEDING_ITEMS_LABEL = "gui.wildex.info.breeding_items";
     private static final String TAMING_ITEMS_LABEL = "gui.wildex.info.taming_items";
     private static final String NO_ITEMS = "gui.wildex.info.none";
+    private static final String LOADING_INFO = "gui.wildex.info.loading";
     private static final String TAMING_NONE_OWNABLE_HINT = "gui.wildex.info.taming_none_ownable_hint";
     private static final String TAMING_NONE_COBBLEMON_HINT = "gui.wildex.info.taming_none_cobblemon_hint";
 
@@ -164,12 +165,38 @@ final class WildexRightInfoMiscRenderer {
         EntityType<?> type = resolveSelectedType(state.selectedMobId());
         if (type == null) return;
         clearToggleHitboxes();
+        WildexMiscData resolvedMiscData = miscData == null ? WildexMiscData.loading() : miscData;
 
         int x = area.x() + WildexRightInfoRenderer.PAD_X;
         int yTop = area.y() + WildexRightInfoRenderer.PAD_Y;
         int rightLimitX = area.x() + area.w() - WildexRightInfoRenderer.PAD_RIGHT;
         int maxY = area.y() + area.h() - WildexRightInfoRenderer.PAD_Y;
         int viewportH = Math.max(1, maxY - yTop);
+
+        if (resolvedMiscData.isLoading()) {
+            miscViewportH = viewportH;
+            miscContentH = viewportH;
+            miscHasScrollbar = false;
+            miscDraggingScrollbar = false;
+
+            String loadingText = WildexRightInfoTabUtil.tr(LOADING_INFO);
+            int maxW = Math.max(1, rightLimitX - x);
+            int textH = WildexUiText.lineHeight(font);
+            int textY = yTop + Math.max(0, (viewportH - textH) / 2);
+            WildexRightInfoTabUtil.drawMarqueeIfNeeded(
+                    g,
+                    font,
+                    loadingText,
+                    x,
+                    textY,
+                    maxW,
+                    inkColor,
+                    screenOriginX,
+                    screenOriginY,
+                    scale
+            );
+            return;
+        }
 
         int line = Math.max(10, WildexUiText.lineHeight(font) + 3);
         int textH = WildexUiText.lineHeight(font);
@@ -183,9 +210,9 @@ final class WildexRightInfoMiscRenderer {
         int labelMaxWithoutBar = Math.max(1, (dividerWithoutBar - 2) - x);
         int labelMaxWithBar = Math.max(1, (dividerWithBar - 2) - x);
 
-        List<ResourceLocation> breedingItems = miscData == null ? List.of() : miscData.breedingItemIds();
-        List<ResourceLocation> tamingItems = miscData == null ? List.of() : miscData.tamingItemIds();
-        boolean ownable = miscData != null && miscData.ownable();
+        List<ResourceLocation> breedingItems = resolvedMiscData.breedingItemIds();
+        List<ResourceLocation> tamingItems = resolvedMiscData.tamingItemIds();
+        boolean ownable = resolvedMiscData.ownable();
         boolean cobblemonPokemon = WildexCobblemonBridge.isCobblemonPokemon(type);
         boolean wrapTamingEmpty = ownable && tamingItems.isEmpty();
         String tamingEmptyText = wrapTamingEmpty

@@ -8,6 +8,7 @@ import de.coldfang.wildex.client.data.WildexEntityVariantCatalog.ProbeState;
 import de.coldfang.wildex.client.data.WildexEntityVariantCatalog.SupportState;
 import de.coldfang.wildex.client.data.WildexEntityVariantProbe;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
+import de.coldfang.wildex.integration.cobblemon.WildexCobblemonBridge;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -699,6 +700,11 @@ public final class MobListWidget extends ObjectSelectionList<MobListWidget.Entry
     }
 
     private static String formatVariantDisplayLabel(String optionId, String optionLabel) {
+        if (WildexCobblemonBridge.isCobblemonOptionId(optionId)) {
+            String direct = optionLabel == null ? "" : optionLabel.trim();
+            if (!direct.isBlank()) return direct;
+        }
+
         String compactFromLabel = compactVariantFromLabel(optionLabel);
         if (!compactFromLabel.isBlank()) return compactFromLabel;
 

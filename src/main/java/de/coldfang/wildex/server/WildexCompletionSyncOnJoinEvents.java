@@ -1,7 +1,6 @@
 package de.coldfang.wildex.server;
 
 import de.coldfang.wildex.network.S2CWildexCompleteStatusPayload;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -16,11 +15,9 @@ public final class WildexCompletionSyncOnJoinEvents {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event == null) return;
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
-        if (!(sp.level() instanceof ServerLevel level)) return;
 
-        WildexScoreboardBridge.syncPlayer(sp);
-
-        boolean complete = WildexCompletionHelper.isCurrentlyComplete(level, sp.getUUID());
-        PacketDistributor.sendToPlayer(sp, new S2CWildexCompleteStatusPayload(complete));
+        WildexProgressService.ProgressSnapshot snapshot = WildexProgressService.getSnapshot(sp);
+        WildexScoreboardBridge.syncPlayer(sp, snapshot);
+        PacketDistributor.sendToPlayer(sp, new S2CWildexCompleteStatusPayload(snapshot.complete()));
     }
 }

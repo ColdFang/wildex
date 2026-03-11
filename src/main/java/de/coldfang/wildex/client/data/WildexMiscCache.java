@@ -5,20 +5,20 @@ import de.coldfang.wildex.client.data.model.WildexMiscData;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class WildexMiscCache {
 
+    private static final long REQUEST_RETRY_MS = 750L;
     private static final Map<ResourceLocation, WildexMiscData> CACHE = new ConcurrentHashMap<>();
-    private static final Set<ResourceLocation> REQUESTED = ConcurrentHashMap.newKeySet();
+    private static final Map<ResourceLocation, Long> REQUESTED_AT = new ConcurrentHashMap<>();
 
     private WildexMiscCache() {
     }
 
     public static void clear() {
         CACHE.clear();
-        REQUESTED.clear();
+        REQUESTED_AT.clear();
     }
 
     public static void set(
@@ -33,19 +33,30 @@ public final class WildexMiscCache {
                 new WildexMiscData(
                         ownable,
                         breedingItemIds == null ? java.util.List.of() : java.util.List.copyOf(breedingItemIds),
-                        tamingItemIds == null ? java.util.List.of() : java.util.List.copyOf(tamingItemIds)
+                        tamingItemIds == null ? java.util.List.of() : java.util.List.copyOf(tamingItemIds),
+                        true
                 )
         );
+        REQUESTED_AT.remove(mobId);
     }
 
-    public static WildexMiscData getOrRequest(ResourceLocation mobId) {
+    public static WildexMiscData get(ResourceLocation mobId) {
         if (mobId == null) return WildexMiscData.empty();
         WildexMiscData v = CACHE.get(mobId);
-        if (v != null) return v;
+        return v == null ? WildexMiscData.empty() : v;
+    }
 
-        if (REQUESTED.add(mobId)) {
+    public static void getOrRequest(ResourceLocation mobId) {
+        if (mobId == null) return;
+
+        WildexMiscData cached = CACHE.get(mobId);
+        if (cached != null) return;
+
+        long now = System.currentTimeMillis();
+        Long requestedAt = REQUESTED_AT.get(mobId);
+        if (requestedAt == null || (now - requestedAt) >= REQUEST_RETRY_MS) {
+            REQUESTED_AT.put(mobId, now);
             WildexNetworkClient.requestBreedingForSelected(mobId.toString());
         }
-        return WildexMiscData.empty();
     }
 }

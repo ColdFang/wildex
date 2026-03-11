@@ -122,11 +122,12 @@ final class WildexRightInfoLootRenderer {
         int viewportW = area.w();
         int viewportH = Math.max(1, maxY - yTop);
 
-        WildexLootCache.LootData lootData = WildexLootCache.get(mobId);
+        WildexLootCache.LootData lootData = WildexLootCache.getOrRequest(mobId);
         List<S2CMobLootPayload.LootLine> lines = lootData.lines();
         boolean showPlayerKillXp = lootData.hasPlayerKillXp();
         if (lines.isEmpty() && !showPlayerKillXp) {
-            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.loot.none"), x, yTop, inkColor, false);
+            String key = lootData.isLoading() ? "gui.wildex.loot.loading" : "gui.wildex.loot.none";
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr(key), x, yTop, inkColor, false);
             lootHasScrollbar = false;
             lootDraggingScrollbar = false;
             return null;

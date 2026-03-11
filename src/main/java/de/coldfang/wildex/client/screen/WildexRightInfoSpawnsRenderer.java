@@ -166,7 +166,7 @@ final class WildexRightInfoSpawnsRenderer {
 
         yTop += filterH + SPAWN_FILTER_GAP + 2;
 
-        WildexSpawnCache.SpawnData data = WildexSpawnCache.get(mobId);
+        WildexSpawnCache.SpawnData data = WildexSpawnCache.getOrRequest(mobId);
         List<S2CMobSpawnsPayload.DimSection> naturalSections = data.naturalSections();
         List<S2CMobSpawnsPayload.StructureSection> structureSections = data.structureSections();
 
@@ -174,7 +174,8 @@ final class WildexRightInfoSpawnsRenderer {
         if (!structuresEnabled) structureSections = List.of();
 
         if (naturalSections.isEmpty() && structureSections.isEmpty()) {
-            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr("gui.wildex.spawn.none"), x, yTop, inkColor, false);
+            String key = data.isLoading() ? "gui.wildex.spawn.loading" : "gui.wildex.spawn.none";
+            WildexUiText.draw(g, font, WildexRightInfoTabUtil.tr(key), x, yTop, inkColor, false);
             spawnHasScrollbar = false;
             spawnDraggingScrollbar = false;
             return hoverTip;

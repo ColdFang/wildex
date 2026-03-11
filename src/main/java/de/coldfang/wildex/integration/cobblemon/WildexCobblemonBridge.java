@@ -61,8 +61,12 @@ public final class WildexCobblemonBridge {
         return entity != null && isCobblemonPokemon(entity.getType()) && isCobblemonPresent();
     }
 
+    public static boolean isCobblemonOptionId(String optionId) {
+        return optionId != null && optionId.startsWith(COBBLEMON_OPTION_PREFIX + "|");
+    }
+
     public static WildexStatsData readPokemonStats(LivingEntity living) {
-        if (living == null || !isCobblemonPokemonEntity(living)) return null;
+        if (!isCobblemonPokemonEntity(living)) return null;
 
         MethodHolder methodHolder = ENTITY_GET_POKEMON_METHOD.computeIfAbsent(
                 living.getClass(),
@@ -93,20 +97,22 @@ public final class WildexCobblemonBridge {
     }
 
     public static List<WildexEntityVariantProbe.VariantOption> discoverVariantOptions(Entity entity, int maxOptions) {
-        if (!isCobblemonPokemonEntity(entity)) return List.of();
-        int cap = Math.max(1, maxOptions);
-        ensureLanguageCache();
+        if (isCobblemonPokemonEntity(entity)) {
+            int cap = Math.max(1, maxOptions);
+            ensureLanguageCache();
 
-        List<WildexEntityVariantProbe.VariantOption> options = cachedCobblemonOptions;
-        if (!cobblemonOptionsReady) {
-            options = buildCobblemonOptions();
-            cachedCobblemonOptions = options;
-            cobblemonOptionsReady = true;
+            List<WildexEntityVariantProbe.VariantOption> options = cachedCobblemonOptions;
+            if (!cobblemonOptionsReady) {
+                options = buildCobblemonOptions();
+                cachedCobblemonOptions = options;
+                cobblemonOptionsReady = true;
+            }
+
+            if (options.isEmpty()) return List.of();
+            if (options.size() <= cap) return options;
+            return List.copyOf(options.subList(0, cap));
         }
-
-        if (options.isEmpty()) return List.of();
-        if (options.size() <= cap) return options;
-        return List.copyOf(options.subList(0, cap));
+        return List.of();
     }
 
     public static boolean applyVariantOption(Entity entity, String optionId) {
@@ -127,10 +133,10 @@ public final class WildexCobblemonBridge {
             Object pokemon = invokeNoArgs(entity, "getPokemon");
             if (pokemon == null) return false;
 
-            Object speciesRegistry = getKotlinObject(COBBLEMON_SPECIES_CLASS, entity.getClass().getClassLoader());
+            Object speciesRegistry = getPokemonSpeciesRegistry(entity.getClass().getClassLoader());
             if (speciesRegistry == null) return false;
 
-            Object species = callOneArg(speciesRegistry, "getByIdentifier", speciesRl);
+            Object species = callGetByIdentifier(speciesRegistry, speciesRl);
             if (species == null) return false;
 
             if (!invokeOneArg(pokemon, "setSpecies", species)) return false;
@@ -170,7 +176,7 @@ public final class WildexCobblemonBridge {
     private static List<WildexEntityVariantProbe.VariantOption> buildCobblemonOptions() {
         if (!isCobblemonPresent()) return List.of();
         try {
-            Object speciesRegistry = getKotlinObject(COBBLEMON_SPECIES_CLASS, Thread.currentThread().getContextClassLoader());
+            Object speciesRegistry = getPokemonSpeciesRegistry(Thread.currentThread().getContextClassLoader());
             if (speciesRegistry == null) return List.of();
 
             Collection<?> implemented = asCollection(invokeNoArgs(speciesRegistry, "getImplemented"));
@@ -233,23 +239,23 @@ public final class WildexCobblemonBridge {
         Object translated = invokeNoArgs(species, "getTranslatedName");
         if (translated instanceof Component component) {
             String text = component.getString();
-            if (text != null && !text.isBlank() && !looksLikeRawTranslationKey(text)) return text;
+            if (isResolvedTranslation(text)) return text;
         }
 
         String showdownId = asString(invokeNoArgs(species, "unformattedShowdownId"));
         if (showdownId == null || showdownId.isBlank()) {
             showdownId = speciesId.getPath();
         }
-        if (showdownId != null && !showdownId.isBlank()) {
+        if (!showdownId.isBlank()) {
             String key = speciesId.getNamespace() + ".species." + showdownId.toLowerCase(Locale.ROOT) + ".name";
             String localized = Component.translatable(key).getString();
-            if (localized != null && !localized.isBlank() && !looksLikeRawTranslationKey(localized)) {
+            if (isResolvedTranslation(localized)) {
                 return localized;
             }
         }
 
         String path = speciesId.getPath();
-        if (path == null || path.isBlank()) return speciesId.toString();
+        if (path.isBlank()) return speciesId.toString();
         String[] words = path.replace('_', ' ').replace('-', ' ').trim().split("\\s+");
         StringBuilder out = new StringBuilder();
         for (String w : words) {
@@ -263,22 +269,23 @@ public final class WildexCobblemonBridge {
 
     private static void ensureLanguageCache() {
         Minecraft mc = Minecraft.getInstance();
-        String selected = "";
+        String selected;
         try {
-            selected = mc.getLanguageManager() == null ? "" : mc.getLanguageManager().getSelected();
+            selected = mc.getLanguageManager().getSelected();
         } catch (Throwable ignored) {
+            selected = "";
         }
-        selected = selected == null ? "" : selected.toLowerCase(Locale.ROOT);
+        selected = selected.toLowerCase(Locale.ROOT);
         if (!Objects.equals(cachedLanguage, selected)) {
             clearCache();
             cachedLanguage = selected;
         }
     }
 
-    private static boolean looksLikeRawTranslationKey(String text) {
+    private static boolean isResolvedTranslation(String text) {
         if (text == null || text.isBlank()) return false;
         if (text.indexOf(' ') >= 0) return false;
-        return text.indexOf('.') > 0;
+        return text.indexOf('.') < 0;
     }
 
     private static boolean looksStandardForm(String name) {
@@ -309,9 +316,9 @@ public final class WildexCobblemonBridge {
         return null;
     }
 
-    private static Object getKotlinObject(String className, ClassLoader loader) {
+    private static Object getPokemonSpeciesRegistry(ClassLoader loader) {
         try {
-            Class<?> type = Class.forName(className, false, loader);
+            Class<?> type = Class.forName(COBBLEMON_SPECIES_CLASS, false, loader);
             Field instance = type.getField("INSTANCE");
             return instance.get(null);
         } catch (Throwable ignored) {
@@ -351,10 +358,10 @@ public final class WildexCobblemonBridge {
         }
     }
 
-    private static Object callOneArg(Object target, String methodName, Object argValue) {
-        if (target == null || methodName == null || methodName.isBlank()) return null;
+    private static Object callGetByIdentifier(Object target, Object argValue) {
+        if (target == null || argValue == null) return null;
         try {
-            Method m = resolveOneArgMethod(target.getClass(), methodName, argValue);
+            Method m = resolveOneArgMethod(target.getClass(), "getByIdentifier", argValue);
             if (m == null) return null;
             m.setAccessible(true);
             return m.invoke(target, argValue);
