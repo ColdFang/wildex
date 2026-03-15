@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.7.3 - 2026-03-15
+
+### Added
+- Added a small animated variant-probing status indicator next to the Wildex `Entries` counter while background mob variant detection is still running.
+- Added a hover tooltip for the new variant-probing indicator so players can see that Wildex is still processing mob variants in the background.
+
+### Changed
+- Reworked Wildex mob-list variant support detection so opening Wildex no longer runs the full variant discovery path just to decide whether a mob entry can expand.
+- Wildex now uses a lightweight variant-support fast-path for the mob list and only performs full variant option discovery when variant entries are actually expanded/requested.
+- Reworked the client-side mob index so the base Wildex mob list is reused from cache instead of being rebuilt from scratch every time the screen is reopened.
+- Reduced unnecessary display-state normalization work during lightweight mob-index/support checks by avoiding the heavier preview/pedestal entity preparation path where it is not needed.
+- Refined multiplayer server-config refresh behavior so Wildex only rebuilds the mob list and invalidates variant caches when list-relevant variant settings actually changed.
+
+### Fixed
+- Reduced the short client hitch that could occur when opening Wildex in large modpacks with many mob-adding mods.
+- Reduced additional Wildex reopen hitching caused by repeated mob-list/index rebuild work.
+- Reduced avoidable variant-probe churn during multiplayer config sync so Wildex openings stay smoother while preserving server-authoritative variant settings.
+
+### Compatibility
+- Existing worlds are supported.
+- No world/save data migration required.
+- Safe update path from `2.7.2`.
+- Multiplayer-safe:
+  - variant exclusions remain server-authoritative
+  - full variant discovery still runs when variant entries are actually requested
+
 ## 2.7.2 - 2026-03-11
 
 ### Changed

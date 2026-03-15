@@ -115,6 +115,10 @@ public final class WildexCobblemonBridge {
         return List.of();
     }
 
+    public static boolean supportsVariantOptions(Entity entity) {
+        return isCobblemonPokemonEntity(entity);
+    }
+
     public static boolean applyVariantOption(Entity entity, String optionId) {
         if (optionId == null || optionId.isBlank()) return false;
         if (!optionId.startsWith(COBBLEMON_OPTION_PREFIX + "|")) return false;

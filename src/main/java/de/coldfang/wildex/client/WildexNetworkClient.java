@@ -243,6 +243,8 @@ public final class WildexNetworkClient {
                 S2CServerConfigPayload.TYPE,
                 S2CServerConfigPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
+                    boolean hiddenModeBefore = WildexClientConfigView.hiddenMode();
+                    List<String> excludedVariantMobIdsBefore = WildexClientConfigView.excludedVariantMobIds();
                     boolean changed = WildexServerConfigCache.setAndCheckChanged(
                             payload.hiddenMode(),
                             payload.requireBookForKeybind(),
@@ -253,8 +255,11 @@ public final class WildexNetworkClient {
                             payload.shareOfferMaxPrice(),
                             payload.excludedVariantMobIds()
                     );
+                    boolean hiddenModeChanged = hiddenModeBefore != WildexClientConfigView.hiddenMode();
+                    boolean variantFiltersChanged =
+                            !excludedVariantMobIdsBefore.equals(WildexClientConfigView.excludedVariantMobIds());
 
-                    if (changed) {
+                    if (variantFiltersChanged) {
                         WildexEntityVariantCatalog.clearCache();
                         WildexVariantStatsCatalog.clearCache();
                         MobListWidget.clearVariantUiCache();
@@ -262,7 +267,7 @@ public final class WildexNetworkClient {
 
                     Minecraft mc = Minecraft.getInstance();
                     if (changed && mc.screen instanceof WildexScreen screen) {
-                        screen.onServerConfigUpdated();
+                        screen.onServerConfigUpdated(hiddenModeChanged || variantFiltersChanged, hiddenModeChanged);
                     }
                 })
         );

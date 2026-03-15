@@ -7,6 +7,7 @@ import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
 import de.coldfang.wildex.client.data.WildexMiscCache;
 import de.coldfang.wildex.client.data.WildexPlayerUiStateCache;
+import de.coldfang.wildex.client.data.WildexEntityVariantCatalog;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
@@ -45,6 +46,7 @@ public final class WildexScreen extends Screen {
     private static final Component PREVIEW_BABY_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_baby");
     private static final Component PREVIEW_ADULT_TOOLTIP = Component.translatable("tooltip.wildex.preview_show_adult");
     private static final Component DISCOVERED_ONLY_TOOLTIP = Component.translatable("tooltip.wildex.discovered_only");
+    private static final Component VARIANT_PROBE_RUNNING_TOOLTIP = Component.translatable("tooltip.wildex.variant_probe_running");
     private static final Component FRIENDLY_FILTER_LABEL = Component.translatable("gui.wildex.aggression.friendly");
     private static final Component NEUTRAL_FILTER_LABEL = Component.translatable("gui.wildex.aggression.neutral");
     private static final Component HOSTILE_FILTER_LABEL = Component.translatable("gui.wildex.aggression.hostile");
@@ -191,6 +193,54 @@ public final class WildexScreen extends Screen {
         int y = entriesArea.y() + ((entriesArea.h() - textH) / 2) + 1;
         int maxY = this.layout.leftSearchArea().y() - textH - 1;
         return Math.min(y, maxY);
+    }
+
+    private WildexScreenLayout.Area variantProbeIndicatorArea(Component entriesText, float entriesScale) {
+        if (this.layout == null || entriesText == null) return null;
+        if (!WildexClientConfigView.showMobVariants()) return null;
+        if (!WildexClientConfigView.backgroundMobVariantProbe()) return null;
+        if (!WildexEntityVariantCatalog.hasPendingJobs()) return null;
+
+        int entriesX = this.layout.leftSearchArea().x();
+        int entriesY = entriesTextY();
+        int textW = Math.max(1, Math.round(WildexUiText.width(this.font, entriesText) * entriesScale));
+        int indicatorSize = Math.max(7, Math.round(entriesTextHeight() * 0.82f));
+        int gap = Math.max(4, Math.round(4.0f * WildexUiScale.get()));
+        int x = entriesX + textW + gap;
+        int y = entriesY + Math.max(0, (entriesTextHeight() - indicatorSize) / 2);
+        return new WildexScreenLayout.Area(x, y, indicatorSize, indicatorSize);
+    }
+
+    private void drawVariantProbeIndicator(GuiGraphics graphics, WildexScreenLayout.Area area, int inkColor) {
+        if (area == null) return;
+
+        int size = Math.max(6, Math.min(area.w(), area.h()));
+        int x = area.x();
+        int y = area.y();
+        int centerX = x + (size / 2);
+        int centerY = y + (size / 2);
+        int dotSize = Math.max(2, Math.round(size / 4.0f));
+        int radius = Math.max(2, (size - dotSize) / 2);
+        int frame = (int) ((System.currentTimeMillis() / 90L) % 8L);
+
+        for (int i = 0; i < 8; i++) {
+            double angle = (Math.PI * 2.0 * i) / 8.0;
+            int dotX = centerX + (int) Math.round(Math.cos(angle) * radius) - (dotSize / 2);
+            int dotY = centerY + (int) Math.round(Math.sin(angle) * radius) - (dotSize / 2);
+
+            int distance = Math.floorMod(i - frame, 8);
+            int alpha = Math.max(56, 255 - (distance * 24));
+            int color = (alpha << 24) | (inkColor & 0x00FFFFFF);
+            graphics.fill(dotX, dotY, dotX + dotSize, dotY + dotSize, color);
+        }
+    }
+
+    private boolean isMouseOverVariantProbeIndicator(int physicalMouseX, int physicalMouseY, WildexScreenLayout.Area area) {
+        return area != null
+                && physicalMouseX >= area.x()
+                && physicalMouseX < area.x() + area.w()
+                && physicalMouseY >= area.y()
+                && physicalMouseY < area.y() + area.h();
     }
 
     private int aggressionFilterButtonY(int buttonHeight) {
@@ -684,16 +734,22 @@ public final class WildexScreen extends Screen {
         updateShareWidgetsVisibility();
     }
 
-    public void onServerConfigUpdated() {
+    public void onServerConfigUpdated(boolean refreshMobList, boolean hiddenModeChanged) {
         if (this.shareOverlay != null) {
             this.shareOverlay.refreshVisibility();
         }
-        this.mobDataResolver.clearCache();
         updateShareWidgetsVisibility();
+        if (!refreshMobList) {
+            return;
+        }
+
+        this.mobDataResolver.clearCache();
         refreshMobList();
-        WildexNetworkClient.requestDiscoveredMobs();
-        if (WildexClientConfigView.hiddenMode()) {
-            WildexNetworkClient.requestViewedMobEntries();
+        if (hiddenModeChanged) {
+            WildexNetworkClient.requestDiscoveredMobs();
+            if (WildexClientConfigView.hiddenMode()) {
+                WildexNetworkClient.requestViewedMobEntries();
+            }
         }
     }
 
@@ -1195,6 +1251,8 @@ public final class WildexScreen extends Screen {
         int entriesX = this.layout.leftSearchArea().x();
         int entriesY = entriesTextY();
         WildexUiRenderUtil.drawScaledText(graphics, this.font, entriesText, entriesX, entriesY, entriesScale, theme.ink());
+        WildexScreenLayout.Area variantProbeIndicatorArea = variantProbeIndicatorArea(entriesText, entriesScale);
+        drawVariantProbeIndicator(graphics, variantProbeIndicatorArea, theme.ink());
 
         if (WildexClientConfigView.hiddenMode()) {
             WildexScreenLayout.Area discArea = this.layout.leftDiscoveryCounterArea();
@@ -1312,6 +1370,20 @@ public final class WildexScreen extends Screen {
         if (this.filterMenuButton != null && this.filterMenuButton.isHovered()) {
             Component tip = this.filterMenuButton.tooltip();
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (isMouseOverVariantProbeIndicator(physicalMouseX, physicalMouseY, variantProbeIndicatorArea)) {
+            int pendingJobs = WildexEntityVariantCatalog.pendingJobCount();
+            Component detail = Component.literal(Integer.toString(pendingJobs));
+            WildexUiRenderUtil.renderTooltip(
+                    graphics,
+                    this.font,
+                    List.of(VARIANT_PROBE_RUNNING_TOOLTIP.copy().append(" (").append(detail).append(")")),
+                    physicalMouseX,
+                    physicalMouseY,
+                    this.physicalScreenW,
+                    this.physicalScreenH,
+                    theme
+            );
         }
 
         if (this.trophyRenderState != null

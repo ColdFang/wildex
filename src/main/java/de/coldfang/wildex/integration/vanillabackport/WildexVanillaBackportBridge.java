@@ -58,6 +58,11 @@ public final class WildexVanillaBackportBridge {
         return out.isEmpty() ? List.of() : List.copyOf(out);
     }
 
+    public static boolean supportsVariantOptions(Entity entity) {
+        BridgeBinding binding = resolveBinding(entity);
+        return binding != null && !binding.entries().isEmpty();
+    }
+
     public static boolean applyVariantOption(Entity entity, String optionId) {
         if (optionId == null || optionId.isBlank()) return false;
         if (!optionId.startsWith(OPTION_PREFIX + "|")) return false;
@@ -207,8 +212,7 @@ public final class WildexVanillaBackportBridge {
     }
 
     private static Object resolveRegistry(BridgeBinding binding) {
-        if (binding == null) return null;
-        return binding.registry();
+        return binding == null ? null : binding.registry();
     }
 
     private static boolean isVanillaBackportLoaded() {

@@ -115,6 +115,7 @@
   "tooltip.wildex.share_entry": "Eintrag mit anderem Spieler teilen",
   "tooltip.wildex.share_claim_payouts": "Alle ausstehenden Share-Zahlungen abholen",
   "tooltip.wildex.discovered_only": "Nur entdeckte Mobs anzeigen",
+  "tooltip.wildex.variant_probe_running": "Die Varianten-Erkennung der Mobs laeuft noch",
   "tooltip.wildex.aggression.filter.friendly": "Friedliche Mobs",
   "tooltip.wildex.aggression.filter.neutral": "Neutrale Mobs",
   "tooltip.wildex.aggression.filter.hostile": "Feindliche Mobs",

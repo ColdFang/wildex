@@ -15,10 +15,16 @@ public final class WildexEntityFactory {
     }
 
     public static Entity tryCreate(EntityType<?> type, Level level) {
+        return tryCreate(type, level, true);
+    }
+
+    public static Entity tryCreate(EntityType<?> type, Level level, boolean normalizeDisplayState) {
         if (type == null || level == null) return null;
         try {
             Entity entity = type.create(level);
-            normalizeDisplayEntity(entity);
+            if (normalizeDisplayState) {
+                normalizeDisplayEntity(entity);
+            }
             return entity;
         } catch (RuntimeException ignored) {
             return null;

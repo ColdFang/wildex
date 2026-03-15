@@ -145,6 +145,14 @@ public final class WildexEntityVariantCatalog {
         return CACHE_REVISION.get();
     }
 
+    public static boolean hasPendingJobs() {
+        return !PENDING_JOBS.isEmpty();
+    }
+
+    public static int pendingJobCount() {
+        return PENDING_JOBS.size();
+    }
+
     public static List<WildexEntityVariantProbe.VariantOption> options(EntityType<?> type, Level level) {
         ResourceLocation id = idOf(type);
         if (id == null) return List.of();
@@ -170,14 +178,14 @@ public final class WildexEntityVariantCatalog {
     }
 
     private static boolean probeSupport(EntityType<?> type, Level level) {
-        Entity entity = WildexEntityFactory.tryCreate(type, level);
+        Entity entity = WildexEntityFactory.tryCreate(type, level, false);
         if (!(entity instanceof Mob)) {
             WildexEntityFactory.discardQuietly(entity);
             return false;
         }
 
         try {
-            return WildexEntityVariantProbe.supportsVariants(entity);
+            return WildexEntityVariantProbe.supportsVariantsFast(entity);
         } finally {
             WildexEntityFactory.discardQuietly(entity);
         }

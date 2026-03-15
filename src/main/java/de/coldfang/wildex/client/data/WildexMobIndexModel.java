@@ -29,6 +29,8 @@ public final class WildexMobIndexModel {
     private static final ConcurrentMap<ResourceLocation, WildexAggression> AGGRESSION_CACHE = new ConcurrentHashMap<>();
     private static final ConcurrentMap<ResourceLocation, Boolean> TAMEABLE_CACHE = new ConcurrentHashMap<>();
     private static volatile String NAME_CACHE_LANGUAGE = "";
+    private static volatile List<EntityType<?>> ALL_CACHE = List.of();
+    private static volatile String ALL_CACHE_LANGUAGE = "";
 
     private final List<EntityType<?>> all;
     private List<EntityType<?>> filtered;
@@ -63,6 +65,8 @@ public final class WildexMobIndexModel {
         AGGRESSION_CACHE.clear();
         TAMEABLE_CACHE.clear();
         NAME_CACHE_LANGUAGE = "";
+        ALL_CACHE = List.of();
+        ALL_CACHE_LANGUAGE = "";
     }
 
     public WildexAggression aggressionOf(EntityType<?> type) {
@@ -107,6 +111,12 @@ public final class WildexMobIndexModel {
 
         Level level = mc.level;
         ensureNameCacheLanguage(mc);
+        String languageKey = currentLanguageKey(mc);
+
+        List<EntityType<?>> cached = ALL_CACHE;
+        if (!cached.isEmpty() && Objects.equals(ALL_CACHE_LANGUAGE, languageKey)) {
+            return cached;
+        }
 
         List<EntityType<?>> list = new ArrayList<>();
 
@@ -122,11 +132,14 @@ public final class WildexMobIndexModel {
                         .comparing(WildexMobIndexModel::localizedNameForSort)
                         .thenComparing(WildexMobIndexModel::idString)
         );
-        return List.copyOf(list);
+        List<EntityType<?>> built = List.copyOf(list);
+        ALL_CACHE = built;
+        ALL_CACHE_LANGUAGE = languageKey;
+        return built;
     }
 
     private static boolean isMobType(EntityType<?> type, Level level) {
-        Entity e = WildexEntityFactory.tryCreate(type, level);
+        Entity e = WildexEntityFactory.tryCreate(type, level, false);
         if (e == null) return false;
 
         boolean ok = e instanceof Mob;
@@ -137,7 +150,7 @@ public final class WildexMobIndexModel {
     private static boolean resolveTameable(EntityType<?> type, Level level) {
         if (type == null || level == null) return false;
 
-        Entity entity = WildexEntityFactory.tryCreate(type, level);
+        Entity entity = WildexEntityFactory.tryCreate(type, level, false);
         if (entity == null) return false;
 
         try {
@@ -231,17 +244,23 @@ public final class WildexMobIndexModel {
     }
 
     private static void ensureNameCacheLanguage(Minecraft mc) {
-        if (mc == null) return;
-        String selected = "";
-        try {
-            selected = normalize(mc.getLanguageManager().getSelected());
-        } catch (Throwable ignored) {
-        }
+        String selected = currentLanguageKey(mc);
 
         String current = NAME_CACHE_LANGUAGE;
         if (!Objects.equals(current, selected)) {
             NORMALIZED_NAME_CACHE.clear();
             NAME_CACHE_LANGUAGE = selected;
+            ALL_CACHE = List.of();
+            ALL_CACHE_LANGUAGE = "";
+        }
+    }
+
+    private static String currentLanguageKey(Minecraft mc) {
+        if (mc == null) return "";
+        try {
+            return normalize(mc.getLanguageManager().getSelected());
+        } catch (Throwable ignored) {
+            return "";
         }
     }
 

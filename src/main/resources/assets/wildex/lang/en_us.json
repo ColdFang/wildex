@@ -115,6 +115,7 @@
   "tooltip.wildex.share_entry": "Share entry with other player",
   "tooltip.wildex.share_claim_payouts": "Claim all pending share payments",
   "tooltip.wildex.discovered_only": "Show only discovered mobs",
+  "tooltip.wildex.variant_probe_running": "Mob variant probing is still running",
   "tooltip.wildex.aggression.filter.friendly": "Friendly mobs",
   "tooltip.wildex.aggression.filter.neutral": "Neutral mobs",
   "tooltip.wildex.aggression.filter.hostile": "Hostile mobs",

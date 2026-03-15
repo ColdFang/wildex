@@ -120,8 +120,18 @@ public final class WildexEntityVariantProbe {
         }
     }
 
-    public static boolean supportsVariants(Entity entity) {
-        return !discoverOptions(entity, 1).isEmpty();
+    public static boolean supportsVariantsFast(Entity entity) {
+        if (!isClientPreviewEntity(entity)) return false;
+        if (isVariantProbeExcluded(entity)) return false;
+        if (!(entity instanceof Mob mob)) return false;
+
+        if (WildexCobblemonBridge.supportsVariantOptions(entity)) {
+            return true;
+        }
+        if (WildexVanillaBackportBridge.supportsVariantOptions(entity)) {
+            return true;
+        }
+        return !resolveAccessors(mob.getClass()).isEmpty();
     }
 
     public static List<VariantOption> discoverOptions(Entity entity, int maxOptions) {
