@@ -3,12 +3,13 @@ package de.coldfang.wildex.integration.exposure;
 import de.coldfang.wildex.Wildex;
 import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.server.WildexDiscoveryService;
+import de.coldfang.wildex.util.WildexMobIdCanonicalizer;
 import io.github.mortuusars.exposure.neoforge.api.event.FrameAddedEvent;
 import io.github.mortuusars.exposure.world.camera.frame.Frame;
 import io.github.mortuusars.exposure.world.camera.frame.Photographer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -41,16 +42,20 @@ public final class WildexExposureEvents {
 
         ServerPlayer player = resolvePlayer(event);
         if (player == null) return;
-        if (!(player.level() instanceof ServerLevel)) return;
 
         Set<ResourceLocation> uniqueMobs = new HashSet<>();
         for (LivingEntity living : event.getEntitiesInFrame()) {
             if (living == null) continue;
 
-            ResourceLocation mobId = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType());
+            ResourceLocation mobId = WildexMobIdCanonicalizer.canonicalize(BuiltInRegistries.ENTITY_TYPE.getKey(living.getType()));
             if (!uniqueMobs.add(mobId)) continue;
 
-            WildexDiscoveryService.discover(player, mobId, WildexDiscoveryService.DiscoverySource.EXPOSURE);
+            WildexDiscoveryService.discover(
+                    player,
+                    mobId,
+                    WildexDiscoveryService.DiscoverySource.EXPOSURE,
+                    WildexDiscoveryService.DiscoveryCapture.atEntity(living)
+            );
         }
     }
 
@@ -60,9 +65,11 @@ public final class WildexExposureEvents {
             return serverPlayer;
         }
 
-        if (!(holderEntity != null && holderEntity.level() instanceof ServerLevel level)) {
+        if (holderEntity == null) {
             return null;
         }
+        MinecraftServer server = holderEntity.getServer();
+        if (server == null) return null;
 
         Frame frame = event.getFrame();
         if (frame == null) return null;
@@ -73,6 +80,6 @@ public final class WildexExposureEvents {
         UUID playerId = photographer.uuid();
         if (playerId == null) return null;
 
-        return level.getServer().getPlayerList().getPlayer(playerId);
+        return server.getPlayerList().getPlayer(playerId);
     }
 }

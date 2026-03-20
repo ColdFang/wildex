@@ -3,8 +3,7 @@ package de.coldfang.wildex.client.input;
 import com.mojang.blaze3d.platform.InputConstants;
 import de.coldfang.wildex.Wildex;
 import de.coldfang.wildex.client.WildexClientConfigView;
-import de.coldfang.wildex.client.screen.WildexScreen;
-import de.coldfang.wildex.client.screen.WildexUiSounds;
+import de.coldfang.wildex.client.WildexScreenOpener;
 import de.coldfang.wildex.registry.ModItems;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -64,7 +63,6 @@ public final class WildexKeybinds {
             if (!hasBook) return;
         }
 
-        WildexUiSounds.playScreenOpen();
-        mc.setScreen(new WildexScreen());
+        WildexScreenOpener.open();
     }
 }

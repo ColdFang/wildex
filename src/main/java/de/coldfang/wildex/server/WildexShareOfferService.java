@@ -245,7 +245,12 @@ public final class WildexShareOfferService {
             PacketDistributor.sendToPlayer(sender, new S2CSharePayoutStatusPayload(getPendingPayoutTotal(sender)));
         }
 
-        boolean discovered = WildexDiscoveryService.discover(receiver, offer.mobId, WildexDiscoveryService.DiscoverySource.SHARE);
+        boolean discovered = WildexDiscoveryService.discover(
+                receiver,
+                offer.mobId,
+                WildexDiscoveryService.DiscoverySource.SHARE,
+                WildexDiscoveryService.DiscoveryCapture.at(level, receiver.blockPosition(), offer.senderName)
+        );
         if (!discovered) {
             receiver.displayClientMessage(Component.translatable("message.wildex.share.offer_failed"), false);
             return;
@@ -351,8 +356,9 @@ public final class WildexShareOfferService {
 
     private static void notifyExpiredOffer(ServerLevel level, Offer offer) {
         if (level == null || offer == null) return;
-        ServerPlayer sender = level.getServer().getPlayerList().getPlayer(offer.senderId);
-        ServerPlayer receiver = level.getServer().getPlayerList().getPlayer(offer.receiverId);
+        var playerList = level.getServer().getPlayerList();
+        ServerPlayer sender = playerList.getPlayer(offer.senderId);
+        ServerPlayer receiver = playerList.getPlayer(offer.receiverId);
 
         if (sender != null) {
             sender.displayClientMessage(Component.translatable("message.wildex.share.offer_expired_sender"), false);
@@ -376,8 +382,8 @@ public final class WildexShareOfferService {
     }
 
     private static ResourceLocation resolveCurrencyItemId() {
-        String raw = CommonConfig.INSTANCE.shareOfferCurrencyItem.get();
-        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw.trim());
+        String raw = CommonConfig.INSTANCE.shareOfferCurrencyItem.get().trim();
+        ResourceLocation rl = ResourceLocation.tryParse(raw);
         if (rl == null) return BuiltInRegistries.ITEM.getKey(Items.EMERALD);
         Item it = BuiltInRegistries.ITEM.getOptional(rl).orElse(Items.EMERALD);
         if (it == Items.AIR) return BuiltInRegistries.ITEM.getKey(Items.EMERALD);

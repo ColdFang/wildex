@@ -9,6 +9,7 @@ public final class WildexPlayerUiStateCache {
     private static boolean neutralEnabled = false;
     private static boolean hostileEnabled = false;
     private static boolean tameableEnabled = false;
+    private static boolean favoritesEnabled = false;
     private static boolean hasServerState = false;
 
     private WildexPlayerUiStateCache() {
@@ -21,7 +22,8 @@ public final class WildexPlayerUiStateCache {
             boolean newFriendlyEnabled,
             boolean newNeutralEnabled,
             boolean newHostileEnabled,
-            boolean newTameableEnabled
+            boolean newTameableEnabled,
+            boolean newFavoritesEnabled
     ) {
         tabId = newTabId == null || newTabId.isBlank() ? "STATS" : newTabId;
         mobId = newMobId == null ? "" : newMobId;
@@ -30,6 +32,7 @@ public final class WildexPlayerUiStateCache {
         neutralEnabled = newNeutralEnabled;
         hostileEnabled = newHostileEnabled;
         tameableEnabled = newTameableEnabled;
+        favoritesEnabled = newFavoritesEnabled;
         hasServerState = true;
     }
 
@@ -61,6 +64,10 @@ public final class WildexPlayerUiStateCache {
         return tameableEnabled;
     }
 
+    public static synchronized boolean favoritesEnabled() {
+        return favoritesEnabled;
+    }
+
     public static synchronized boolean hasServerState() {
         return hasServerState;
     }
@@ -73,6 +80,7 @@ public final class WildexPlayerUiStateCache {
         neutralEnabled = false;
         hostileEnabled = false;
         tameableEnabled = false;
+        favoritesEnabled = false;
         hasServerState = false;
     }
 }

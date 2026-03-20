@@ -1,5 +1,56 @@
 # Changelog
 
+## 3.0.0
+
+### Added
+- Added a new common config option `spyglassDiscoveryRange`:
+  - controls how far away spyglass discovery can trigger
+  - defaults to Wildex' previous hardcoded range
+- Added Lectern support for the Wildex book:
+  - Wildex can now be placed into a Lectern and opened from there
+  - sneak+rightclick with an empty hand removes the Wildex from the Lectern again
+- Added per-entry discovery details for newly discovered mobs:
+  - discovery source
+  - discovery date/time
+  - discovery dimension and coordinates
+- Added discovery info directly to the right header
+  - shows the discovery type in the header
+  - hovering it shows the stored timestamp, dimension, and coordinates
+- Added legacy reset support for pre-3.0.0 discovered entries that do not have discovery metadata yet.
+- Added a confirmation popup before resetting a legacy Wildex entry.
+- Added player favorites:
+  - entries can be marked directly from the right header
+  - favorites are stored per player per world
+  - favorites are synced in multiplayer
+- Added a new Favorites filter to the mob list.
+- Added a new mob-preview sound control in the top-right preview header
+- Added a new mob-preview rotation toggle in the top-left preview header:
+  - pauses the automatic preview rotation without disabling manual drag rotation
+
+### Changed
+- Reworked Wildex screen opening so inventory use, keybind opening, and Lectern opening now share a unified client open path.
+- Discovery details are loaded on demand per selected mob instead of being fully synced up front.
+- The right header now uses icon-based summary rows for `Type`, `Kills`, `Mod`, and discovery info.
+- Expanded filter buttons now render over a solid theme-colored backdrop instead of exposing gaps to the book texture behind them.
+- Reworked Wildex entity display-state preparation for Mowzie's Umvuthana-family mobs so preview/pedestal renders use the proper active model state.
+
+### Fixed
+- Fixed a Wildex Pedestal crash when rendering certain GeckoLib-based mobs from Mowzie's Mobs.
+- Fixed Mowzie helper/follower/trade entity variants being treated as separate Wildex mob entries instead of resolving to their canonical mob IDs.
+- Fixed Umvuthana-family mob previews/pedestal renders
+
+### Compatibility
+- Existing worlds are supported.
+- No destructive migration of existing discovery data is required.
+- Safe update path from `2.7.3`.
+- Multiplayer-safe:
+  - discovery details remain server-authoritative
+  - favorites remain server-authoritative
+  - legacy entry resets are validated on the server
+- Important:
+  - entries discovered before `3.0.0` do not automatically have discovery metadata
+  - players can reset those legacy entries and discover them again to collect new discovery data
+
 ## 2.7.3 - 2026-03-15
 
 ### Added

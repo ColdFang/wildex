@@ -27,6 +27,7 @@ public final class WildexMobFilters {
 
     private static boolean isTrackableId(ResourceLocation id) {
         if (id == null) return false;
+        if (!WildexMobIdCanonicalizer.isCanonical(id)) return false;
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
         if (type == null) return false;
 

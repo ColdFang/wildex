@@ -1,9 +1,11 @@
 package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexCompletionCache;
+import de.coldfang.wildex.client.data.WildexDiscoveryDetailsCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
 import de.coldfang.wildex.client.data.WildexEntityVariantCatalog;
+import de.coldfang.wildex.client.data.WildexFavoriteMobEntriesCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexMiscCache;
@@ -18,6 +20,7 @@ import de.coldfang.wildex.client.screen.MobListWidget;
 import de.coldfang.wildex.client.screen.WildexScreen;
 import de.coldfang.wildex.network.C2SDebugDiscoverMobPayload;
 import de.coldfang.wildex.network.C2SMarkMobEntryViewedPayload;
+import de.coldfang.wildex.network.C2SRequestFavoriteMobEntriesPayload;
 import de.coldfang.wildex.network.C2SRequestPlayerUiStatePayload;
 import de.coldfang.wildex.network.C2SRequestServerConfigPayload;
 import de.coldfang.wildex.network.C2SRequestShareCandidatesPayload;
@@ -26,10 +29,13 @@ import de.coldfang.wildex.network.C2SRequestDiscoveredMobsPayload;
 import de.coldfang.wildex.network.C2SRequestViewedMobEntriesPayload;
 import de.coldfang.wildex.network.C2SClaimSharePayoutsPayload;
 import de.coldfang.wildex.network.C2SAccessorifySpyglassStatePayload;
+import de.coldfang.wildex.network.C2SRequestMobDiscoveryDetailsPayload;
 import de.coldfang.wildex.network.C2SRequestMobKillsPayload;
 import de.coldfang.wildex.network.C2SRequestMobLootPayload;
 import de.coldfang.wildex.network.C2SRequestMobSpawnsPayload;
+import de.coldfang.wildex.network.C2SResetLegacyDiscoveryPayload;
 import de.coldfang.wildex.network.C2SSavePlayerUiStatePayload;
+import de.coldfang.wildex.network.C2SSetMobFavoritePayload;
 import de.coldfang.wildex.network.C2SSendShareOfferPayload;
 import de.coldfang.wildex.network.C2SSetShareAcceptOffersPayload;
 import de.coldfang.wildex.network.S2CDiscoveredMobPayload;
@@ -37,9 +43,13 @@ import de.coldfang.wildex.network.S2CDiscoveredMobsPayload;
 import de.coldfang.wildex.network.S2CMobKillsPayload;
 import de.coldfang.wildex.network.S2CMobLootPayload;
 import de.coldfang.wildex.network.S2CMobBreedingPayload;
+import de.coldfang.wildex.network.S2CMobDiscoveryDetailsPayload;
 import de.coldfang.wildex.network.S2CMobEntryViewedPayload;
+import de.coldfang.wildex.network.S2CMobFavoriteStatePayload;
 import de.coldfang.wildex.network.S2CMobSpawnsPayload;
+import de.coldfang.wildex.network.S2COpenWildexScreenPayload;
 import de.coldfang.wildex.network.S2CPlayerUiStatePayload;
+import de.coldfang.wildex.network.S2CFavoriteMobEntriesPayload;
 import de.coldfang.wildex.network.S2CShareCandidatesPayload;
 import de.coldfang.wildex.network.S2CSharePayoutStatusPayload;
 import de.coldfang.wildex.network.S2CServerConfigPayload;
@@ -77,9 +87,23 @@ public final class WildexNetworkClient {
         PayloadRegistrar r = event.registrar(WildexNetwork.MOD_ID);
 
         r.playToClient(
+                S2COpenWildexScreenPayload.TYPE,
+                S2COpenWildexScreenPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(WildexScreenOpener::open)
+        );
+
+        r.playToClient(
                 S2CMobKillsPayload.TYPE,
                 S2CMobKillsPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> WildexKillCache.set(payload.mobId(), payload.kills()))
+        );
+
+        r.playToClient(
+                S2CMobDiscoveryDetailsPayload.TYPE,
+                S2CMobDiscoveryDetailsPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() ->
+                        WildexDiscoveryDetailsCache.set(payload.mobId(), payload.toClientModel())
+                )
         );
 
         r.playToClient(
@@ -98,6 +122,30 @@ public final class WildexNetworkClient {
                 S2CMobEntryViewedPayload.TYPE,
                 S2CMobEntryViewedPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> WildexViewedMobEntriesCache.add(payload.mobId()))
+        );
+
+        r.playToClient(
+                S2CFavoriteMobEntriesPayload.TYPE,
+                S2CFavoriteMobEntriesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    WildexFavoriteMobEntriesCache.setAll(payload.mobIds());
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.onFavoriteEntriesUpdated();
+                    }
+                })
+        );
+
+        r.playToClient(
+                S2CMobFavoriteStatePayload.TYPE,
+                S2CMobFavoriteStatePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    WildexFavoriteMobEntriesCache.setFavorite(payload.mobId(), payload.favorite());
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.screen instanceof WildexScreen screen) {
+                        screen.onFavoriteEntriesUpdated();
+                    }
+                })
         );
 
         r.playToClient(
@@ -191,7 +239,8 @@ public final class WildexNetworkClient {
                             payload.friendlyEnabled(),
                             payload.neutralEnabled(),
                             payload.hostileEnabled(),
-                            payload.tameableEnabled()
+                            payload.tameableEnabled(),
+                            payload.favoritesEnabled()
                     );
 
                     Minecraft mc = Minecraft.getInstance();
@@ -203,7 +252,8 @@ public final class WildexNetworkClient {
                                 payload.friendlyEnabled(),
                                 payload.neutralEnabled(),
                                 payload.hostileEnabled(),
-                                payload.tameableEnabled()
+                                payload.tameableEnabled(),
+                                payload.favoritesEnabled()
                         );
                     }
                 })
@@ -283,6 +333,25 @@ public final class WildexNetworkClient {
         PacketDistributor.sendToServer(new C2SRequestMobKillsPayload(rl));
     }
 
+    public static void requestDiscoveryDetails(ResourceLocation mobId) {
+        if (mobId == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SRequestMobDiscoveryDetailsPayload(mobId));
+    }
+
+    public static void resetLegacyDiscovery(String mobId) {
+        ResourceLocation rl = ResourceLocation.tryParse(mobId == null ? "" : mobId);
+        if (rl == null) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        WildexDiscoveryDetailsCache.invalidate(rl);
+        PacketDistributor.sendToServer(new C2SResetLegacyDiscoveryPayload(rl));
+    }
+
     public static void requestLootForSelected(String mobId) {
         ResourceLocation rl = ResourceLocation.tryParse(mobId == null ? "" : mobId);
         if (rl == null) return;
@@ -334,6 +403,14 @@ public final class WildexNetworkClient {
         PacketDistributor.sendToServer(new C2SRequestViewedMobEntriesPayload());
     }
 
+    public static void requestFavoriteMobEntries() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+        if (!WildexFavoriteMobEntriesCache.markRequested()) return;
+
+        PacketDistributor.sendToServer(new C2SRequestFavoriteMobEntriesPayload());
+    }
+
     public static void markMobEntryViewed(ResourceLocation mobId) {
         if (mobId == null) return;
         Minecraft mc = Minecraft.getInstance();
@@ -349,7 +426,8 @@ public final class WildexNetworkClient {
             boolean friendlyEnabled,
             boolean neutralEnabled,
             boolean hostileEnabled,
-            boolean tameableEnabled
+            boolean tameableEnabled,
+            boolean favoritesEnabled
     ) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null) return;
@@ -364,9 +442,19 @@ public final class WildexNetworkClient {
                         friendlyEnabled,
                         neutralEnabled,
                         hostileEnabled,
-                        tameableEnabled
+                        tameableEnabled,
+                        favoritesEnabled
                 )
         );
+    }
+
+    public static void setMobFavorite(ResourceLocation mobId, boolean favorite) {
+        if (mobId == null) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return;
+
+        PacketDistributor.sendToServer(new C2SSetMobFavoritePayload(mobId, favorite));
     }
 
     public static void sendDebugDiscoverMob(ResourceLocation mobId) {

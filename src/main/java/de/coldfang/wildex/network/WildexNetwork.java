@@ -12,6 +12,7 @@ import de.coldfang.wildex.server.spawn.WildexSpawnExtractor;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerCooldownData;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
+import de.coldfang.wildex.world.WildexWorldPlayerFavoriteEntriesData;
 import de.coldfang.wildex.world.WildexWorldPlayerKillData;
 import de.coldfang.wildex.world.WildexWorldPlayerUiStateData;
 import de.coldfang.wildex.world.WildexWorldPlayerViewedEntriesData;
@@ -77,7 +78,11 @@ public final class WildexNetwork {
         // Dedicated servers must still advertise clientbound Wildex channels during handshake.
         // Handlers stay client-only; these are no-op registrations for channel presence.
         if (FMLEnvironment.dist == Dist.DEDICATED_SERVER) {
+            r.playToClient(S2COpenWildexScreenPayload.TYPE, S2COpenWildexScreenPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
             r.playToClient(S2CDiscoveredMobPayload.TYPE, S2CDiscoveredMobPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobDiscoveryDetailsPayload.TYPE, S2CMobDiscoveryDetailsPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CDiscoveredMobsPayload.TYPE, S2CDiscoveredMobsPayload.STREAM_CODEC, (payload, ctx) -> {
             });
@@ -92,6 +97,10 @@ public final class WildexNetwork {
             r.playToClient(S2CViewedMobEntriesPayload.TYPE, S2CViewedMobEntriesPayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CMobEntryViewedPayload.TYPE, S2CMobEntryViewedPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CFavoriteMobEntriesPayload.TYPE, S2CFavoriteMobEntriesPayload.STREAM_CODEC, (payload, ctx) -> {
+            });
+            r.playToClient(S2CMobFavoriteStatePayload.TYPE, S2CMobFavoriteStatePayload.STREAM_CODEC, (payload, ctx) -> {
             });
             r.playToClient(S2CSpyglassDiscoveryEffectPayload.TYPE, S2CSpyglassDiscoveryEffectPayload.STREAM_CODEC, (payload, ctx) -> {
             });
@@ -199,6 +208,43 @@ public final class WildexNetwork {
         );
 
         r.playToServer(
+                C2SRequestMobDiscoveryDetailsPayload.TYPE,
+                C2SRequestMobDiscoveryDetailsPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    ResourceLocation mobId = payload.mobId();
+                    if (!WildexMobFilters.isTrackable(mobId)) return;
+
+                    PacketDistributor.sendToPlayer(
+                            sp,
+                            WildexDiscoveryService.buildDiscoveryDetailsPayload(serverLevel, sp.getUUID(), mobId)
+                    );
+                })
+        );
+
+        r.playToServer(
+                C2SResetLegacyDiscoveryPayload.TYPE,
+                C2SResetLegacyDiscoveryPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    ResourceLocation mobId = payload.mobId();
+                    if (!WildexMobFilters.isTrackable(mobId)) return;
+
+                    WildexWorldPlayerDiscoveryData discoveryData = WildexWorldPlayerDiscoveryData.get(serverLevel);
+                    if (!discoveryData.isDiscovered(sp.getUUID(), mobId)) return;
+                    if (de.coldfang.wildex.world.WildexWorldPlayerDiscoveryDetailsData.get(serverLevel).hasDetails(sp.getUUID(), mobId)) {
+                        return;
+                    }
+
+                    WildexDiscoveryService.undiscover(sp, mobId);
+                })
+        );
+
+        r.playToServer(
                 C2SRequestDiscoveredMobsPayload.TYPE,
                 C2SRequestDiscoveredMobsPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
@@ -230,6 +276,21 @@ public final class WildexNetwork {
         );
 
         r.playToServer(
+                C2SRequestFavoriteMobEntriesPayload.TYPE,
+                C2SRequestFavoriteMobEntriesPayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    Set<ResourceLocation> favorites = WildexWorldPlayerFavoriteEntriesData
+                            .get(serverLevel)
+                            .getFavorites(sp.getUUID());
+
+                    PacketDistributor.sendToPlayer(sp, new S2CFavoriteMobEntriesPayload(favorites));
+                })
+        );
+
+        r.playToServer(
                 C2SMarkMobEntryViewedPayload.TYPE,
                 C2SMarkMobEntryViewedPayload.STREAM_CODEC,
                 (payload, ctx) -> ctx.enqueueWork(() -> {
@@ -254,6 +315,23 @@ public final class WildexNetwork {
                     }
 
                     PacketDistributor.sendToPlayer(sp, new S2CMobEntryViewedPayload(mobId));
+                })
+        );
+
+        r.playToServer(
+                C2SSetMobFavoritePayload.TYPE,
+                C2SSetMobFavoritePayload.STREAM_CODEC,
+                (payload, ctx) -> ctx.enqueueWork(() -> {
+                    if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                    if (!(sp.level() instanceof ServerLevel serverLevel)) return;
+
+                    ResourceLocation mobId = payload.mobId();
+                    if (!WildexMobFilters.isTrackable(mobId)) return;
+
+                    WildexWorldPlayerFavoriteEntriesData.get(serverLevel)
+                            .setFavorite(sp.getUUID(), mobId, payload.favorite());
+
+                    PacketDistributor.sendToPlayer(sp, new S2CMobFavoriteStatePayload(mobId, payload.favorite()));
                 })
         );
 
@@ -443,7 +521,8 @@ public final class WildexNetwork {
                                     state.friendlyEnabled(),
                                     state.neutralEnabled(),
                                     state.hostileEnabled(),
-                                    state.tameableEnabled()
+                                    state.tameableEnabled(),
+                                    state.favoritesEnabled()
                             )
                     );
                 })
@@ -553,7 +632,8 @@ public final class WildexNetwork {
                                     payload.friendlyEnabled(),
                                     payload.neutralEnabled(),
                                     payload.hostileEnabled(),
-                                    payload.tameableEnabled()
+                                    payload.tameableEnabled(),
+                                    payload.favoritesEnabled()
                             );
                 })
         );
@@ -570,7 +650,7 @@ public final class WildexNetwork {
     }
 
     private static String sanitizeMob(String raw) {
-        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw);
+        ResourceLocation rl = ResourceLocation.tryParse(raw);
         if (rl == null) return "";
         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return "";
         if (!WildexMobFilters.isTrackable(rl)) return "";

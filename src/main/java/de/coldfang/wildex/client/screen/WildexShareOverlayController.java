@@ -316,7 +316,7 @@ public final class WildexShareOverlayController {
 
         WildexScreenLayout.Area previewAreaForMargins = layout.rightPreviewArea();
         WildexScreenLayout.Area previewReset = layout.previewResetButtonArea();
-        int closeSize = Math.max(10, previewReset.w());
+        int closeSize = Math.max(16, previewReset.w());
         int resetRightMargin = Math.max(0, (previewAreaForMargins.x() + previewAreaForMargins.w()) - (previewReset.x() + previewReset.w()));
         int resetBottomMargin = Math.max(0, (previewAreaForMargins.y() + previewAreaForMargins.h()) - (previewReset.y() + previewReset.h()));
         int closeX = (panel.x() + panel.w()) - closeSize - resetRightMargin;
@@ -521,7 +521,7 @@ public final class WildexShareOverlayController {
 
         WildexScreenLayout.Area previewAreaForMargins = layout.rightPreviewArea();
         WildexScreenLayout.Area previewReset = layout.previewResetButtonArea();
-        int closeSize = Math.max(10, previewReset.w());
+        int closeSize = Math.max(16, previewReset.w());
         int resetRightMargin = Math.max(0, (previewAreaForMargins.x() + previewAreaForMargins.w()) - (previewReset.x() + previewReset.w()));
         int resetBottomMargin = Math.max(0, (previewAreaForMargins.y() + previewAreaForMargins.h()) - (previewReset.y() + previewReset.h()));
         int closeX = (panel.x() + panel.w()) - closeSize - resetRightMargin;
@@ -763,8 +763,8 @@ public final class WildexShareOverlayController {
     }
 
     private static Item resolveShareCurrencyItem() {
-        String raw = WildexClientConfigView.shareOfferCurrencyItem();
-        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw.trim());
+        String raw = WildexClientConfigView.shareOfferCurrencyItem().trim();
+        ResourceLocation rl = ResourceLocation.tryParse(raw);
         if (rl == null) return Items.EMERALD;
         Item it = BuiltInRegistries.ITEM.getOptional(rl).orElse(Items.EMERALD);
         if (it == Items.AIR) return Items.EMERALD;

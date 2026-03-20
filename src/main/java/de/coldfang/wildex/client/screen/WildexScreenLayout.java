@@ -229,10 +229,10 @@ public final class WildexScreenLayout {
         int alignRightBy = m.alignRightToLeftSearch() ? (searchArea.y() - previewBase.y() + previewShiftYPx) : 0;
         Area preview = new Area(previewBase.x(), previewBase.y() + alignRightBy, previewBase.w(), previewBase.h());
 
-        int resetSize = Math.max(10, Math.round(m.previewResetBtnSize() * scale));
+        int resetSize = Math.max(14, Math.round(m.previewResetBtnSize() * scale) + 3);
         int resetMargin = Math.max(2, Math.round(m.previewResetBtnMargin() * scale));
         int resetBelowGap = Math.max(1, Math.round(2 * scale));
-        int resetGrow = Math.max(1, Math.round(3 * scale));
+        int resetGrow = Math.max(2, Math.round(4 * scale));
         int resetY = (WildexThemes.usesModernLayout(profile))
                 ? (preview.y() + preview.h()) + resetBelowGap - 2
                 : (preview.y() + preview.h()) - resetSize - resetMargin;

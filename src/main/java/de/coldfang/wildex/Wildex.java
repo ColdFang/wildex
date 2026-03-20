@@ -16,6 +16,7 @@ import de.coldfang.wildex.registry.ModItems;
 import de.coldfang.wildex.server.WildexCompletionSyncOnJoinEvents;
 import de.coldfang.wildex.server.WildexShareOfferCommands;
 import de.coldfang.wildex.world.WildexGiveBookOnFirstJoinEvents;
+import de.coldfang.wildex.world.WildexLecternEvents;
 import de.coldfang.wildex.world.WildexPedestalProtectionEvents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -58,6 +59,7 @@ public class Wildex {
         NeoForge.EVENT_BUS.register(WildexRuntimeCacheEvents.class);
         NeoForge.EVENT_BUS.register(WildexKubeJsLifecycleEvents.class);
         NeoForge.EVENT_BUS.register(WildexGiveBookOnFirstJoinEvents.class);
+        NeoForge.EVENT_BUS.register(WildexLecternEvents.class);
         NeoForge.EVENT_BUS.register(WildexPedestalProtectionEvents.class);
         NeoForge.EVENT_BUS.register(WildexCompletionSyncOnJoinEvents.class);
         NeoForge.EVENT_BUS.register(WildexShareOfferCommands.class);

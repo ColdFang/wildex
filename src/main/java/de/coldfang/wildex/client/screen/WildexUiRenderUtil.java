@@ -1,5 +1,6 @@
 package de.coldfang.wildex.client.screen;
 
+import de.coldfang.wildex.config.ClientConfig;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -17,6 +18,8 @@ public final class WildexUiRenderUtil {
     private static final int MENU_TOGGLE_INNER_VINTAGE = 0xFFC9A47A;
     private static final int MENU_TOGGLE_OUTER_MODERN = 0xFF1F9AA1;
     private static final int MENU_TOGGLE_INNER_MODERN = 0xFF93E7EC;
+    private static final int MENU_TOGGLE_OUTER_RUNES = 0xFF5D3F8F;
+    private static final int MENU_TOGGLE_INNER_RUNES = 0xFFC6A8FF;
     private static final int MENU_TOGGLE_ACCENT = 0xAAFFFFFF;
 
     private WildexUiRenderUtil() {
@@ -45,38 +48,36 @@ public final class WildexUiRenderUtil {
     ) {
         if (graphics == null || size <= 1) return;
 
-        int x0 = x;
-        int y0 = y;
         int x1 = x + size;
         int y1 = y + size;
-        int outer = WildexThemes.isModernLayout() ? MENU_TOGGLE_OUTER_MODERN : MENU_TOGGLE_OUTER_VINTAGE;
-        int inner = WildexThemes.isModernLayout() ? MENU_TOGGLE_INNER_MODERN : MENU_TOGGLE_INNER_VINTAGE;
+        int outer = menuToggleOuter();
+        int inner = menuToggleInner();
         int outerThickness = size >= 14 ? 2 : 1;
         int innerThickness = size >= 14 ? 2 : 1;
         int inset = outerThickness + innerThickness;
 
-        if ((x1 - inset) > (x0 + inset) && (y1 - inset) > (y0 + inset)) {
-            graphics.fill(x0 + inset, y0 + inset, x1 - inset, y1 - inset, fillColor);
+        if ((x1 - inset) > (x + inset) && (y1 - inset) > (y + inset)) {
+            graphics.fill(x + inset, y + inset, x1 - inset, y1 - inset, fillColor);
         } else {
-            graphics.fill(x0, y0, x1, y1, fillColor);
+            graphics.fill(x, y, x1, y1, fillColor);
         }
 
         for (int i = 0; i < outerThickness; i++) {
-            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, i, outer);
+            drawRectPerimeterLayer(graphics, x, y, x1, y1, i, outer);
         }
         for (int i = 0; i < innerThickness; i++) {
-            drawRectPerimeterLayer(graphics, x0, y0, x1, y1, outerThickness + i, inner);
+            drawRectPerimeterLayer(graphics, x, y, x1, y1, outerThickness + i, inner);
         }
 
         if (size >= 12) {
-            graphics.fill(x0 + 1, y0 + 1, x0 + 2, y0 + 2, MENU_TOGGLE_ACCENT);
-            graphics.fill(x1 - 2, y0 + 1, x1 - 1, y0 + 2, MENU_TOGGLE_ACCENT);
-            graphics.fill(x0 + 1, y1 - 2, x0 + 2, y1 - 1, MENU_TOGGLE_ACCENT);
+            graphics.fill(x + 1, y + 1, x + 2, y + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x1 - 2, y + 1, x1 - 1, y + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x + 1, y1 - 2, x + 2, y1 - 1, MENU_TOGGLE_ACCENT);
             graphics.fill(x1 - 2, y1 - 2, x1 - 1, y1 - 1, MENU_TOGGLE_ACCENT);
         }
 
-        int cx = x0 + (size / 2);
-        int cy = y0 + (size / 2);
+        int cx = x + (size / 2);
+        int cy = y + (size / 2);
         int thick = size >= 20 ? 2 : 1;
         int arm = Math.max(1, (size - 12) / 2);
         int yTop = cy - (thick / 2);
@@ -88,6 +89,70 @@ public final class WildexUiRenderUtil {
         }
     }
 
+    public static void drawMenuStyleControlBase(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int size,
+            int fillColor
+    ) {
+        drawMenuStyleControlBase(graphics, x, y, size, size, fillColor);
+    }
+
+    public static void drawMenuStyleControlBase(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int width,
+            int height,
+            int fillColor
+    ) {
+        if (graphics == null || width <= 1 || height <= 1) return;
+
+        int x1 = x + width;
+        int y1 = y + height;
+        int outer = menuToggleOuter();
+        int inner = menuToggleInner();
+        int minSide = Math.min(width, height);
+        int outerThickness = minSide >= 14 ? 2 : 1;
+        int innerThickness = minSide >= 14 ? 2 : 1;
+        int inset = outerThickness + innerThickness;
+
+        if ((x1 - inset) > (x + inset) && (y1 - inset) > (y + inset)) {
+            graphics.fill(x + inset, y + inset, x1 - inset, y1 - inset, fillColor);
+        } else {
+            graphics.fill(x, y, x1, y1, fillColor);
+        }
+
+        for (int i = 0; i < outerThickness; i++) {
+            drawRectPerimeterLayer(graphics, x, y, x1, y1, i, outer);
+        }
+        for (int i = 0; i < innerThickness; i++) {
+            drawRectPerimeterLayer(graphics, x, y, x1, y1, outerThickness + i, inner);
+        }
+
+        if (minSide >= 12) {
+            graphics.fill(x + 1, y + 1, x + 2, y + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x1 - 2, y + 1, x1 - 1, y + 2, MENU_TOGGLE_ACCENT);
+            graphics.fill(x + 1, y1 - 2, x + 2, y1 - 1, MENU_TOGGLE_ACCENT);
+            graphics.fill(x1 - 2, y1 - 2, x1 - 1, y1 - 1, MENU_TOGGLE_ACCENT);
+        }
+    }
+
+    private static int menuToggleOuter() {
+        ClientConfig.DesignStyle style = WildexThemes.current().layoutProfile();
+        if (style == ClientConfig.DesignStyle.MODERN) return MENU_TOGGLE_OUTER_MODERN;
+        if (style == ClientConfig.DesignStyle.RUNES) return MENU_TOGGLE_OUTER_RUNES;
+        return MENU_TOGGLE_OUTER_VINTAGE;
+    }
+
+    private static int menuToggleInner() {
+        ClientConfig.DesignStyle style = WildexThemes.current().layoutProfile();
+        if (style == ClientConfig.DesignStyle.MODERN) return MENU_TOGGLE_INNER_MODERN;
+        if (style == ClientConfig.DesignStyle.RUNES) return MENU_TOGGLE_INNER_RUNES;
+        return MENU_TOGGLE_INNER_VINTAGE;
+    }
+
     public static void renderTooltip(
             GuiGraphics g,
             Font font,
@@ -97,6 +162,33 @@ public final class WildexUiRenderUtil {
             int width,
             int height,
             WildexUiTheme.Palette theme
+    ) {
+        renderTooltipInternal(g, font, lines, mouseX + 10, mouseY + 10, width, height, theme, false);
+    }
+
+    public static void renderTooltipTopLeft(
+            GuiGraphics g,
+            Font font,
+            List<Component> lines,
+            int mouseX,
+            int mouseY,
+            int width,
+            int height,
+            WildexUiTheme.Palette theme
+    ) {
+        renderTooltipInternal(g, font, lines, mouseX - 10, mouseY - 10, width, height, theme, true);
+    }
+
+    private static void renderTooltipInternal(
+            GuiGraphics g,
+            Font font,
+            List<Component> lines,
+            int preferredX,
+            int preferredY,
+            int width,
+            int height,
+            WildexUiTheme.Palette theme,
+            boolean anchorTopLeft
     ) {
         if (lines == null || lines.isEmpty()) return;
 
@@ -121,8 +213,8 @@ public final class WildexUiRenderUtil {
         int boxW = textW + TIP_PAD * 2;
         int boxH = textH + TIP_PAD * 2;
 
-        int x = mouseX + 10;
-        int y = mouseY + 10;
+        int x = anchorTopLeft ? (preferredX - boxW) : preferredX;
+        int y = anchorTopLeft ? (preferredY - boxH) : preferredY;
 
         int minX = 2;
         int maxX = width - boxW - 2;
@@ -140,7 +232,6 @@ public final class WildexUiRenderUtil {
         int y1 = y + boxH;
 
         g.fill(x0, y0, x1, y1, theme.tooltipBg());
-
         g.fill(x0, y0, x1, y0 + 1, theme.tooltipBorder());
         g.fill(x0, y1 - 1, x1, y1, theme.tooltipBorder());
         g.fill(x0, y0, x0 + 1, y1, theme.tooltipBorder());
@@ -148,7 +239,6 @@ public final class WildexUiRenderUtil {
 
         int tx = x0 + TIP_PAD;
         int ty = y0 + TIP_PAD;
-
         for (FormattedCharSequence line : wrapped) {
             WildexUiText.draw(g, font, line, tx, ty, theme.tooltipText(), false);
             ty += WildexUiText.lineHeight(font) + TIP_LINE_GAP;
@@ -185,15 +275,6 @@ public final class WildexUiRenderUtil {
         for (int i = 0; i < inner; i++) {
             drawRectPerimeterLayer(graphics, x0, y0, x1, y1, outer + i, theme.frameInner());
         }
-    }
-
-    public static void drawRoundedPanelFrame(
-            GuiGraphics graphics,
-            WildexScreenLayout.Area a,
-            WildexUiTheme.Palette theme,
-            int cornerCut
-    ) {
-        drawRoundedPanelFrame(graphics, a, theme, cornerCut, 1, 1);
     }
 
     public static void drawRoundedPanelFrame(
@@ -272,55 +353,6 @@ public final class WildexUiRenderUtil {
         graphics.fill(lx1 - 1, ly0 + cut, lx1, ly1 - cut, color);
         if (cut > 0) {
             drawFrameCornerChamfers(graphics, lx0, ly0, lx1, ly1, cut, color);
-        }
-    }
-
-    public static void drawDockedTrophyFrame(
-            GuiGraphics graphics,
-            WildexScreenLayout.Area a,
-            WildexUiTheme.Palette theme,
-            int cornerCut,
-            int bgColor,
-            int extendLeft,
-            int extendRight
-    ) {
-        if (a == null) return;
-        int x0 = a.x();
-        int y0 = a.y();
-        int x1 = a.x() + a.w();
-        int y1 = a.y() + a.h();
-        int c = Math.max(1, cornerCut);
-        int xl = x0 - Math.max(0, extendLeft);
-        int xr = x1 + Math.max(0, extendRight);
-
-        graphics.fill(xl + 2, y0 + 2, xr - 2, y1 - 2, bgColor);
-
-        graphics.fill(xl + c, y0, xr, y0 + 1, theme.frameOuter());
-        graphics.fill(xl + c, y1 - 1, x1, y1, theme.frameOuter());
-        graphics.fill(xl, y0 + c, xl + 1, y1 - c, theme.frameOuter());
-
-        graphics.fill(xl + c, y0 + 1, xr, y0 + 2, theme.frameInner());
-        graphics.fill(xl + c, y1 - 2, x1, y1 - 1, theme.frameInner());
-        graphics.fill(xl + 1, y0 + c, xl + 2, y1 - c, theme.frameInner());
-
-        drawLeftFrameCornerChamfers(graphics, xl, y0, y1, c, theme.frameOuter());
-        drawLeftFrameCornerChamfers(graphics, xl + 1, y0 + 1, y1 - 1, Math.max(1, c - 1), theme.frameInner());
-    }
-
-    private static void drawLeftFrameCornerChamfers(
-            GuiGraphics graphics,
-            int x0,
-            int y0,
-            int y1,
-            int cut,
-            int color
-    ) {
-        for (int i = 0; i < cut; i++) {
-            int l = x0 + (cut - 1 - i);
-            int t = y0 + i;
-            int b = y1 - 1 - i;
-            graphics.fill(l, t, l + 1, t + 1, color);
-            graphics.fill(l, b, l + 1, b + 1, color);
         }
     }
 

@@ -4,6 +4,7 @@ import de.coldfang.wildex.config.CommonConfig;
 import de.coldfang.wildex.integration.accessorify.WildexAccessorifySpyglassState;
 import de.coldfang.wildex.integration.accessorify.WildexSpyglassUseHelper;
 import de.coldfang.wildex.server.WildexDiscoveryService;
+import de.coldfang.wildex.util.WildexMobIdCanonicalizer;
 import de.coldfang.wildex.util.WildexMobFilters;
 import de.coldfang.wildex.world.WildexWorldPlayerDiscoveryData;
 import net.minecraft.core.particles.ParticleTypes;
@@ -30,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class WildexSpyglassDiscoveryEvents {
 
-    private static final double RANGE = 98.0;
     private static final double HIT_INFLATE = 1.25;
 
     private static final int CHARGE_PARTICLE_EVERY = 2;
@@ -62,12 +62,13 @@ public final class WildexSpyglassDiscoveryEvents {
             return;
         }
 
-        if (sp.distanceToSqr(target) > (RANGE * RANGE)) {
+        double range = spyglassDiscoveryRange();
+        if (sp.distanceToSqr(target) > (range * range)) {
             CHARGE.remove(sp.getUUID());
             return;
         }
 
-        ResourceLocation mobId = BuiltInRegistries.ENTITY_TYPE.getKey(target.getType());
+        ResourceLocation mobId = WildexMobIdCanonicalizer.canonicalize(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()));
         if (!WildexMobFilters.isTrackable(mobId)) {
             CHARGE.remove(sp.getUUID());
             return;
@@ -101,7 +102,8 @@ public final class WildexSpyglassDiscoveryEvents {
         boolean newlyDiscovered = WildexDiscoveryService.discover(
                 sp,
                 mobId,
-                WildexDiscoveryService.DiscoverySource.SPYGLASS
+                WildexDiscoveryService.DiscoverySource.SPYGLASS,
+                WildexDiscoveryService.DiscoveryCapture.atEntity(target)
         );
 
         CHARGE.remove(playerId);
@@ -170,9 +172,10 @@ public final class WildexSpyglassDiscoveryEvents {
     }
 
     private static Entity findLookTarget(ServerLevel level, ServerPlayer sp) {
+        double range = spyglassDiscoveryRange();
         Vec3 from = sp.getEyePosition();
         Vec3 view = sp.getViewVector(1.0f);
-        Vec3 to = from.add(view.x * RANGE, view.y * RANGE, view.z * RANGE);
+        Vec3 to = from.add(view.x * range, view.y * range, view.z * range);
 
         HitResult blockHit = level.clip(new ClipContext(
                 from,
@@ -182,7 +185,7 @@ public final class WildexSpyglassDiscoveryEvents {
                 CollisionContext.of(sp)
         ));
 
-        double maxDist = RANGE;
+        double maxDist = range;
         if (blockHit.getType() != HitResult.Type.MISS) {
             maxDist = blockHit.getLocation().distanceTo(from);
             to = from.add(view.x * maxDist, view.y * maxDist, view.z * maxDist);
@@ -202,6 +205,10 @@ public final class WildexSpyglassDiscoveryEvents {
         );
 
         return hit == null ? null : hit.getEntity();
+    }
+
+    private static double spyglassDiscoveryRange() {
+        return Math.max(1.0d, CommonConfig.INSTANCE.spyglassDiscoveryRange.get());
     }
 
     private static final class ChargeState {

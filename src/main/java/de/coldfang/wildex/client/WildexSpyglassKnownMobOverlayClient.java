@@ -2,6 +2,7 @@ package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
 import de.coldfang.wildex.integration.accessorify.WildexSpyglassUseHelper;
+import de.coldfang.wildex.util.WildexMobIdCanonicalizer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.debug.DebugRenderer;
@@ -69,7 +70,7 @@ public final class WildexSpyglassKnownMobOverlayClient {
             return;
         }
 
-        ResourceLocation mobId = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType());
+        ResourceLocation mobId = WildexMobIdCanonicalizer.canonicalize(BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()));
         boolean hiddenMode = WildexClientConfigView.hiddenMode();
         if (hiddenMode && !WildexDiscoveryCache.isDiscovered(mobId)) {
             fadeOutAndForget();

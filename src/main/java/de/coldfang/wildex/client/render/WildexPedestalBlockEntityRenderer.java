@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -375,62 +376,106 @@ public final class WildexPedestalBlockEntityRenderer implements BlockEntityRende
         return Mth.clamp((int) (value * mul), 0, 255);
     }
 
+    private static int tintColor(int color, float rMul, float gMul, float bMul, float aMul) {
+        return FastColor.ARGB32.color(
+                tint(FastColor.ARGB32.alpha(color), aMul),
+                tint(FastColor.ARGB32.red(color), rMul),
+                tint(FastColor.ARGB32.green(color), gMul),
+                tint(FastColor.ARGB32.blue(color), bMul)
+        );
+    }
+
     private record TintingBufferSource(MultiBufferSource delegate, float rMul, float gMul, float bMul, float aMul) implements MultiBufferSource {
         @Override
         public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) {
-            return new TintingVertexConsumer(delegate.getBuffer(type), rMul, gMul, bMul, aMul);
+            return new TintingVertexConsumer(delegate, type, rMul, gMul, bMul, aMul);
         }
     }
 
     private static final class TintingVertexConsumer implements VertexConsumer {
-        private final VertexConsumer delegate;
+        private final MultiBufferSource delegate;
+        private final RenderType renderType;
         private final float rMul;
         private final float gMul;
         private final float bMul;
         private final float aMul;
 
-        private TintingVertexConsumer(VertexConsumer delegate, float rMul, float gMul, float bMul, float aMul) {
+        private TintingVertexConsumer(MultiBufferSource delegate, RenderType renderType, float rMul, float gMul, float bMul, float aMul) {
             this.delegate = delegate;
+            this.renderType = renderType;
             this.rMul = rMul;
             this.gMul = gMul;
             this.bMul = bMul;
             this.aMul = aMul;
         }
 
+        private VertexConsumer current() {
+            return delegate.getBuffer(renderType);
+        }
+
         @Override
         public @NotNull VertexConsumer addVertex(float x, float y, float z) {
-            delegate.addVertex(x, y, z);
+            current().addVertex(x, y, z);
             return this;
         }
 
         @Override
         public @NotNull VertexConsumer setColor(int red, int green, int blue, int alpha) {
-            delegate.setColor(tint(red, rMul), tint(green, gMul), tint(blue, bMul), tint(alpha, aMul));
+            current().setColor(tint(red, rMul), tint(green, gMul), tint(blue, bMul), tint(alpha, aMul));
             return this;
         }
 
         @Override
         public @NotNull VertexConsumer setUv(float u, float v) {
-            delegate.setUv(u, v);
+            current().setUv(u, v);
             return this;
         }
 
         @Override
         public @NotNull VertexConsumer setUv1(int u, int v) {
-            delegate.setUv1(u, v);
+            current().setUv1(u, v);
             return this;
         }
 
         @Override
         public @NotNull VertexConsumer setUv2(int u, int v) {
-            delegate.setUv2(u, v);
+            current().setUv2(u, v);
             return this;
         }
 
         @Override
         public @NotNull VertexConsumer setNormal(float normalX, float normalY, float normalZ) {
-            delegate.setNormal(normalX, normalY, normalZ);
+            current().setNormal(normalX, normalY, normalZ);
             return this;
+        }
+
+        @Override
+        public void addVertex(
+                float x,
+                float y,
+                float z,
+                int color,
+                float u,
+                float v,
+                int packedOverlay,
+                int packedLight,
+                float normalX,
+                float normalY,
+                float normalZ
+        ) {
+            current().addVertex(
+                    x,
+                    y,
+                    z,
+                    tintColor(color, rMul, gMul, bMul, aMul),
+                    u,
+                    v,
+                    packedOverlay,
+                    packedLight,
+                    normalX,
+                    normalY,
+                    normalZ
+            );
         }
     }
 }

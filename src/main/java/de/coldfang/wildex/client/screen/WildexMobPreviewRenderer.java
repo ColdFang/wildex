@@ -15,7 +15,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.AgeableMob;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
@@ -77,6 +76,8 @@ public final class WildexMobPreviewRenderer {
     private float manualPitchDeg = 0.0f;
     private boolean babyPreviewEnabled = false;
     private String selectedVariantOptionId = "";
+    private boolean rotationPaused = false;
+    private float pausedYawDeg = 0.0f;
     private float previewAnimTimeTicks = 0.0f;
     private float previewAnimPartialTick = 0.0f;
     private long previewAnimLastNanos = 0L;
@@ -146,7 +147,9 @@ public final class WildexMobPreviewRenderer {
 
     public boolean endRotationDrag(int button) {
         if (!dragActive || button != dragButton) return false;
-        carryForwardYawAfterDrag();
+        if (!rotationPaused) {
+            carryForwardYawAfterDrag();
+        }
         dragActive = false;
         dragButton = -1;
         return true;
@@ -416,8 +419,36 @@ public final class WildexMobPreviewRenderer {
         hasSmoothedYaw = false;
     }
 
+    public void toggleRotationPaused() {
+        Minecraft mc = Minecraft.getInstance();
+        if (rotationPaused) {
+            if (mc.level != null) {
+                float rawYawNow = computeYaw(mc, 0.0f);
+                float visibleYawNow = wrapDegrees(pausedYawDeg + manualYawDeg);
+                manualYawDeg = wrapDegrees(visibleYawNow - rawYawNow);
+            }
+            rotationPaused = false;
+            hasSmoothedYaw = false;
+            return;
+        }
+
+        pausedYawDeg = snapshotCurrentBaseYaw(mc);
+        smoothedYaw = pausedYawDeg;
+        hasSmoothedYaw = true;
+        rotationPaused = true;
+    }
+
+    public boolean isRotationPaused() {
+        return rotationPaused;
+    }
+
     private float resolvePreviewYaw(Minecraft mc, float partialTick) {
         float rawYaw = computeYaw(mc, partialTick);
+        if (rotationPaused) {
+            smoothedYaw = pausedYawDeg;
+            hasSmoothedYaw = true;
+            return pausedYawDeg;
+        }
         if (dragActive) {
             if (!hasSmoothedYaw) {
                 smoothedYaw = rawYaw;
@@ -440,6 +471,15 @@ public final class WildexMobPreviewRenderer {
         if (delta < -maxStep) delta = -maxStep;
         smoothedYaw = wrapDegrees(smoothedYaw + delta);
         return smoothedYaw;
+    }
+
+    private float snapshotCurrentBaseYaw(Minecraft mc) {
+        if (mc == null || mc.level == null) return 0.0f;
+        float rawYaw = computeYaw(mc, 0.0f);
+        if (rotationPaused) return pausedYawDeg;
+        if (dragActive) return hasSmoothedYaw ? smoothedYaw : rawYaw;
+        if (!safePreviewMode) return rawYaw;
+        return hasSmoothedYaw ? smoothedYaw : rawYaw;
     }
 
     private static float wrapDegrees(float degrees) {
@@ -878,9 +918,8 @@ public final class WildexMobPreviewRenderer {
         clearCachedEntity();
 
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
-        Entity e = WildexEntityFactory.tryCreate(type, level);
-        if (!(e instanceof Mob mob)) {
-            if (e != null) e.discard();
+        Mob mob = WildexEntityFactory.tryCreateMob(type, level);
+        if (mob == null) {
             return null;
         }
 
@@ -892,7 +931,7 @@ public final class WildexMobPreviewRenderer {
     }
 
     private void clearCachedEntity() {
-        if (cachedEntity != null) cachedEntity.discard();
+        WildexEntityFactory.discardQuietly(cachedEntity);
         cachedEntity = null;
         cachedId = null;
         cachedSupportsBabyVariant = null;
@@ -937,6 +976,8 @@ public final class WildexMobPreviewRenderer {
         hasSmoothedYaw = false;
         dragActive = false;
         dragButton = -1;
+        rotationPaused = false;
+        pausedYawDeg = 0.0f;
         babyPreviewEnabled = false;
         selectedVariantOptionId = "";
     }

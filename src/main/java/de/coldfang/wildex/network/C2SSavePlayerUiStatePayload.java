@@ -13,7 +13,8 @@ public record C2SSavePlayerUiStatePayload(
         boolean friendlyEnabled,
         boolean neutralEnabled,
         boolean hostileEnabled,
-        boolean tameableEnabled
+        boolean tameableEnabled,
+        boolean favoritesEnabled
 ) implements CustomPacketPayload {
 
     public static final Type<C2SSavePlayerUiStatePayload> TYPE =
@@ -29,10 +30,12 @@ public record C2SSavePlayerUiStatePayload(
                         buf.writeBoolean(p.neutralEnabled());
                         buf.writeBoolean(p.hostileEnabled());
                         buf.writeBoolean(p.tameableEnabled());
+                        buf.writeBoolean(p.favoritesEnabled());
                     },
                     buf -> new C2SSavePlayerUiStatePayload(
                             buf.readUtf(32),
                             buf.readUtf(256),
+                            buf.readBoolean(),
                             buf.readBoolean(),
                             buf.readBoolean(),
                             buf.readBoolean(),

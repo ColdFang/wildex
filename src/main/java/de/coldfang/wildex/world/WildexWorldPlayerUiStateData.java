@@ -24,7 +24,9 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
     private static final String NEUTRAL_FILTER_KEY = "neutral_filter";
     private static final String HOSTILE_FILTER_KEY = "hostile_filter";
     private static final String TAMEABLE_FILTER_KEY = "tameable_filter";
+    private static final String FAVORITES_FILTER_KEY = "favorites_filter";
     private static final String FILTER_MENU_V2_KEY = "filter_menu_v2";
+    private static final String FILTER_MENU_V3_KEY = "filter_menu_v3";
     private static final String DEFAULT_TAB = "STATS";
 
     private static final Factory<WildexWorldPlayerUiStateData> FACTORY =
@@ -84,11 +86,12 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
             boolean friendlyEnabled,
             boolean neutralEnabled,
             boolean hostileEnabled,
-            boolean tameableEnabled
+            boolean tameableEnabled,
+            boolean favoritesEnabled
     ) {
         if (playerId == null) return;
 
-        UiState next = sanitize(new UiState(tabId, mobId, discoveredOnly, friendlyEnabled, neutralEnabled, hostileEnabled, tameableEnabled));
+        UiState next = sanitize(new UiState(tabId, mobId, discoveredOnly, friendlyEnabled, neutralEnabled, hostileEnabled, tameableEnabled, favoritesEnabled));
         UiState prev = byPlayer.get(playerId);
         if (next.equals(prev)) return;
 
@@ -100,7 +103,7 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
         if (in == null) return UiState.DEFAULT;
         String tab = sanitizeTab(in.tabId());
         String mob = sanitizeMob(in.mobId());
-        return new UiState(tab, mob, in.discoveredOnly(), in.friendlyEnabled(), in.neutralEnabled(), in.hostileEnabled(), in.tameableEnabled());
+        return new UiState(tab, mob, in.discoveredOnly(), in.friendlyEnabled(), in.neutralEnabled(), in.hostileEnabled(), in.tameableEnabled(), in.favoritesEnabled());
     }
 
     private static String sanitizeTab(String tabId) {
@@ -138,9 +141,10 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
             boolean neutralEnabled = hasFilterMenuV2 && t.getBoolean(NEUTRAL_FILTER_KEY);
             boolean hostileEnabled = hasFilterMenuV2 && t.getBoolean(HOSTILE_FILTER_KEY);
             boolean tameableEnabled = hasFilterMenuV2 && t.getBoolean(TAMEABLE_FILTER_KEY);
+            boolean favoritesEnabled = t.getBoolean(FILTER_MENU_V3_KEY) && t.getBoolean(FAVORITES_FILTER_KEY);
             data.byPlayer.put(
                     playerId,
-                    sanitize(new UiState(tab, mob, discoveredOnly, friendlyEnabled, neutralEnabled, hostileEnabled, tameableEnabled))
+                    sanitize(new UiState(tab, mob, discoveredOnly, friendlyEnabled, neutralEnabled, hostileEnabled, tameableEnabled, favoritesEnabled))
             );
         }
         return data;
@@ -158,7 +162,9 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
             t.putBoolean(NEUTRAL_FILTER_KEY, e.getValue().neutralEnabled());
             t.putBoolean(HOSTILE_FILTER_KEY, e.getValue().hostileEnabled());
             t.putBoolean(TAMEABLE_FILTER_KEY, e.getValue().tameableEnabled());
+            t.putBoolean(FAVORITES_FILTER_KEY, e.getValue().favoritesEnabled());
             t.putBoolean(FILTER_MENU_V2_KEY, true);
+            t.putBoolean(FILTER_MENU_V3_KEY, true);
             tag.put(e.getKey().toString(), t);
         }
         if (migratedToOverworldStorage) {
@@ -174,8 +180,9 @@ public final class WildexWorldPlayerUiStateData extends SavedData {
             boolean friendlyEnabled,
             boolean neutralEnabled,
             boolean hostileEnabled,
-            boolean tameableEnabled
+            boolean tameableEnabled,
+            boolean favoritesEnabled
     ) {
-        public static final UiState DEFAULT = new UiState(DEFAULT_TAB, "", false, false, false, false, false);
+        public static final UiState DEFAULT = new UiState(DEFAULT_TAB, "", false, false, false, false, false, false);
     }
 }

@@ -328,12 +328,24 @@ public final class WildexAnalyzerBlockEntity extends BlockEntity {
 
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(ownerId);
         if (owner != null) {
-            return WildexDiscoveryService.discover(owner, mobId, WildexDiscoveryService.DiscoverySource.ANALYZER);
+            return WildexDiscoveryService.discover(
+                    owner,
+                    mobId,
+                    WildexDiscoveryService.DiscoverySource.ANALYZER,
+                    WildexDiscoveryService.DiscoveryCapture.at(level, this.worldPosition)
+            );
         }
 
         WildexWorldPlayerDiscoveryData data = WildexWorldPlayerDiscoveryData.get(level);
         boolean added = data.markDiscovered(ownerId, mobId);
         if (!added) return false;
+        WildexDiscoveryService.recordDiscoveryDetailsIfMissing(
+                level,
+                ownerId,
+                mobId,
+                WildexDiscoveryService.DiscoverySource.ANALYZER,
+                WildexDiscoveryService.DiscoveryCapture.at(level, this.worldPosition)
+        );
 
         if (WildexCompletionHelper.isCurrentlyComplete(level, ownerId)) {
             data.markComplete(ownerId);

@@ -51,6 +51,7 @@ public final class CommonConfig {
     public final ModConfigSpec.ConfigValue<String> shareOfferCurrencyItem;
     public final ModConfigSpec.IntValue shareOfferMaxPrice;
     public final ModConfigSpec.IntValue spyglassDiscoveryChargeTicks;
+    public final ModConfigSpec.DoubleValue spyglassDiscoveryRange;
 
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedModIds;
     public final ModConfigSpec.ConfigValue<List<? extends String>> excludedVariantMobIds;
@@ -73,6 +74,10 @@ public final class CommonConfig {
         spyglassDiscoveryChargeTicks = builder
                 .comment("Ticks required to discover a mob while continuously aiming with a Spyglass.")
                 .defineInRange("spyglassDiscoveryChargeTicks", 28, 1, 200);
+
+        spyglassDiscoveryRange = builder
+                .comment("Maximum distance in blocks at which Spyglass discovery can trigger.")
+                .defineInRange("spyglassDiscoveryRange", 98.0d, 1.0d, 512.0d);
 
         newEntryRewardsXp = builder
                 .comment("Grant XP for newly discovered Wildex entries when they are marked as viewed.")

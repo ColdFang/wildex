@@ -3,6 +3,7 @@ package de.coldfang.wildex.util;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,6 +32,15 @@ public final class WildexEntityFactory {
         }
     }
 
+    public static @Nullable Mob tryCreateMob(EntityType<?> type, Level level) {
+        Entity entity = tryCreate(type, level);
+        if (entity instanceof Mob mob) {
+            return mob;
+        }
+        discardQuietly(entity);
+        return null;
+    }
+
     public static void discardQuietly(@Nullable Entity entity) {
         if (entity == null) return;
         try {
@@ -45,6 +55,7 @@ public final class WildexEntityFactory {
 
         setBooleanMethod(entity, "setFreezeAnimator", true);
         setBooleanMethod(entity, "setBaby", false);
+        normalizeMowziesDisplayEntity(entity);
         if (entity instanceof LivingEntity living) {
             living.refreshDimensions();
         }
@@ -75,10 +86,32 @@ public final class WildexEntityFactory {
         }
     }
 
+    private static void normalizeMowziesDisplayEntity(Entity entity) {
+        Class<?> type = entity.getClass();
+        while (type != null) {
+            if ("com.bobmowzie.mowziesmobs.server.entity.umvuthana.EntityUmvuthana".equals(type.getName())) {
+                // Mowzie's Umvuthana model reads the raw "active" field directly for its live pose.
+                setBooleanMethod(entity, "setActive", true);
+                setActiveField(entity);
+                break;
+            }
+            type = type.getSuperclass();
+        }
+    }
+
     private static void setBooleanMethod(Object instance, String methodName, boolean value) {
         Method method = findMethod(instance.getClass(), methodName, boolean.class);
         if (method == null) return;
         invoke(method, instance, value);
+    }
+
+    private static void setActiveField(Object instance) {
+        Field field = findActiveField(instance.getClass());
+        if (field == null) return;
+        try {
+            field.setBoolean(instance, true);
+        } catch (ReflectiveOperationException ignored) {
+        }
     }
 
     private static @Nullable Class<?> resolveAnimalGrowthStageClass() {
@@ -115,6 +148,20 @@ public final class WildexEntityFactory {
                 } catch (NoSuchMethodException ignoredAgain) {
                     current = current.getSuperclass();
                 }
+            }
+        }
+        return null;
+    }
+
+    private static @Nullable Field findActiveField(Class<?> type) {
+        Class<?> current = type;
+        while (current != null) {
+            try {
+                Field field = current.getDeclaredField("active");
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
             }
         }
         return null;

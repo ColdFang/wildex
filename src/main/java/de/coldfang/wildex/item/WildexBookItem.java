@@ -22,21 +22,10 @@ public class WildexBookItem extends Item {
         return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);
     }
 
-    @SuppressWarnings("JavaReflectionInvocation")
     private static void openScreenClientOnly() {
         try {
-            Class<?> minecraftClass = Class.forName("net.minecraft.client.Minecraft");
-            Object minecraft = minecraftClass.getMethod("getInstance").invoke(null);
-
-            Class<?> wildexUiSoundsClass = Class.forName("de.coldfang.wildex.client.screen.WildexUiSounds");
-            wildexUiSoundsClass.getMethod("playScreenOpen").invoke(null);
-
-            Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
-            Class<?> wildexScreenClass = Class.forName("de.coldfang.wildex.client.screen.WildexScreen");
-            Object wildexScreen = wildexScreenClass.getConstructor().newInstance();
-            Object screenArg = screenClass.cast(wildexScreen);
-
-            minecraftClass.getMethod("setScreen", screenClass).invoke(minecraft, screenArg);
+            Class<?> openerClass = Class.forName("de.coldfang.wildex.client.WildexScreenOpener");
+            openerClass.getMethod("open").invoke(null);
         } catch (ReflectiveOperationException ignored) {
             // Client screen open failed; keep item use non-fatal.
         }

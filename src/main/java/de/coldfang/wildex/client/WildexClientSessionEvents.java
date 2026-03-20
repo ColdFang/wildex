@@ -2,8 +2,10 @@ package de.coldfang.wildex.client;
 
 import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexDiscoveryDetailsCache;
 import de.coldfang.wildex.client.data.WildexEntityDisplayNameResolver;
 import de.coldfang.wildex.client.data.WildexEntityVariantCatalog;
+import de.coldfang.wildex.client.data.WildexFavoriteMobEntriesCache;
 import de.coldfang.wildex.client.data.WildexKillCache;
 import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
@@ -26,6 +28,7 @@ public final class WildexClientSessionEvents {
     public static void onLoggedIn(ClientPlayerNetworkEvent.LoggingIn event) {
         WildexKillCache.clear();
         WildexDiscoveryCache.clear();
+        WildexDiscoveryDetailsCache.clear();
         WildexLootCache.clear();
         WildexMiscCache.clear();
         WildexSpawnCache.clear();
@@ -35,6 +38,7 @@ public final class WildexClientSessionEvents {
         WildexSpyglassKnownMobOverlayClient.clear();
         WildexNetworkClient.clearShareState();
         WildexViewedMobEntriesCache.clear();
+        WildexFavoriteMobEntriesCache.clear();
         WildexEntityDisplayNameResolver.clearCache();
         WildexEntityVariantCatalog.clearCache();
         WildexVariantStatsCatalog.clearCache();
@@ -45,6 +49,7 @@ public final class WildexClientSessionEvents {
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestViewedMobEntries();
         }
+        WildexNetworkClient.requestFavoriteMobEntries();
         WildexNetworkClient.requestServerConfig();
     }
 
@@ -52,6 +57,7 @@ public final class WildexClientSessionEvents {
     public static void onLoggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
         WildexKillCache.clear();
         WildexDiscoveryCache.clear();
+        WildexDiscoveryDetailsCache.clear();
         WildexLootCache.clear();
         WildexMiscCache.clear();
         WildexSpawnCache.clear();
@@ -61,6 +67,7 @@ public final class WildexClientSessionEvents {
         WildexSpyglassKnownMobOverlayClient.clear();
         WildexNetworkClient.clearShareState();
         WildexViewedMobEntriesCache.clear();
+        WildexFavoriteMobEntriesCache.clear();
         WildexEntityDisplayNameResolver.clearCache();
         WildexEntityVariantCatalog.clearCache();
         WildexVariantStatsCatalog.clearCache();

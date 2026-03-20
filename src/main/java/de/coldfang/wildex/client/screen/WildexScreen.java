@@ -3,6 +3,8 @@ package de.coldfang.wildex.client.screen;
 import de.coldfang.wildex.client.WildexClientConfigView;
 import de.coldfang.wildex.client.data.WildexCompletionCache;
 import de.coldfang.wildex.client.data.WildexDiscoveryCache;
+import de.coldfang.wildex.client.data.WildexDiscoveryDetailsCache;
+import de.coldfang.wildex.client.data.WildexFavoriteMobEntriesCache;
 import de.coldfang.wildex.client.data.WildexMobDataResolver;
 import de.coldfang.wildex.client.data.WildexMobIndexModel;
 import de.coldfang.wildex.client.data.WildexMiscCache;
@@ -12,6 +14,7 @@ import de.coldfang.wildex.client.data.WildexLootCache;
 import de.coldfang.wildex.client.data.WildexSpawnCache;
 import de.coldfang.wildex.client.data.WildexViewedMobEntriesCache;
 import de.coldfang.wildex.client.data.model.WildexAggression;
+import de.coldfang.wildex.client.data.model.WildexDiscoveryDetails;
 import de.coldfang.wildex.client.data.model.WildexMobData;
 import de.coldfang.wildex.client.WildexNetworkClient;
 import de.coldfang.wildex.config.ClientConfig;
@@ -24,8 +27,10 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,10 +56,12 @@ public final class WildexScreen extends Screen {
     private static final Component NEUTRAL_FILTER_LABEL = Component.translatable("gui.wildex.aggression.neutral");
     private static final Component HOSTILE_FILTER_LABEL = Component.translatable("gui.wildex.aggression.hostile");
     private static final Component TAMEABLE_FILTER_LABEL = Component.translatable("gui.wildex.tameable.filter.full");
+    private static final Component FAVORITES_FILTER_LABEL = Component.translatable("gui.wildex.favorite.filter.full");
     private static final Component FRIENDLY_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.friendly");
     private static final Component NEUTRAL_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.neutral");
     private static final Component HOSTILE_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.aggression.filter.hostile");
     private static final Component TAMEABLE_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.tameable.filter");
+    private static final Component FAVORITES_FILTER_TOOLTIP = Component.translatable("tooltip.wildex.favorite.filter");
     private static final Component PREVIEW_CONTROLS_LABEL = Component.translatable("gui.wildex.preview_controls_hint");
     private static final List<Component> PREVIEW_CONTROLS_TOOLTIP = List.of(
             Component.translatable("tooltip.wildex.preview_controls.title"),
@@ -89,6 +96,11 @@ public final class WildexScreen extends Screen {
     private static final String PREVIEW_ADULT_LABEL = "A";
 
     private static final float PREVIEW_HINT_SCALE = 0.62f;
+    private static final Component LEGACY_RESET_CONFIRM_TITLE = Component.translatable("gui.wildex.discovery.confirm.title");
+    private static final Component LEGACY_RESET_CONFIRM_LINE1 = Component.translatable("gui.wildex.discovery.confirm.line1");
+    private static final Component LEGACY_RESET_CONFIRM_LINE2 = Component.translatable("gui.wildex.discovery.confirm.line2");
+    private static final Component LEGACY_RESET_CONFIRM_CANCEL = Component.translatable("gui.wildex.discovery.confirm.cancel");
+    private static final Component LEGACY_RESET_CONFIRM_ACCEPT = Component.translatable("gui.wildex.discovery.confirm.accept");
 
     private final WildexScreenState state = new WildexScreenState();
     private final WildexBookRenderer renderer = new WildexBookRenderer();
@@ -99,6 +111,8 @@ public final class WildexScreen extends Screen {
     private final WildexRightInfoRenderer rightInfoRenderer = new WildexRightInfoRenderer();
     private final WildexRightHeaderRenderer rightHeaderRenderer = new WildexRightHeaderRenderer();
     private final WildexTrophyRenderer trophyRenderer = new WildexTrophyRenderer();
+    private final WildexPreviewRotationButton previewRotationButton = new WildexPreviewRotationButton();
+    private final WildexPreviewSoundButton previewSoundButton = new WildexPreviewSoundButton();
 
     private WildexScreenLayout layout;
     private String selectedVariantOptionId = "";
@@ -111,6 +125,7 @@ public final class WildexScreen extends Screen {
     private WildexFilterChipButton neutralFilterButton;
     private WildexFilterChipButton hostileFilterButton;
     private WildexFilterChipButton tameableFilterButton;
+    private WildexFilterChipButton favoritesFilterButton;
     private WildexFilterMenuTabButton filterMenuButton;
     private WildexDiscoveredOnlyCheckbox discoveredOnlyCheckbox;
     private WildexStyleButton menuButton;
@@ -144,6 +159,8 @@ public final class WildexScreen extends Screen {
     private boolean topMenuExpanded = false;
     private boolean trophyCollapsed = false;
     private WildexTrophyRenderer.RenderState trophyRenderState = null;
+    private boolean legacyResetConfirmOpen = false;
+    private String legacyResetConfirmMobId = "";
     private float topMenuExpandProgress = 0.0f;
     private long topMenuAnimLastNanos = 0L;
     private final boolean initialTopMenuExpanded;
@@ -270,7 +287,7 @@ public final class WildexScreen extends Screen {
     }
 
     private int filterMenuButtonWidth() {
-        int indicatorW = WildexUiText.width(this.font, "(4)");
+        int indicatorW = WildexUiText.width(this.font, "(5)");
         int iconReserve = Math.max(24, Math.round(24.0f * WildexUiScale.get()));
         return Math.max(58, indicatorW + iconReserve + 18);
     }
@@ -280,7 +297,8 @@ public final class WildexScreen extends Screen {
         int neutralW = WildexFilterChipButton.widthFor(this.font, NEUTRAL_FILTER_LABEL);
         int hostileW = WildexFilterChipButton.widthFor(this.font, HOSTILE_FILTER_LABEL);
         int tameableW = WildexFilterChipButton.widthFor(this.font, TAMEABLE_FILTER_LABEL);
-        return Math.max(Math.max(friendlyW, neutralW), Math.max(hostileW, tameableW));
+        int favoritesW = WildexFilterChipButton.widthFor(this.font, FAVORITES_FILTER_LABEL);
+        return Math.max(Math.max(friendlyW, neutralW), Math.max(Math.max(hostileW, tameableW), favoritesW));
     }
 
     private int selectedFilterCount() {
@@ -289,6 +307,7 @@ public final class WildexScreen extends Screen {
         if (isNeutralFilterEnabled()) count++;
         if (isHostileFilterEnabled()) count++;
         if (isTameableFilterEnabled()) count++;
+        if (isFavoritesFilterEnabled()) count++;
         return count;
     }
 
@@ -320,6 +339,10 @@ public final class WildexScreen extends Screen {
             this.tameableFilterButton.visible = optionsVisible;
             this.tameableFilterButton.active = optionsVisible;
         }
+        if (this.favoritesFilterButton != null) {
+            this.favoritesFilterButton.visible = optionsVisible;
+            this.favoritesFilterButton.active = optionsVisible;
+        }
     }
 
     private boolean isInsideFilterMenu(double mouseX, double mouseY) {
@@ -328,7 +351,57 @@ public final class WildexScreen extends Screen {
         if (this.friendlyFilterButton != null && this.friendlyFilterButton.isMouseOver(mouseX, mouseY)) return true;
         if (this.neutralFilterButton != null && this.neutralFilterButton.isMouseOver(mouseX, mouseY)) return true;
         if (this.hostileFilterButton != null && this.hostileFilterButton.isMouseOver(mouseX, mouseY)) return true;
-        return this.tameableFilterButton != null && this.tameableFilterButton.isMouseOver(mouseX, mouseY);
+        if (this.tameableFilterButton != null && this.tameableFilterButton.isMouseOver(mouseX, mouseY)) return true;
+        return this.favoritesFilterButton != null && this.favoritesFilterButton.isMouseOver(mouseX, mouseY);
+    }
+
+    private WildexScreenLayout.Area filterOptionsBackdropArea() {
+        if (!this.filterMenuOpen) return null;
+        if (this.friendlyFilterButton == null || !this.friendlyFilterButton.visible) return null;
+        if (this.neutralFilterButton == null || this.hostileFilterButton == null || this.tameableFilterButton == null || this.favoritesFilterButton == null) {
+            return null;
+        }
+
+        int minX = Math.min(
+                Math.min(this.friendlyFilterButton.getX(), this.neutralFilterButton.getX()),
+                Math.min(this.hostileFilterButton.getX(), Math.min(this.tameableFilterButton.getX(), this.favoritesFilterButton.getX()))
+        );
+        int minY = Math.min(
+                Math.min(this.friendlyFilterButton.getY(), this.neutralFilterButton.getY()),
+                Math.min(this.hostileFilterButton.getY(), Math.min(this.tameableFilterButton.getY(), this.favoritesFilterButton.getY()))
+        );
+        int maxX = Math.max(
+                Math.max(this.friendlyFilterButton.getX() + this.friendlyFilterButton.getWidth(), this.neutralFilterButton.getX() + this.neutralFilterButton.getWidth()),
+                Math.max(this.hostileFilterButton.getX() + this.hostileFilterButton.getWidth(), Math.max(this.tameableFilterButton.getX() + this.tameableFilterButton.getWidth(), this.favoritesFilterButton.getX() + this.favoritesFilterButton.getWidth()))
+        );
+        int maxY = Math.max(
+                Math.max(this.friendlyFilterButton.getY() + this.friendlyFilterButton.getHeight(), this.neutralFilterButton.getY() + this.neutralFilterButton.getHeight()),
+                Math.max(this.hostileFilterButton.getY() + this.hostileFilterButton.getHeight(), Math.max(this.tameableFilterButton.getY() + this.tameableFilterButton.getHeight(), this.favoritesFilterButton.getY() + this.favoritesFilterButton.getHeight()))
+        );
+
+        int pad = WildexThemes.isModernLayout() ? 2 : 3;
+        return new WildexScreenLayout.Area(
+                minX - pad,
+                minY - pad,
+                (maxX - minX) + (pad * 2),
+                (maxY - minY) + (pad * 2)
+        );
+    }
+
+    private void renderFilterOptionsBackdrop(GuiGraphics graphics, WildexUiTheme.Palette theme) {
+        WildexScreenLayout.Area area = filterOptionsBackdropArea();
+        if (area == null || graphics == null || theme == null) return;
+        int x0 = area.x();
+        int y0 = area.y();
+        int x1 = area.x() + area.w();
+        int y1 = area.y() + area.h();
+        int fill = 0xFF000000 | WildexUiTheme.buttonBackground();
+        int border = 0xFF000000 | theme.frameOuter();
+        graphics.fill(x0, y0, x1, y1, fill);
+        graphics.fill(x0, y0, x1, y0 + 1, border);
+        graphics.fill(x0, y1 - 1, x1, y1, border);
+        graphics.fill(x0, y0, x0 + 1, y1, border);
+        graphics.fill(x1 - 1, y0, x1, y1, border);
     }
 
     private WildexScreenLayout.Area menuButtonArea() {
@@ -552,10 +625,22 @@ public final class WildexScreen extends Screen {
                 checked -> onAggressionFilterChanged(),
                 TAMEABLE_FILTER_TOOLTIP
         );
+        optionY -= filterOptionH + filterGap;
+        this.favoritesFilterButton = new WildexFilterChipButton(
+                optionX,
+                optionY,
+                optionButtonW,
+                filterOptionH,
+                FAVORITES_FILTER_LABEL,
+                false,
+                checked -> onAggressionFilterChanged(),
+                FAVORITES_FILTER_TOOLTIP
+        );
         this.addRenderableWidget(this.friendlyFilterButton);
         this.addRenderableWidget(this.neutralFilterButton);
         this.addRenderableWidget(this.hostileFilterButton);
         this.addRenderableWidget(this.tameableFilterButton);
+        this.addRenderableWidget(this.favoritesFilterButton);
         updateFilterMenuVisibility();
 
         this.searchBox = new WildexSearchBox(this.font, search.x(), search.y(), search.w(), search.h(), SEARCH_LABEL);
@@ -684,11 +769,13 @@ public final class WildexScreen extends Screen {
                     WildexPlayerUiStateCache.friendlyEnabled(),
                     WildexPlayerUiStateCache.neutralEnabled(),
                     WildexPlayerUiStateCache.hostileEnabled(),
-                    WildexPlayerUiStateCache.tameableEnabled()
+                    WildexPlayerUiStateCache.tameableEnabled(),
+                    WildexPlayerUiStateCache.favoritesEnabled()
             );
         }
         WildexNetworkClient.requestServerConfig();
         WildexNetworkClient.requestPlayerUiState();
+        WildexNetworkClient.requestFavoriteMobEntries();
         if (WildexClientConfigView.hiddenMode()) {
             WildexNetworkClient.requestViewedMobEntries();
         }
@@ -776,7 +863,10 @@ public final class WildexScreen extends Screen {
 
     private void requestImmediateDataForSelected(String mobId) {
         if (mobId == null || mobId.isBlank()) return;
-        WildexNetworkClient.requestKillsForSelected(mobId);
+        ResourceLocation rl = ResourceLocation.tryParse(mobId);
+        if (rl == null) return;
+        WildexNetworkClient.requestKillsForSelected(rl.toString());
+        WildexDiscoveryDetailsCache.getOrRequest(rl);
     }
 
     private void ensureSelectedTabDataRequested() {
@@ -814,6 +904,7 @@ public final class WildexScreen extends Screen {
             if (isDiscoveredOnlyEnabled() && !WildexDiscoveryCache.isDiscovered(id)) continue;
             if (!matchesAggressionFilters(type)) continue;
             if (!matchesTameableFilter(type)) continue;
+            if (!matchesFavoritesFilter(id)) continue;
             out.add(type);
         }
         this.visibleEntries = List.copyOf(out);
@@ -839,6 +930,10 @@ public final class WildexScreen extends Screen {
         return this.tameableFilterButton != null && this.tameableFilterButton.isChecked();
     }
 
+    private boolean isFavoritesFilterEnabled() {
+        return this.favoritesFilterButton != null && this.favoritesFilterButton.isChecked();
+    }
+
     private boolean matchesAggressionFilters(EntityType<?> type) {
         boolean friendly = isFriendlyFilterEnabled();
         boolean neutral = isNeutralFilterEnabled();
@@ -856,6 +951,11 @@ public final class WildexScreen extends Screen {
     private boolean matchesTameableFilter(EntityType<?> type) {
         if (!isTameableFilterEnabled()) return true;
         return this.mobIndex.tameableOf(type);
+    }
+
+    private boolean matchesFavoritesFilter(ResourceLocation mobId) {
+        if (!isFavoritesFilterEnabled()) return true;
+        return WildexFavoriteMobEntriesCache.isFavorite(mobId);
     }
 
     private void onDiscoveredOnlyChanged(boolean checked) {
@@ -895,6 +995,55 @@ public final class WildexScreen extends Screen {
         if (this.shareOverlay != null) this.shareOverlay.onSelectionChanged();
         updateShareWidgetsVisibility();
         saveUiStateToServer();
+    }
+
+    public void onFavoriteEntriesUpdated() {
+        String previousMobId = this.state.selectedMobId();
+        String previousVariant = this.selectedVariantOptionId;
+        ResourceLocation previousSelection = sanitizeMobId(previousMobId);
+
+        applyFiltersFromUi();
+        refreshMobList();
+
+        if (this.mobList != null && previousSelection != null) {
+            this.mobList.setSelectedSelection(previousSelection, previousVariant);
+        }
+
+        if (this.mobList != null) {
+            ResourceLocation selected = this.mobList.selectedId();
+            this.state.setSelectedMobId(selected == null ? "" : selected.toString());
+            this.selectedVariantOptionId = this.mobList.selectedVariantOptionId();
+            this.mobPreviewRenderer.setVariantOptionId(this.selectedVariantOptionId);
+        }
+
+        if (!this.state.selectedMobId().equals(previousMobId)) {
+            closeShareOverlayIfOpen();
+            fallbackInfoTabToStatsOnMobChange();
+            this.mobPreviewRenderer.setBabyPreviewEnabled(false);
+            this.rightInfoRenderer.resetSpawnScroll();
+            this.rightInfoRenderer.resetStatsScroll();
+            this.rightInfoRenderer.resetLootScroll();
+            this.rightInfoRenderer.resetMiscScroll();
+            requestImmediateDataForSelected(this.state.selectedMobId());
+            ensureSelectedTabDataRequested();
+        }
+
+        updatePreviewBabyToggleButtonState();
+        if (this.shareOverlay != null) this.shareOverlay.onSelectionChanged();
+        updateShareWidgetsVisibility();
+    }
+
+    private boolean toggleFavoriteForSelected() {
+        ResourceLocation selectedMob = sanitizeMobId(this.state.selectedMobId());
+        if (selectedMob == null) return false;
+
+        boolean nextFavorite = !WildexFavoriteMobEntriesCache.isFavorite(selectedMob);
+        WildexFavoriteMobEntriesCache.setFavorite(selectedMob, nextFavorite);
+        onFavoriteEntriesUpdated();
+        saveUiStateToServer();
+        WildexNetworkClient.setMobFavorite(selectedMob, nextFavorite);
+        WildexUiSounds.playButtonClick();
+        return true;
     }
 
     private void refreshMobList() {
@@ -1004,6 +1153,8 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (this.legacyResetConfirmOpen) return true;
+
         double mxD = toPhysicalMouseXD(mouseX);
         double myD = toPhysicalMouseYD(mouseY);
         int mx = (int) Math.floor(mxD);
@@ -1056,6 +1207,10 @@ public final class WildexScreen extends Screen {
         int mx = (int) Math.floor(mxD);
         int my = (int) Math.floor(myD);
 
+        if (this.legacyResetConfirmOpen) {
+            return handleLegacyResetConfirmClick(mx, my, button);
+        }
+
         if (button == 0 && this.trophyRenderState != null && this.trophyRenderState.toggleHitbox().contains(mx, my)) {
             this.trophyCollapsed = !this.trophyCollapsed;
             rememberedTrophyCollapsed = this.trophyCollapsed;
@@ -1077,6 +1232,52 @@ public final class WildexScreen extends Screen {
         }
 
         if (super.mouseClicked(mxD, myD, button)) return true;
+
+        ResourceLocation selectedMobId = ResourceLocation.tryParse(this.state.selectedMobId());
+        WildexDiscoveryDetails discoveryDetails = selectedMobId == null ? null : WildexDiscoveryDetailsCache.get(selectedMobId);
+        WildexMobData headerData = this.mobDataResolver.resolve(this.state.selectedMobId(), this.selectedVariantOptionId);
+        WildexScreenLayout.Area favoriteArea = this.layout == null
+                ? null
+                : this.rightHeaderRenderer.favoriteButtonArea(this.font, this.layout.rightHeaderArea(), this.state, headerData.header());
+        WildexScreenLayout.Area discoveryResetArea = this.layout == null
+                ? null
+                : this.rightHeaderRenderer.discoveryResetButtonArea(
+                        this.font,
+                        this.layout.rightHeaderArea(),
+                        this.state,
+                        headerData.header(),
+                        discoveryDetails
+                );
+        if (button == 0
+                && favoriteArea != null
+                && mx >= favoriteArea.x()
+                && mx < favoriteArea.x() + favoriteArea.w()
+                && my >= favoriteArea.y()
+                && my < favoriteArea.y() + favoriteArea.h()) {
+            return toggleFavoriteForSelected();
+        }
+        if (button == 0
+                && discoveryResetArea != null
+                && mx >= discoveryResetArea.x()
+                && mx < discoveryResetArea.x() + discoveryResetArea.w()
+                && my >= discoveryResetArea.y()
+                && my < discoveryResetArea.y() + discoveryResetArea.h()) {
+            openLegacyResetConfirm(this.state.selectedMobId());
+            return true;
+        }
+        if (this.previewRotationButton.handleClick(
+                mx,
+                my,
+                button,
+                this.layout,
+                this.state.selectedMobId(),
+                this.mobPreviewRenderer::toggleRotationPaused
+        )) {
+            return true;
+        }
+        if (this.previewSoundButton.handleClick(mx, my, button, this.layout, this.state.selectedMobId())) {
+            return true;
+        }
 
         if (this.layout != null) {
             if (mobPreviewRenderer.isMouseOverPreview(this.layout, mx, my) && mobPreviewRenderer.beginRotationDrag(mx, my, button)) {
@@ -1112,6 +1313,8 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (this.legacyResetConfirmOpen) return true;
+
         double mxD = toPhysicalMouseXD(mouseX);
         double myD = toPhysicalMouseYD(mouseY);
         int mx = (int) Math.floor(mxD);
@@ -1164,6 +1367,8 @@ public final class WildexScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (this.legacyResetConfirmOpen) return true;
+
         double mxD = toPhysicalMouseXD(mouseX);
         double myD = toPhysicalMouseYD(mouseY);
 
@@ -1279,6 +1484,13 @@ public final class WildexScreen extends Screen {
         WildexScreenLayout.Area previewBabyArea = (this.previewBabyToggleButton != null && this.previewBabyToggleButton.visible)
                 ? previewBabyToggleAreaFromWidget()
                 : null;
+        this.previewRotationButton.render(
+                graphics,
+                this.layout,
+                this.state.selectedMobId(),
+                this.mobPreviewRenderer.isRotationPaused()
+        );
+        this.previewSoundButton.render(graphics, this.layout, this.state.selectedMobId());
         HintBounds previewHint = drawPreviewControlsHint(graphics, this.layout, previewArea, previewResetArea, previewBabyArea);
 
         boolean showShareNotice = this.shareOverlay != null && this.shareOverlay.shouldShowNotice();
@@ -1307,6 +1519,12 @@ public final class WildexScreen extends Screen {
         }
 
         WildexMobData data = mobDataResolver.resolve(state.selectedMobId(), this.selectedVariantOptionId);
+        ResourceLocation selectedMobId = ResourceLocation.tryParse(this.state.selectedMobId());
+        WildexDiscoveryDetails discoveryDetails = selectedMobId == null
+                ? null
+                : WildexDiscoveryDetailsCache.getOrRequest(selectedMobId);
+        boolean favorite = WildexFavoriteMobEntriesCache.isFavorite(selectedMobId);
+        boolean discoveryLoading = discoveryDetails == null && WildexDiscoveryCache.isDiscovered(selectedMobId);
 
         String selectedVariantLabel = this.mobList == null ? "" : this.mobList.selectedVariantDisplayLabel();
         rightHeaderRenderer.render(
@@ -1315,8 +1533,10 @@ public final class WildexScreen extends Screen {
                 this.layout.rightHeaderArea(),
                 state,
                 data.header(),
-                theme.ink(),
-                selectedVariantLabel
+                selectedVariantLabel,
+                favorite,
+                discoveryDetails,
+                discoveryLoading
         );
         if (vintageLayout) {
             WildexUiRenderUtil.drawRoundedPanelFrame(graphics, this.layout.rightHeaderArea(), theme, 3, 3, 1);
@@ -1339,6 +1559,7 @@ public final class WildexScreen extends Screen {
             drawUiScaleSlider(graphics, physicalMouseX, physicalMouseY);
         }
 
+        renderFilterOptionsBackdrop(graphics, theme);
         super.render(graphics, physicalMouseX, physicalMouseY, partialTick);
         renderMobListTopDivider(graphics);
         renderModernRightEdgeOccluder(graphics);
@@ -1349,6 +1570,93 @@ public final class WildexScreen extends Screen {
         if (this.previewBabyToggleButton != null && this.previewBabyToggleButton.visible && this.previewBabyToggleButton.isHovered()) {
             Component toggleTip = this.mobPreviewRenderer.isBabyPreviewEnabled() ? PREVIEW_ADULT_TOOLTIP : PREVIEW_BABY_TOOLTIP;
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(toggleTip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        this.previewRotationButton.renderTooltip(
+                graphics,
+                this.font,
+                this.layout,
+                this.state.selectedMobId(),
+                this.mobPreviewRenderer.isRotationPaused(),
+                physicalMouseX,
+                physicalMouseY,
+                this.physicalScreenW,
+                this.physicalScreenH,
+                theme
+        );
+        this.previewSoundButton.renderTooltip(
+                graphics,
+                this.font,
+                this.layout,
+                this.state.selectedMobId(),
+                physicalMouseX,
+                physicalMouseY,
+                this.physicalScreenW,
+                this.physicalScreenH,
+                theme
+        );
+        List<Component> discoveryResetTip = rightHeaderRenderer.discoveryResetTooltip(
+                this.font,
+                this.layout.rightHeaderArea(),
+                state,
+                data.header(),
+                selectedMobId == null ? null : WildexDiscoveryDetailsCache.get(selectedMobId),
+                physicalMouseX,
+                physicalMouseY
+        );
+        if (discoveryResetTip != null) {
+            WildexUiRenderUtil.renderTooltip(
+                    graphics,
+                    this.font,
+                    discoveryResetTip,
+                    physicalMouseX,
+                    physicalMouseY,
+                    this.physicalScreenW,
+                    this.physicalScreenH,
+                    theme
+            );
+        }
+        List<Component> headerSummaryTip = rightHeaderRenderer.headerTooltip(
+                this.font,
+                this.layout.rightHeaderArea(),
+                state,
+                data.header(),
+                selectedMobId == null ? null : WildexDiscoveryDetailsCache.get(selectedMobId),
+                discoveryLoading,
+                physicalMouseX,
+                physicalMouseY
+        );
+        if (headerSummaryTip != null) {
+            WildexUiRenderUtil.renderTooltip(
+                    graphics,
+                    this.font,
+                    headerSummaryTip,
+                    physicalMouseX,
+                    physicalMouseY,
+                    this.physicalScreenW,
+                    this.physicalScreenH,
+                    theme
+            );
+        }
+        Component favoriteTip = rightHeaderRenderer.favoriteButtonTooltip(
+                this.font,
+                this.layout.rightHeaderArea(),
+                state,
+                data.header(),
+                favorite,
+                physicalMouseX,
+                physicalMouseY
+        );
+        if (favoriteTip != null) {
+            WildexUiRenderUtil.renderTooltip(
+                    graphics,
+                    this.font,
+                    List.of(favoriteTip),
+                    physicalMouseX,
+                    physicalMouseY,
+                    this.physicalScreenW,
+                    this.physicalScreenH,
+                    theme
+            );
         }
 
         if (this.discoveredOnlyCheckbox != null && this.discoveredOnlyCheckbox.isHovered()) {
@@ -1370,6 +1678,10 @@ public final class WildexScreen extends Screen {
         if (this.filterMenuButton != null && this.filterMenuButton.isHovered()) {
             Component tip = this.filterMenuButton.tooltip();
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
+        }
+        if (this.favoritesFilterButton != null && this.favoritesFilterButton.isHovered()) {
+            Component tip = this.favoritesFilterButton.tooltip();
+            if (tip != null) WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(tip), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
         if (isMouseOverVariantProbeIndicator(physicalMouseX, physicalMouseY, variantProbeIndicatorArea)) {
             int pendingJobs = WildexEntityVariantCatalog.pendingJobCount();
@@ -1405,7 +1717,21 @@ public final class WildexScreen extends Screen {
         if (this.shareOverlay != null && this.shareOverlay.isShareOpenOffersHovered()) {
             WildexUiRenderUtil.renderTooltip(graphics, this.font, List.of(this.shareOverlay.shareOpenOffersTooltip()), physicalMouseX, physicalMouseY, this.physicalScreenW, this.physicalScreenH, theme);
         }
+        if (this.legacyResetConfirmOpen) {
+            renderLegacyResetConfirm(graphics, theme, physicalMouseX, physicalMouseY);
+        }
         this.screenSpace.popScale(graphics);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.legacyResetConfirmOpen) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                closeLegacyResetConfirm();
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private boolean isSingleplayerSession() {
@@ -1513,6 +1839,144 @@ public final class WildexScreen extends Screen {
     private static boolean isMouseOverPreviewControlsHint(int mouseX, int mouseY, HintBounds hint) {
         if (hint == null || hint.w() <= 0 || hint.h() <= 0) return false;
         return mouseX >= hint.x() && mouseX < hint.x() + hint.w() && mouseY >= hint.y() && mouseY < hint.y() + hint.h();
+    }
+
+    private void openLegacyResetConfirm(String mobId) {
+        if (mobId == null || mobId.isBlank()) return;
+        this.legacyResetConfirmMobId = mobId;
+        this.legacyResetConfirmOpen = true;
+    }
+
+    private void closeLegacyResetConfirm() {
+        this.legacyResetConfirmOpen = false;
+        this.legacyResetConfirmMobId = "";
+    }
+
+    private boolean handleLegacyResetConfirmClick(int mouseX, int mouseY, int button) {
+        if (!this.legacyResetConfirmOpen) return false;
+        if (button != 0) return true;
+
+        WildexScreenLayout.Area accept = legacyResetConfirmAcceptArea();
+        WildexScreenLayout.Area cancel = legacyResetConfirmCancelArea();
+        if (isInside(mouseX, mouseY, accept)) {
+            String mobId = this.legacyResetConfirmMobId;
+            closeLegacyResetConfirm();
+            if (mobId != null && !mobId.isBlank()) {
+                WildexNetworkClient.resetLegacyDiscovery(mobId);
+            }
+            return true;
+        }
+        if (isInside(mouseX, mouseY, cancel) || !isInside(mouseX, mouseY, legacyResetConfirmPanelArea())) {
+            closeLegacyResetConfirm();
+            return true;
+        }
+        return true;
+    }
+
+    private void renderLegacyResetConfirm(GuiGraphics graphics, WildexUiTheme.Palette theme, int mouseX, int mouseY) {
+        WildexScreenLayout.Area panel = legacyResetConfirmPanelArea();
+
+        graphics.fill(0, 0, this.physicalScreenW, this.physicalScreenH, 0x66000000);
+        WildexUiRenderUtil.drawPanelFrame(graphics, panel, theme);
+        int panelFill = 0xFF000000 | (theme.listBg() & 0x00FFFFFF);
+        graphics.fill(panel.x() + 2, panel.y() + 2, panel.x() + panel.w() - 2, panel.y() + panel.h() - 2, panelFill);
+
+        int titleX = panel.x() + 8;
+        int titleY = panel.y() + 8;
+        WildexUiText.draw(graphics, this.font, LEGACY_RESET_CONFIRM_TITLE, titleX, titleY, theme.ink(), false);
+
+        int textY = titleY + WildexUiText.lineHeight(this.font) + 6;
+        int textW = Math.max(1, panel.w() - 16);
+        renderWrappedComponents(graphics, panel.x() + 8, textY, textW, theme.inkMuted(), List.of(
+                LEGACY_RESET_CONFIRM_LINE1,
+                LEGACY_RESET_CONFIRM_LINE2
+        ));
+
+        WildexScreenLayout.Area cancel = legacyResetConfirmCancelArea();
+        WildexScreenLayout.Area accept = legacyResetConfirmAcceptArea();
+        drawConfirmButton(graphics, cancel, LEGACY_RESET_CONFIRM_CANCEL, theme, isInside(mouseX, mouseY, cancel), false);
+        drawConfirmButton(graphics, accept, LEGACY_RESET_CONFIRM_ACCEPT, theme, isInside(mouseX, mouseY, accept), true);
+    }
+
+    private void drawConfirmButton(
+            GuiGraphics graphics,
+            WildexScreenLayout.Area area,
+            Component label,
+            WildexUiTheme.Palette theme,
+            boolean hovered,
+            boolean danger
+    ) {
+        if (graphics == null || area == null || theme == null || label == null) return;
+        int outer = danger ? 0xFF5B241D : theme.frameOuter();
+        int inner = danger ? 0xFFDFB09B : theme.frameInner();
+        int fill = danger
+                ? (hovered ? 0xFFA24D3E : 0xFF7E3A2F)
+                : (hovered ? theme.buttonFillHover() : theme.buttonFillIdle());
+
+        graphics.fill(area.x(), area.y(), area.x() + area.w(), area.y() + area.h(), outer);
+        graphics.fill(area.x() + 1, area.y() + 1, area.x() + area.w() - 1, area.y() + area.h() - 1, inner);
+        graphics.fill(area.x() + 2, area.y() + 2, area.x() + area.w() - 2, area.y() + area.h() - 2, fill);
+
+        String text = label.getString();
+        int textW = Math.max(1, WildexUiText.width(this.font, text));
+        int textH = WildexUiText.lineHeight(this.font);
+        int availW = Math.max(1, area.w() - 8);
+        int availH = Math.max(1, area.h() - 6);
+        float scale = Math.min(1.0f, Math.min(availW / (float) textW, availH / (float) textH));
+        scale = Math.max(0.70f, scale);
+        int drawX = area.x() + Math.max(0, Math.round((area.w() - (textW * scale)) / 2.0f));
+        int drawY = area.y() + Math.max(0, Math.round((area.h() - (textH * scale)) / 2.0f));
+        WildexUiRenderUtil.drawScaledText(graphics, this.font, label, drawX, drawY, scale, 0xFFF8F2E8);
+    }
+
+    private void renderWrappedComponents(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int width,
+            int color,
+            List<Component> lines
+    ) {
+        for (Component line : lines) {
+            if (line == null) continue;
+            List<FormattedCharSequence> wrapped = this.font.split(line, Math.max(1, width));
+            for (FormattedCharSequence seq : wrapped) {
+                WildexUiText.draw(graphics, this.font, seq, x, y, color, false);
+                y += WildexUiText.lineHeight(this.font) + 2;
+            }
+        }
+    }
+
+    private WildexScreenLayout.Area legacyResetConfirmPanelArea() {
+        int w = Math.max(150, Math.round(188 * WildexUiScale.get()));
+        int h = Math.max(76, Math.round(84 * WildexUiScale.get()));
+        int x = (this.physicalScreenW - w) / 2;
+        int y = (this.physicalScreenH - h) / 2;
+        return new WildexScreenLayout.Area(x, y, w, h);
+    }
+
+    private WildexScreenLayout.Area legacyResetConfirmAcceptArea() {
+        WildexScreenLayout.Area panel = legacyResetConfirmPanelArea();
+        int buttonW = Math.max(56, Math.round(68 * WildexUiScale.get()));
+        int buttonH = Math.max(16, Math.round(18 * WildexUiScale.get()));
+        int y = panel.y() + panel.h() - buttonH - 8;
+        int x = panel.x() + panel.w() - buttonW - 8;
+        return new WildexScreenLayout.Area(x, y, buttonW, buttonH);
+    }
+
+    private WildexScreenLayout.Area legacyResetConfirmCancelArea() {
+        WildexScreenLayout.Area accept = legacyResetConfirmAcceptArea();
+        int gap = Math.max(6, Math.round(8 * WildexUiScale.get()));
+        int w = Math.max(50, Math.round(58 * WildexUiScale.get()));
+        return new WildexScreenLayout.Area(accept.x() - gap - w, accept.y(), w, accept.h());
+    }
+
+    private static boolean isInside(int mouseX, int mouseY, WildexScreenLayout.Area area) {
+        return area != null
+                && mouseX >= area.x()
+                && mouseX < area.x() + area.w()
+                && mouseY >= area.y()
+                && mouseY < area.y() + area.h();
     }
 
     private record HintBounds(int x, int y, int w, int h) {
@@ -1678,6 +2142,13 @@ public final class WildexScreen extends Screen {
             this.tameableFilterButton.setY(optionY);
             this.tameableFilterButton.setWidth(optionButtonW);
             this.tameableFilterButton.setHeight(filterOptionH);
+            optionY -= filterOptionH + filterGap;
+        }
+        if (this.favoritesFilterButton != null) {
+            this.favoritesFilterButton.setX(optionX);
+            this.favoritesFilterButton.setY(optionY);
+            this.favoritesFilterButton.setWidth(optionButtonW);
+            this.favoritesFilterButton.setHeight(filterOptionH);
         }
 
         if (this.discoveredOnlyCheckbox != null) {
@@ -1967,7 +2438,8 @@ public final class WildexScreen extends Screen {
             boolean friendlyEnabled,
             boolean neutralEnabled,
             boolean hostileEnabled,
-            boolean tameableEnabled
+            boolean tameableEnabled,
+            boolean favoritesEnabled
     ) {
         if (localUiStateDirtySinceOpen) return;
 
@@ -1989,6 +2461,9 @@ public final class WildexScreen extends Screen {
             }
             if (this.tameableFilterButton != null) {
                 this.tameableFilterButton.setChecked(tameableEnabled, false);
+            }
+            if (this.favoritesFilterButton != null) {
+                this.favoritesFilterButton.setChecked(favoritesEnabled, false);
             }
             if (this.discoveredOnlyCheckbox != null) {
                 this.discoveredOnlyCheckbox.setChecked(discoveredOnly, false);
@@ -2060,7 +2535,8 @@ public final class WildexScreen extends Screen {
                 isFriendlyFilterEnabled(),
                 isNeutralFilterEnabled(),
                 isHostileFilterEnabled(),
-                isTameableFilterEnabled()
+                isTameableFilterEnabled(),
+                isFavoritesFilterEnabled()
         );
     }
 
@@ -2074,7 +2550,7 @@ public final class WildexScreen extends Screen {
     }
 
     private static ResourceLocation sanitizeMobId(String raw) {
-        ResourceLocation rl = ResourceLocation.tryParse(raw == null ? "" : raw);
+        ResourceLocation rl = ResourceLocation.tryParse(raw);
         if (rl == null) return null;
         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return null;
         return rl;
