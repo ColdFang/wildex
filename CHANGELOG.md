@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0
+## 3.0.0 - 2026-03-20
 
 ### Added
 - Added a new common config option `spyglassDiscoveryRange`:
@@ -42,13 +42,13 @@
 ### Compatibility
 - Existing worlds are supported.
 - No destructive migration of existing discovery data is required.
-- Safe update path from `2.7.3`.
+- Safe update path from 2.7.3
 - Multiplayer-safe:
   - discovery details remain server-authoritative
   - favorites remain server-authoritative
   - legacy entry resets are validated on the server
 - Important:
-  - entries discovered before `3.0.0` do not automatically have discovery metadata
+  - entries discovered before 3.0.0 do not automatically have discovery metadata
   - players can reset those legacy entries and discover them again to collect new discovery data
 
 ## 2.7.3 - 2026-03-15
